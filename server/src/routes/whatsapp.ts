@@ -70,7 +70,8 @@ export function whatsappRouter(io: SocketServer) {
 
       if (ev.event !== 'message' && ev.event !== 'message.any') return;
       const p = ev.payload || {};
-      const info = p._data?.Info || {};
+      if (process.env.WA_DEBUG === '1') console.log('WA payload:', JSON.stringify(p).slice(0, 2000));
+      const info = p._data?.Info || p._data?.info || {};
       const fromMe: boolean = !!(p.fromMe ?? info.IsFromMe);
       if (info.IsGroup || info.IsNewsletterStatus) return;
 
