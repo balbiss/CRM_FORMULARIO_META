@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { useRoleInfo, scopeLeads } from '../lib/selectors';
-import { BRL, ini } from '../lib/format';
+import { BRL } from '../lib/format';
+import { ChatAvatar } from '../components/ChatAvatar';
 
 function statusOf(col: string) {
   if (col === 'venda') return { label: 'Fidelizado', bg: 'var(--oliveSoft)', color: 'var(--olive)' };
@@ -48,7 +49,7 @@ export default function Clientes() {
           return (
             <div key={l.id} className="data-row" style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '13px 20px', borderBottom: '1px solid var(--line)' }}>
               <span style={{ flex: 1.6, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--terraSoft)', color: 'var(--terra)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flex: 'none' }}>{ini(l.nome)}</span>
+                <ChatAvatar nome={l.nome} foto={l.foto} size={30} />
                 <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.nome}</span>
               </span>
               <span style={{ flex: 1, fontSize: 13, color: 'var(--muted)' }}>{l.tel}</span>

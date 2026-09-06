@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
-import { canalPill, thumb, PILL } from '../lib/format';
+import { canalPill, PILL } from '../lib/format';
 import { css } from '../lib/css';
+import { ChatAvatar } from '../components/ChatAvatar';
 import type { BolsaoTab } from '../store/appStore';
 
 const MOTIVOS_EXTREMOS = ['Descadastrar', 'Já Comprou'];
@@ -93,9 +94,9 @@ export default function Bolsao() {
 
       {bTab === 'novos' && (
         <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', overflow: 'hidden' }}>
-          {leadsNovos.map((l, i) => (
+          {leadsNovos.map(l => (
             <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderBottom: '1px solid var(--line)' }}>
-              <span style={css(thumb(i, 34))} />
+              <ChatAvatar nome={l.nome} foto={l.foto} size={34} />
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: 'block', fontSize: 14, fontWeight: 600 }}>{l.nome}</span>
                 <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{l.imovelSub} · {l.tel}</span>
@@ -111,9 +112,9 @@ export default function Bolsao() {
 
       {bTab === 'rebatidas' && (
         <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', overflow: 'hidden' }}>
-          {rebatidasGeral.map((l, i) => (
+          {rebatidasGeral.map(l => (
             <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderBottom: '1px solid var(--line)' }}>
-              <span style={css(thumb(i, 34))} />
+              <ChatAvatar nome={l.nome} foto={l.foto} size={34} />
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: 'block', fontSize: 14, fontWeight: 600 }}>{l.nome}</span>
                 <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{l.imovelSub} · {l.tel}</span>
