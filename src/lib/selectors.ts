@@ -17,11 +17,10 @@ export function scopeLeads(leads: Lead[], isManager: boolean, meNome: string): L
 
 export const CORRETOR_NOMES = ['Camila Rocha', 'Diego Antunes', 'Fernanda Lopes', 'Marcelo Braga', 'Priscila Nunes', 'Rafael Teixeira'];
 
-/** Total de mensagens não lidas — ainda não existe um campo "lida" real pra mensagem de
- * WhatsApp no banco (diferente de notificações, que já tem), então não fabricamos um número
- * falso aqui. Fica em 0 (sem badge) até esse dado existir de verdade. */
+/** Total de conversas com mensagem recebida ainda não lida (badge da sidebar). */
 export function useUnreadTotal() {
-  return 0;
+  const conversas = useAppStore(s => s.conversas);
+  return conversas.reduce((n, c) => n + (c.naoLidas ?? 0), 0);
 }
 
 /** Rebatidas pool count visible to the current role (badge count for the sidebar). */

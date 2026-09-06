@@ -23,10 +23,9 @@ async function waha<T = unknown>(path: string, opts: WahaOpts = {}): Promise<T> 
   return json as T;
 }
 
-// 'message' = recebidas; 'message.any' = recebidas + enviadas; alguns engines (WEBJS) só
-// disparam de forma confiável com 'message' — mandamos os dois e o webhook deduplica por id.
-// session.status mantém o status/numero em dia sem polling.
-const EVENTOS = ['message', 'message.any', 'session.status'];
+// message.any cobre recebidas E enviadas (uma vez cada — registrar 'message' junto
+// duplica). message.ack traz o "visto" (entregue/lido). session.status mantém o status.
+const EVENTOS = ['message.any', 'message.ack', 'session.status'];
 
 function webhookConfig() {
   const url = publicUrl() ? `${publicUrl()}/api/whatsapp/webhook?secret=${encodeURIComponent(webhookSecret())}` : undefined;

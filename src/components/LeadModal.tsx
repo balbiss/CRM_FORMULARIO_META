@@ -6,6 +6,7 @@ import { BRL, canalPill, thumb } from '../lib/format';
 import { css } from '../lib/css';
 import { uploadArquivo, tipoDeArquivo } from '../lib/upload';
 import { AnexoMensagem } from './AnexoMensagem';
+import { Visto } from './Visto';
 import { AudioRecordButton } from './AudioRecordButton';
 import { EmojiPicker } from './EmojiPicker';
 
@@ -34,6 +35,10 @@ export function LeadModal() {
   const move = useAppStore(s => s.move);
   const colunas = useAppStore(s => s.colunasRemotas);
   const advance = useAppStore(s => s.advance);
+  const ask = useAppStore(s => s.ask);
+  const excluirLead = useAppStore(s => s.excluirLead);
+  const limparConversa = useAppStore(s => s.limparConversa);
+  const [excluirOpen, setExcluirOpen] = useState(false);
   const discardOpen = useAppStore(s => s.discardOpen);
   const discardWarn = useAppStore(s => s.discardWarn);
   const openDiscard = useAppStore(s => s.openDiscard);
@@ -146,6 +151,25 @@ export function LeadModal() {
                 <button onClick={() => advance(L.id)} style={{ padding: '11px 16px', border: '1px solid var(--line)', borderRadius: 8, background: 'none', fontSize: 13, fontWeight: 600 }}>Avançar etapa</button>
                 <span style={{ flex: 1 }} />
                 <div style={{ position: 'relative' }}>
+                  <button onClick={() => setExcluirOpen(v => !v)} style={{ padding: '11px 16px', border: '1px solid var(--line)', borderRadius: 8, background: 'none', fontSize: 13, color: '#C0392B' }}>Excluir ▾</button>
+                  {excluirOpen && (
+                    <div style={{ position: 'absolute', right: 0, bottom: 52, width: 250, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, padding: 6, boxShadow: '0 14px 30px rgba(28,27,26,.16)', zIndex: 5 }}>
+                      <button
+                        onClick={() => { setExcluirOpen(false); ask('Apagar a conversa?', 'Todas as mensagens de WhatsApp deste lead serão apagadas. O lead continua no CRM.', 'Apagar conversa', () => limparConversa(L.id)); }}
+                        style={{ width: '100%', textAlign: 'left', padding: '10px 11px', border: 'none', background: 'none', borderRadius: 6, fontSize: 13 }}
+                      >
+                        Apagar só a conversa
+                      </button>
+                      <button
+                        onClick={() => { setExcluirOpen(false); ask('Excluir "' + L.nome + '" do CRM?', 'O lead, a conversa, as etiquetas e o histórico são apagados de vez. Não tem como desfazer.', 'Excluir do CRM', () => excluirLead(L.id)); }}
+                        style={{ width: '100%', textAlign: 'left', padding: '10px 11px', border: 'none', background: 'none', borderRadius: 6, fontSize: 13, color: '#C0392B', fontWeight: 600 }}
+                      >
+                        Excluir lead do CRM
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div style={{ position: 'relative' }}>
                   <button onClick={openDiscard} style={{ padding: '11px 16px', border: '1px solid var(--line)', borderRadius: 8, background: 'none', fontSize: 13, color: 'var(--terra)' }}>Descartar lead ▾</button>
                   {discardOpen && (
                     <div style={{ position: 'absolute', right: 0, bottom: 52, width: 262, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, padding: 6, boxShadow: '0 14px 30px rgba(28,27,26,.16)', zIndex: 5 }}>
@@ -192,7 +216,7 @@ export function LeadModal() {
                         {m.bot && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'rgba(255,255,255,.18)', padding: '3px 8px', borderRadius: 20, marginBottom: 7 }}>🤖 Follow-up automático</span>}
                         {m.anexoUrl && <AnexoMensagem url={m.anexoUrl} tipo={m.anexoTipo} />}
                         {m.texto && <span style={{ display: 'block' }}>{m.texto}</span>}
-                        <span style={{ display: 'block', fontSize: 10.5, opacity: 0.65, marginTop: 5, textAlign: 'right' }}>{m.stamp}</span>
+                        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3, fontSize: 10.5, opacity: 0.75, marginTop: 5 }}>{m.stamp}<Visto estado={m.visto} /></span>
                       </span>
                     </div>
                   </div>

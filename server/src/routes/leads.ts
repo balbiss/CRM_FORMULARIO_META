@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { leads, leadTags } from '../db/schema.js';
+import { leads, leadTags, mensagensWhatsapp } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { Server as SocketServer } from 'socket.io';
 
@@ -96,6 +96,33 @@ export function leadsRouter(io: SocketServer) {
     if (!row) return res.status(404).json({ error: 'Lead não encontrado' });
     io.to('imobiliaria:' + imobiliariaId).emit('lead:updated', row);
     res.json(row);
+  });
+
+  // Limpa só a conversa de WhatsApp do lead (o lead continua).
+  router.delete('/:id/conversa', async (req, res) => {
+    const { imobiliariaId, role, sub } = req.auth!;
+    const scoped = role === 'corretor'
+      ? and(eq(leads.id, req.params.id), eq(leads.imobiliariaId, imobiliariaId), eq(leads.corretorId, sub))
+      : and(eq(leads.id, req.params.id), eq(leads.imobiliariaId, imobiliariaId));
+    const [lead] = await db.select({ id: leads.id }).from(leads).where(scoped).limit(1);
+    if (!lead) return res.status(404).json({ error: 'Lead não encontrado' });
+    await db.delete(mensagensWhatsapp).where(eq(mensagensWhatsapp.leadId, lead.id));
+    io.to('imobiliaria:' + imobiliariaId).emit('conversa:limpa', { leadId: lead.id });
+    res.json({ ok: true });
+  });
+
+  // Exclui o lead do CRM inteiro (conversa, etiquetas, tudo — FKs ON DELETE CASCADE).
+  // Corretor pode excluir só os próprios; gerente/dono qualquer um da imobiliária.
+  router.delete('/:id', async (req, res) => {
+    const { imobiliariaId, role, sub } = req.auth!;
+    const scoped = role === 'corretor'
+      ? and(eq(leads.id, req.params.id), eq(leads.imobiliariaId, imobiliariaId), eq(leads.corretorId, sub))
+      : and(eq(leads.id, req.params.id), eq(leads.imobiliariaId, imobiliariaId));
+    const [lead] = await db.select({ id: leads.id }).from(leads).where(scoped).limit(1);
+    if (!lead) return res.status(404).json({ error: 'Lead não encontrado' });
+    await db.delete(leads).where(eq(leads.id, lead.id));
+    io.to('imobiliaria:' + imobiliariaId).emit('lead:removido', { id: lead.id });
+    res.json({ ok: true });
   });
 
   return router;

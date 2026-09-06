@@ -1,5 +1,5 @@
-import { pgTable, uuid, text, boolean, integer, numeric, timestamp, date, pgEnum, jsonb, index, primaryKey } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { pgTable, uuid, text, boolean, integer, numeric, timestamp, date, pgEnum, jsonb, index, uniqueIndex, primaryKey } from 'drizzle-orm/pg-core';
+import { relations, sql } from 'drizzle-orm';
 
 export const roleEnum = pgEnum('role', ['dono', 'gerente', 'corretor']);
 // Situação da imobiliária no SaaS. 'bloqueada' = sem acesso ao CRM (manual ou por inadimplência).
@@ -210,6 +210,10 @@ export const mensagensWhatsapp = pgTable('mensagens_whatsapp', {
   direcao: direcaoEnum('direcao').notNull(),
   // id da mensagem no WhatsApp (WAHA) — evita duplicar ao processar o webhook 2x.
   waMessageId: text('wa_message_id'),
+  // "visto" do WhatsApp (evento message.ack): 1=enviando, 2=no servidor, 3=entregue, 4=lido, 5=reproduzido.
+  ackStatus: integer('ack_status'),
+  // Mensagem recebida já foi vista por alguém do CRM? (pro contador de não lidas em Conversas)
+  lida: boolean('lida').notNull().default(false),
   // quem enviou (corretor), quando a mensagem sai pelo número central.
   enviadoPor: uuid('enviado_por').references(() => perfis.id, { onDelete: 'set null' }),
   // Mensagem pode ser só texto, só anexo, ou os dois — por isso texto virou opcional.
@@ -221,6 +225,8 @@ export const mensagensWhatsapp = pgTable('mensagens_whatsapp', {
   enviadoEm: timestamp('enviado_em', { withTimezone: true }).notNull().defaultNow(),
 }, table => ({
   leadIdx: index('mensagens_lead_id_idx').on(table.leadId),
+  // Trava de duplicidade: o webhook do WAHA pode chegar 2x (retry, múltiplos eventos).
+  waMsgIdx: uniqueIndex('mensagens_wa_message_id_uq').on(table.waMessageId).where(sql`${table.waMessageId} is not null`),
 }));
 
 export const followupFluxos = pgTable('followup_fluxos', {

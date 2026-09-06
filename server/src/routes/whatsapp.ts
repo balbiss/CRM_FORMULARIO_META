@@ -8,6 +8,14 @@ import { wahaConfigurado, criarSessao, pararSessao, statusSessao, qrSessao, webh
 import type { Server as SocketServer } from 'socket.io';
 
 const soDigitos = (s: string) => (s || '').replace(/[^0-9]/g, '');
+
+/** 5591982935558 -> (91) 98293-5558 ; formata BR quando dá, senão devolve o número cru. */
+function formatarTelefone(num: string): string {
+  const d = soDigitos(num);
+  const semPais = d.startsWith('55') && d.length >= 12 ? d.slice(2) : d;
+  const m = semPais.match(/^(\d{2})(\d{4,5})(\d{4})$/);
+  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : (d || num);
+}
 /** telefone do lead casa com o número do WhatsApp? compara os últimos 8 dígitos (número local). */
 function mesmoNumero(a: string, b: string) {
   const x = soDigitos(a), y = soDigitos(b);
@@ -38,6 +46,24 @@ export function whatsappRouter(io: SocketServer) {
           const stf = await statusSessao(ev.session).catch(() => null);
           if (stf?.numero) await db.update(sessoesWhatsapp).set({ numero: stf.numero }).where(eq(sessoesWhatsapp.sessionName, ev.session));
           io.emit('sessao:mudou', { sessionName: ev.session, status: novo });
+        }
+        return;
+      }
+
+      // --- message.ack: "visto" do WhatsApp (entregue/lido) ---
+      if (ev.event === 'message.ack') {
+        const pa = ev.payload || {};
+        const id: string | undefined = pa.id;
+        const ack: number = Number(pa.ack) || 0;
+        if (id && ack > 0) {
+          const [row] = await db.update(mensagensWhatsapp)
+            .set({ ackStatus: ack })
+            .where(eq(mensagensWhatsapp.waMessageId, id))
+            .returning({ id: mensagensWhatsapp.id, leadId: mensagensWhatsapp.leadId });
+          if (row) {
+            const [l] = await db.select({ imob: leads.imobiliariaId }).from(leads).where(eq(leads.id, row.leadId)).limit(1);
+            if (l) io.to('imobiliaria:' + l.imob).emit('mensagem:ack', { id: row.id, ackStatus: ack });
+          }
         }
         return;
       }
@@ -86,6 +112,10 @@ export function whatsappRouter(io: SocketServer) {
       const escopoLeads = sessao.escopo === 'corretor' && sessao.corretorId
         ? and(eq(leads.imobiliariaId, sessao.imobiliariaId), eq(leads.corretorId, sessao.corretorId))
         : eq(leads.imobiliariaId, sessao.imobiliariaId);
+      // Nome do perfil do WhatsApp (quando não veio de formulário de campanha).
+      const pushName: string = (fromMe ? '' : (p.notifyName || p._data?.notifyName || info.PushName || p._data?.pushName || '')).trim();
+      const nomePlaceholder = 'Contato ' + formatarTelefone(numero);
+
       const candidatos = await db.select().from(leads).where(escopoLeads);
       let lead = candidatos.find(l => mesmoNumero(l.telefone, numero));
 
@@ -95,7 +125,7 @@ export function whatsappRouter(io: SocketServer) {
           .where(and(eq(colunasKanban.imobiliariaId, sessao.imobiliariaId), eq(colunasKanban.slug, 'novo'))).limit(1);
         const [novo] = await db.insert(leads).values({
           imobiliariaId: sessao.imobiliariaId,
-          nome: p.notifyName || p._data?.notifyName || info.PushName || p._data?.pushName || ('WhatsApp ' + numero.slice(-4)),
+          nome: pushName || nomePlaceholder,
           telefone: numero,
           canal: 'WhatsApp',
           colunaId: colNova?.id,
@@ -106,22 +136,35 @@ export function whatsappRouter(io: SocketServer) {
       }
       if (!lead) return;
 
+      // Lead já existia com nome-placeholder e agora temos o nome do perfil -> atualiza.
+      if (pushName && lead.nome !== pushName && /^(Contato |WhatsApp )/.test(lead.nome)) {
+        const [atualizado] = await db.update(leads).set({ nome: pushName }).where(eq(leads.id, lead.id)).returning();
+        if (atualizado) {
+          lead = atualizado;
+          io.to('imobiliaria:' + sessao.imobiliariaId).emit('lead:updated', atualizado);
+        }
+      }
+
       const anexoUrl: string | null = p.media?.url || p.mediaUrl || null;
       const tipoRaw: string = p.media?.mimetype?.split('/')[0] || p.type || '';
       const anexoTipo = (p.hasMedia || anexoUrl)
         ? (/image/.test(tipoRaw) ? 'imagem' : /video/.test(tipoRaw) ? 'video' : /audio|ptt/.test(tipoRaw) ? 'audio' : 'documento')
         : null;
 
-      const [msg] = await db.insert(mensagensWhatsapp).values({
+      const inseridas = await db.insert(mensagensWhatsapp).values({
         leadId: lead.id,
         direcao: fromMe ? 'out' : 'in',
         canal: 'corretor',
         waMessageId: waId ?? null,
+        ackStatus: fromMe ? 2 : null,
         enviadoPor: fromMe ? (sessao.corretorId ?? null) : null,
         texto,
         anexoUrl,
         anexoTipo,
-      }).returning();
+      }).onConflictDoNothing({ target: mensagensWhatsapp.waMessageId }).returning();
+
+      const msg = inseridas[0];
+      if (!msg) return; // era duplicada (webhook 2x) — ignora em silêncio
       io.to('imobiliaria:' + sessao.imobiliariaId).emit('mensagem:created', msg);
     } catch (e) {
       console.error('webhook WAHA:', (e as Error).message);

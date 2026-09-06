@@ -45,12 +45,14 @@ export interface RemoteNotificacao { id: string; tipo: string; titulo: string; t
 export interface RemoteMensagem {
   id: string; leadId: string; direcao: 'in' | 'out'; texto: string | null;
   anexoUrl: string | null; anexoTipo: AnexoTipo | null; canal: 'corretor' | 'followup'; enviadoEm: string;
+  ackStatus?: number | null;
 }
 
 /** Resumo da última mensagem de um lead — usado só pra saber QUAIS leads já tiveram interação
  * de verdade (Conversas não pode listar todo mundo da base, com 10k+ leads isso é inviável). */
 export interface RemoteConversa {
   leadId: string; texto: string | null; anexoTipo: AnexoTipo | null; direcao: 'in' | 'out'; enviadoEm: string;
+  naoLidas?: number;
 }
 
 function mapRemoteMensagem(r: RemoteMensagem): ChatMsg {
@@ -58,7 +60,7 @@ function mapRemoteMensagem(r: RemoteMensagem): ChatMsg {
   const off = Math.max(0, Math.floor((Date.now() - dt.getTime()) / 86400000));
   return {
     id: r.id, side: r.direcao, texto: r.texto ?? '', hora: dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    bot: r.canal === 'followup', off, anexoUrl: r.anexoUrl, anexoTipo: r.anexoTipo,
+    bot: r.canal === 'followup', off, anexoUrl: r.anexoUrl, anexoTipo: r.anexoTipo, ack: r.ackStatus ?? undefined,
   };
 }
 
@@ -301,6 +303,8 @@ interface AppState {
   newLead: () => void;
   setNewLeadOpen: (v: boolean) => void;
   criarLeadManual: (input: { nome: string; telefone: string; email?: string; canal: string; corretorId?: string }) => Promise<boolean>;
+  excluirLead: (id: string) => Promise<boolean>;
+  limparConversa: (id: string) => Promise<boolean>;
   advance: (id: string) => void;
   askDiscard: (id: string, nome: string) => void;
   goDay: (n: number) => void;
@@ -500,7 +504,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     socket.off('mensagem:created').on('mensagem:created', (row: RemoteMensagem) => {
       set(s => {
-        const resumo: RemoteConversa = { leadId: row.leadId, texto: row.texto, anexoTipo: row.anexoTipo, direcao: row.direcao, enviadoEm: row.enviadoEm };
+        const abertaAgora = s.leadId === row.leadId;
+        const anterior = s.conversas.find(c => c.leadId === row.leadId);
+        const naoLidas = row.direcao === 'in' && !abertaAgora ? (anterior?.naoLidas ?? 0) + 1 : (abertaAgora ? 0 : anterior?.naoLidas ?? 0);
+        const resumo: RemoteConversa = { leadId: row.leadId, texto: row.texto, anexoTipo: row.anexoTipo, direcao: row.direcao, enviadoEm: row.enviadoEm, naoLidas };
         const semEsse = s.conversas.filter(c => c.leadId !== row.leadId);
         const conversas = [resumo, ...semEsse];
 
@@ -508,6 +515,40 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (!lista) return { conversas }; // conversa não está aberta agora — não precisa manter em memória
         if (lista.some(m => m.id === row.id)) return { conversas };
         return { conversas, chats: { ...s.chats, [row.leadId]: [...lista, mapRemoteMensagem(row)] } };
+      });
+    });
+    socket.off('conversa:lida').on('conversa:lida', (msg: { leadId: string }) => {
+      set(s => ({ conversas: s.conversas.map(c => (c.leadId === msg.leadId ? { ...c, naoLidas: 0 } : c)) }));
+    });
+    socket.off('mensagem:ack').on('mensagem:ack', (msg: { id: string; ackStatus: number }) => {
+      set(s => {
+        const next: typeof s.chats = {};
+        let mudou = false;
+        for (const [lid, lista] of Object.entries(s.chats)) {
+          next[lid] = lista.map(m => {
+            if (m.id !== msg.id) return m;
+            mudou = true;
+            return { ...m, ack: msg.ackStatus };
+          });
+        }
+        return mudou ? { chats: next } : {};
+      });
+    });
+    socket.off('lead:removido').on('lead:removido', (msg: { id: string }) => {
+      set(s => {
+        const chats = { ...s.chats }; delete chats[msg.id];
+        return {
+          leads: s.leads.filter(l => l.id !== msg.id),
+          conversas: s.conversas.filter(c => c.leadId !== msg.id),
+          chats,
+          leadId: s.leadId === msg.id ? null : s.leadId,
+        };
+      });
+    });
+    socket.off('conversa:limpa').on('conversa:limpa', (msg: { leadId: string }) => {
+      set(s => {
+        const chats = { ...s.chats }; delete chats[msg.leadId];
+        return { chats, conversas: s.conversas.filter(c => c.leadId !== msg.leadId) };
       });
     });
   },
@@ -637,7 +678,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const token = get().token;
     if (!token) return;
     apiFetch<RemoteMensagem[]>('/api/mensagens/' + leadId, token)
-      .then(rows => set(s => ({ chats: { ...s.chats, [leadId]: rows.map(mapRemoteMensagem) } })))
+      .then(rows => set(s => ({
+        chats: { ...s.chats, [leadId]: rows.map(mapRemoteMensagem) },
+        // abrir a conversa zera o contador de não lidas (o backend também marca no banco)
+        conversas: s.conversas.map(c => (c.leadId === leadId ? { ...c, naoLidas: 0 } : c)),
+      })))
       .catch(() => get().toast('Não foi possível carregar a conversa'));
   },
   fetchConversas: () => {
@@ -1392,6 +1437,40 @@ export const useAppStore = create<AppState>((set, get) => ({
       return true;
     } catch (e) {
       get().toast((e as ApiError).message || 'Não foi possível criar o lead');
+      return false;
+    }
+  },
+  excluirLead: async id => {
+    const token = get().token;
+    if (!token) return false;
+    const nome = get().leads.find(l => l.id === id)?.nome || 'Lead';
+    try {
+      await apiFetch('/api/leads/' + id, token, { method: 'DELETE' });
+      set(s => ({
+        leads: s.leads.filter(l => l.id !== id),
+        conversas: s.conversas.filter(c => c.leadId !== id),
+        leadId: s.leadId === id ? null : s.leadId,
+      }));
+      get().toast(nome + ' excluído do CRM');
+      return true;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível excluir');
+      return false;
+    }
+  },
+  limparConversa: async id => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      await apiFetch('/api/leads/' + id + '/conversa', token, { method: 'DELETE' });
+      set(s => {
+        const chats = { ...s.chats }; delete chats[id];
+        return { chats, conversas: s.conversas.filter(c => c.leadId !== id) };
+      });
+      get().toast('Conversa apagada');
+      return true;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível apagar a conversa');
       return false;
     }
   },

@@ -129,11 +129,15 @@ export interface ChatMsg {
   off?: number;
   anexoUrl?: string | null;
   anexoTipo?: AnexoTipo | null;
+  /** "visto" do WhatsApp: 1 enviando, 2 servidor, 3 entregue, 4 lido, 5 reproduzido. */
+  ack?: number;
 }
 
 export interface MappedMsg {
   id: string; texto: string; hora: string; stamp: string; sep: boolean; sepLabel: string; bot: boolean;
   rowStyle: string; bubbleStyle: string; anexoUrl?: string | null; anexoTipo?: AnexoTipo | null;
+  /** "visto" só nas mensagens enviadas: '' | '✓' (enviada) | '✓✓' (entregue) | '✓✓ azul' (lida). */
+  visto: '' | 'enviado' | 'entregue' | 'lido';
 }
 
 export function mapMsgs(arr: ChatMsg[]): MappedMsg[] {
@@ -143,9 +147,11 @@ export function mapMsgs(arr: ChatMsg[]): MappedMsg[] {
     const lab = dayLabel(off);
     const sep = lab !== prev;
     prev = lab;
+    const visto: MappedMsg['visto'] = m.side !== 'out' ? ''
+      : (m.ack ?? 0) >= 4 ? 'lido' : (m.ack ?? 0) === 3 ? 'entregue' : 'enviado';
     return {
       id: m.id, texto: m.texto, hora: m.hora, stamp: stamp(off, m.hora), sep, sepLabel: lab, bot: !!m.bot,
-      anexoUrl: m.anexoUrl, anexoTipo: m.anexoTipo,
+      anexoUrl: m.anexoUrl, anexoTipo: m.anexoTipo, visto,
       rowStyle: 'display:flex;justify-content:' + (m.side === 'out' ? 'flex-end' : 'flex-start'),
       bubbleStyle: 'max-width:72%;padding:11px 14px;border-radius:12px;font-size:13.5px;line-height:1.55;' +
         (m.bot ? 'background:#4B3B7A;color:#fff' : m.side === 'out' ? 'background:var(--terra);color:#fff' : 'background:var(--bg);border:1px solid var(--line)'),

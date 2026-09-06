@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { leads, mensagensWhatsapp } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -43,7 +43,16 @@ export function mensagensRouter(io: SocketServer) {
 
     const ultimaPorLead = new Map<string, typeof rows[number]>();
     for (const row of rows) if (!ultimaPorLead.has(row.leadId)) ultimaPorLead.set(row.leadId, row);
-    res.json([...ultimaPorLead.values()]);
+
+    // não lidas (recebidas e ainda não vistas) por lead
+    const naoLidas = await db.select({ leadId: mensagensWhatsapp.leadId, n: sql<number>`count(*)::int` })
+      .from(mensagensWhatsapp)
+      .innerJoin(leads, eq(leads.id, mensagensWhatsapp.leadId))
+      .where(and(scoped, eq(mensagensWhatsapp.direcao, 'in'), eq(mensagensWhatsapp.lida, false)))
+      .groupBy(mensagensWhatsapp.leadId);
+    const nlMap = new Map(naoLidas.map(r => [r.leadId, r.n]));
+
+    res.json([...ultimaPorLead.values()].map(r => ({ ...r, naoLidas: nlMap.get(r.leadId) ?? 0 })));
   });
 
   router.get('/:leadId', async (req, res) => {
@@ -54,6 +63,13 @@ export function mensagensRouter(io: SocketServer) {
     const rows = await db.select().from(mensagensWhatsapp)
       .where(eq(mensagensWhatsapp.leadId, req.params.leadId))
       .orderBy(asc(mensagensWhatsapp.enviadoEm));
+
+    // abrir a conversa marca as recebidas como lidas
+    await db.update(mensagensWhatsapp)
+      .set({ lida: true })
+      .where(and(eq(mensagensWhatsapp.leadId, req.params.leadId), eq(mensagensWhatsapp.direcao, 'in'), eq(mensagensWhatsapp.lida, false)));
+    io.to('imobiliaria:' + imobiliariaId).emit('conversa:lida', { leadId: req.params.leadId });
+
     res.json(rows);
   });
 
