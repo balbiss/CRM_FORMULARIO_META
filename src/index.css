@@ -159,11 +159,22 @@ a:hover { color: var(--ink); }
   /* grades de 2 colunas dentro de modal empilham */
   .modal-card .grid2, .modal-card [data-modal-grid] { grid-template-columns: 1fr !important; }
 }
-@media (max-width: 1250px) {
-  .conv-grid { grid-template-columns: 1fr !important; }
-  .conv-col[data-hide='1'] { display: none !important; }
-  .conv-back { display: flex !important; }
+/* Conversas em tela cheia — quebra o padding do .app-main e ocupa toda a altura útil */
+.conv-fullbleed {
+  margin: -22px -34px -48px;
+  height: calc(100dvh - 58px);
+  display: flex;
+  overflow: hidden;
+}
+.conv-grid { flex: 1; display: grid; grid-template-columns: 360px 1fr; min-height: 0; }
+.conv-col { min-height: 0; }
+
+@media (max-width: 1150px) {
+  .conv-grid { grid-template-columns: 320px 1fr; }
 }
 @media (max-width: 900px) {
-  .conv-grid { height: calc(100vh - 160px) !important; }
+  .conv-fullbleed { margin: -18px -15px -56px; height: calc(100dvh - 56px - env(safe-area-inset-top)); }
+  .conv-grid { grid-template-columns: 1fr; }
+  .conv-col[data-hide='1'] { display: none !important; }
+  .conv-back { display: flex !important; }
 }

@@ -60,18 +60,17 @@ export default function Conversas() {
   const slashItems = SLASH_ITEMS.filter(([cmd]) => slashQ === null || cmd.slice(1).startsWith(slashQ));
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
-        <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Conversas</h1>
-        <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{convBase.length + ' conversas'}</span>
-      </div>
-
-      <div className="conv-grid" style={{ display: 'grid', gridTemplateColumns: '322px 1fr', gap: 14, height: 'calc(100vh - 150px)', minHeight: 460 }}>
-        <div className="conv-col" data-hide={CL ? '1' : '0'} style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-          <div style={{ padding: 14, borderBottom: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <input value={convQuery} onChange={e => setConvQuery(e.target.value)} placeholder="Buscar por nome ou telefone…" style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13 }} />
+    <div className="conv-fullbleed">
+      <div className="conv-grid">
+        <div className="conv-col" data-hide={CL ? '1' : '0'} style={{ borderRight: '1px solid var(--line)', background: 'var(--card)', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 21, margin: 0 }}>Conversas</h1>
+              <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{convBase.length}</span>
+            </div>
+            <input value={convQuery} onChange={e => setConvQuery(e.target.value)} placeholder="Buscar por nome ou telefone…" style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13, boxSizing: 'border-box' }} />
             {isManager && (
-              <select value={convCorretor} onChange={e => setConvCorretor(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13 }}>
+              <select value={convCorretor} onChange={e => setConvCorretor(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13, boxSizing: 'border-box' }}>
                 <option>Todos os corretores</option>
                 {perfis.map(p => <option key={p.id}>{p.nome}</option>)}
               </select>
@@ -114,10 +113,10 @@ export default function Conversas() {
           </div>
         </div>
 
-        <div className="conv-col" data-hide={CL ? '0' : '1'} style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+        <div className="conv-col" data-hide={CL ? '0' : '1'} style={{ background: 'var(--bg)', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
           {CL ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid var(--line)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid var(--line)', background: 'var(--card)', flex: 'none' }}>
                 <button className="conv-back" onClick={backToList} style={{ display: 'none', width: 30, height: 30, flex: 'none', border: '1px solid var(--line)', borderRadius: 8, background: 'none', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>‹</button>
                 <button onClick={() => openLead(CL.id, 'chat')} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, background: 'none', border: 'none', textAlign: 'left', padding: 0 }}>
                   <span style={{ width: 38, height: 38, borderRadius: '50%', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700, background: 'var(--terraSoft)', color: 'var(--terra)' }}>{ini(CL.nome)}</span>
@@ -158,7 +157,7 @@ export default function Conversas() {
                   </div>
                 )}
               </div>
-              <div style={{ borderTop: '1px solid var(--line)', padding: '14px 18px', position: 'relative' }}>
+              <div style={{ borderTop: '1px solid var(--line)', padding: '14px 18px', position: 'relative', background: 'var(--card)', flex: 'none' }}>
                 {slashQ !== null && slashItems.length > 0 && (
                   <div style={{ position: 'absolute', left: 18, right: 18, bottom: 64, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, padding: 6, boxShadow: '0 12px 28px rgba(28,27,26,.14)' }}>
                     <p style={{ fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)', margin: '6px 10px 8px' }}>Templates rápidos</p>
