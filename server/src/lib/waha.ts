@@ -23,7 +23,9 @@ async function waha<T = unknown>(path: string, opts: WahaOpts = {}): Promise<T> 
   return json as T;
 }
 
-const EVENTOS = ['message', 'message.any', 'session.status'];
+// message.any cobre recebidas E enviadas (inclusive as que saem pelo celular do corretor);
+// session.status mantém o status/numero em dia sem polling.
+const EVENTOS = ['message.any', 'session.status'];
 
 /** Cria (ou recria) a sessão no WAHA já com o webhook apontando pro nosso backend. */
 export async function criarSessao(sessionName: string) {

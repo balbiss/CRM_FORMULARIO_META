@@ -27,14 +27,45 @@ export function whatsappRouter(io: SocketServer) {
 
     try {
       const ev = req.body as { event?: string; session?: string; payload?: any };
-      if (!ev.session || !(ev.event === 'message' || ev.event === 'message.any')) return;
+      if (!ev.session) return;
+
+      // --- session.status: mantém o status da sessão em dia (WAHA não empurra QR sempre) ---
+      if (ev.event === 'session.status') {
+        const st = String(ev.payload?.status || '').toUpperCase();
+        const novo = st === 'WORKING' ? 'conectada' : (st === 'SCAN_QR_CODE' || st === 'STARTING') ? 'conectando' : 'desconectada';
+        await db.update(sessoesWhatsapp).set({ status: novo }).where(eq(sessoesWhatsapp.sessionName, ev.session));
+        if (novo === 'conectada') {
+          const stf = await statusSessao(ev.session).catch(() => null);
+          if (stf?.numero) await db.update(sessoesWhatsapp).set({ numero: stf.numero }).where(eq(sessoesWhatsapp.sessionName, ev.session));
+          io.emit('sessao:mudou', { sessionName: ev.session, status: novo });
+        }
+        return;
+      }
+
+      if (ev.event !== 'message' && ev.event !== 'message.any') return;
       const p = ev.payload || {};
       const fromMe: boolean = !!p.fromMe;
-      const numeroRaw: string = (fromMe ? p.to : p.from) || '';
+
+      // Endereço do contato. Rejeita grupo / canal / lista de transmissão / status.
+      const enderecoRaw: string = (fromMe ? p.to : p.from) || p._data?.id?.remote || '';
+      if (/@g\.us|@newsletter|@broadcast|status@broadcast/i.test(enderecoRaw)) return;
+
+      // @lid = id interno do WhatsApp (não é telefone). Tenta resolver pro número real; senão descarta.
+      let numeroRaw = enderecoRaw;
+      if (/@lid$/i.test(enderecoRaw)) {
+        const alt = p._data?.key?.remoteJidAlt || p._data?.author || '';
+        if (!/@s\.whatsapp\.net|@c\.us/i.test(alt)) return;
+        numeroRaw = alt;
+      }
       const numero = soDigitos(numeroRaw);
       const texto: string | null = p.body || null;
       const waId: string | undefined = p.id;
-      if (!numero || (numero.length > 15)) return; // grupos etc
+      // Número de verdade tem no máximo 13 dígitos (55 + DDD + 9 + 8). Acima disso é lixo (LID não resolvido).
+      if (!numero || numero.length > 13) return;
+
+      // WAHA re-emite histórico recente como eventos "message" ao conectar — só processa msg dos últimos 10 min.
+      const tsSeg: number = Number(p.timestamp) || 0;
+      if (tsSeg && Date.now() / 1000 - tsSeg > 600) return;
 
       const [sessao] = await db.select().from(sessoesWhatsapp).where(eq(sessoesWhatsapp.sessionName, ev.session)).limit(1);
       if (!sessao) return;
@@ -69,14 +100,21 @@ export function whatsappRouter(io: SocketServer) {
       }
       if (!lead) return;
 
+      const anexoUrl: string | null = p.media?.url || p.mediaUrl || null;
+      const tipoRaw: string = p.media?.mimetype?.split('/')[0] || p.type || '';
+      const anexoTipo = (p.hasMedia || anexoUrl)
+        ? (/image/.test(tipoRaw) ? 'imagem' : /video/.test(tipoRaw) ? 'video' : /audio|ptt/.test(tipoRaw) ? 'audio' : 'documento')
+        : null;
+
       const [msg] = await db.insert(mensagensWhatsapp).values({
         leadId: lead.id,
         direcao: fromMe ? 'out' : 'in',
         canal: 'corretor',
         waMessageId: waId ?? null,
+        enviadoPor: fromMe ? (sessao.corretorId ?? null) : null,
         texto,
-        anexoUrl: p.mediaUrl ?? null,
-        anexoTipo: p.hasMedia ? (p.type === 'image' ? 'imagem' : p.type === 'video' ? 'video' : p.type === 'ptt' || p.type === 'audio' ? 'audio' : 'documento') : null,
+        anexoUrl,
+        anexoTipo,
       }).returning();
       io.to('imobiliaria:' + sessao.imobiliariaId).emit('mensagem:created', msg);
     } catch (e) {
