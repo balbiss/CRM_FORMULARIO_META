@@ -28,7 +28,7 @@ export default function Treinamentos() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
+      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
         <div>
           <p style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 4px' }}>Capacitação</p>
           <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Treinamentos</h1>
@@ -75,8 +75,8 @@ export default function Treinamentos() {
 function VideoModal({ treinamento, onClose }: { treinamento: RemoteTreinamento; onClose: () => void }) {
   const embed = treinamento.videoUrl ? youtubeEmbedUrl(treinamento.videoUrl) : null;
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(28,27,26,.6)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 760, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 20, animation: 'fadeUp .14s ease' }}>
+    <div onClick={onClose} className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(8,17,31,.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26 }}>
+      <div onClick={e => e.stopPropagation()} className="modal-card" style={{ width: '100%', maxWidth: 760, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 20, animation: 'fadeUp .14s ease' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <h3 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 19, margin: 0, flex: 1 }}>{treinamento.titulo}</h3>
           <button onClick={onClose} style={{ border: 'none', background: 'none', display: 'flex' }}><X size={18} /></button>
@@ -122,14 +122,14 @@ function TreinamentoModal({ treinamento, onClose, onSave }: {
   };
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(28,27,26,.45)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26, overflowY: 'auto' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 26, animation: 'fadeUp .14s ease', maxHeight: '90vh', overflowY: 'auto' }}>
+    <div onClick={onClose} className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(8,17,31,.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26, overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()} className="modal-card" style={{ width: '100%', maxWidth: 460, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 26, animation: 'fadeUp .14s ease', maxHeight: '90vh', overflowY: 'auto' }}>
         <h3 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 22, margin: '0 0 18px' }}>{treinamento ? 'Editar treinamento' : 'Novo treinamento'}</h3>
         <label style={fieldLabel}>Título</label>
         <input value={titulo} onChange={e => setTitulo(e.target.value)} style={fieldInput} />
         <label style={fieldLabel}>Descrição</label>
         <textarea value={descricao} onChange={e => setDescricao(e.target.value)} rows={3} style={{ ...fieldInput, resize: 'vertical', fontFamily: 'inherit' }} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div data-modal-grid style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div>
             <label style={fieldLabel}>Categoria</label>
             <input value={categoria} onChange={e => setCategoria(e.target.value)} style={fieldInput} placeholder="Ex: Atendimento" />

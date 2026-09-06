@@ -56,7 +56,7 @@ export default function Bolsao() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
+      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
         <div>
           <p style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 4px' }}>Recuperação</p>
           <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Bolsão de Leads</h1>
@@ -135,11 +135,11 @@ export default function Bolsao() {
 
       {bTab === 'descartados' && (
         <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', gap: 14, padding: '13px 20px', borderBottom: '1px solid var(--line)', fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+          <div className="data-table-head" style={{ display: 'flex', gap: 14, padding: '13px 20px', borderBottom: '1px solid var(--line)', fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>
             <span style={{ flex: 1 }}>Lead</span><span style={{ flex: 1 }}>Motivo</span><span style={{ width: 140 }}>Último corretor</span><span style={{ width: 90 }}>Há</span>
           </div>
           {rebatidasGeral.map(l => (
-            <div key={l.id} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '13px 20px', borderBottom: '1px solid var(--line)' }}>
+            <div key={l.id} className="data-row" style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '13px 20px', borderBottom: '1px solid var(--line)' }}>
               <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600 }}>{l.nome}</span>
               <span style={{ flex: 1, fontSize: 13, color: 'var(--muted)' }}>{l.motivo}</span>
               <span style={{ width: 140, fontSize: 13 }}>{l.corretor}</span>
@@ -153,7 +153,7 @@ export default function Bolsao() {
       {bTab === 'descadastrar' && (
         <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', overflow: 'hidden' }}>
           {descadastrar.map(l => (
-            <div key={l.id} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--line)' }}>
+            <div key={l.id} className="data-row" style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--line)' }}>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: 'block', fontSize: 14, fontWeight: 600 }}>{l.nome}</span>
                 <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{l.tel}</span>
@@ -169,11 +169,11 @@ export default function Bolsao() {
 
       {bTab === 'roletalog' && (
         <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', gap: 14, padding: '13px 20px', borderBottom: '1px solid var(--line)', fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+          <div className="data-table-head" style={{ display: 'flex', gap: 14, padding: '13px 20px', borderBottom: '1px solid var(--line)', fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>
             <span style={{ width: 130 }}>Data / hora</span><span style={{ flex: 1 }}>Lead</span><span style={{ flex: 1 }}>Recebido por</span><span style={{ width: 170 }}>Origem</span>
           </div>
           {roletaLog.map((r, i) => (
-            <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--line)' }}>
+            <div key={i} className="data-row" style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--line)' }}>
               <span style={{ width: 130, fontSize: 12.5, color: 'var(--muted)' }}>{r[0]}</span>
               <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600 }}>{r[1]}</span>
               <span style={{ flex: 1, fontSize: 13 }}>{r[2]}</span>

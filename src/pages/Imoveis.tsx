@@ -23,7 +23,7 @@ export default function Imoveis() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
+      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
         <div>
           <p style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 4px' }}>Catálogo</p>
           <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Imóveis</h1>
@@ -149,10 +149,10 @@ function ImovelModal({ imovel, onClose, onSave }: {
   };
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(28,27,26,.45)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26, overflowY: 'auto' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 26, animation: 'fadeUp .14s ease', maxHeight: '90vh', overflowY: 'auto' }}>
+    <div onClick={onClose} className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(8,17,31,.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26, overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()} className="modal-card" style={{ width: '100%', maxWidth: 520, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 26, animation: 'fadeUp .14s ease', maxHeight: '90vh', overflowY: 'auto' }}>
         <h3 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 22, margin: '0 0 18px' }}>{imovel ? 'Editar imóvel' : 'Novo imóvel'}</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div data-modal-grid style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div>
             <label style={fieldLabel}>Tipo</label>
             <select value={tipo} onChange={e => setTipo(e.target.value)} style={fieldInput}>
@@ -166,7 +166,7 @@ function ImovelModal({ imovel, onClose, onSave }: {
             </select>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: situacao !== 'Pronto para morar' ? '1fr 1fr' : '1fr', gap: 14 }}>
+        <div data-modal-grid style={{ display: 'grid', gridTemplateColumns: situacao !== 'Pronto para morar' ? '1fr 1fr' : '1fr', gap: 14 }}>
           <div>
             <label style={fieldLabel}>Situação</label>
             <select value={situacao} onChange={e => setSituacao(e.target.value as SituacaoImovel)} style={fieldInput}>
@@ -184,7 +184,7 @@ function ImovelModal({ imovel, onClose, onSave }: {
         <input value={titulo} onChange={e => setTitulo(e.target.value)} style={fieldInput} placeholder="Ex: Edifício Aurora — Cobertura 1201" />
         <label style={fieldLabel}>Endereço</label>
         <input value={endereco} onChange={e => setEndereco(e.target.value)} style={fieldInput} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: 14 }}>
+        <div data-modal-grid style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: 14 }}>
           <div>
             <label style={fieldLabel}>Cidade</label>
             <input value={cidade} onChange={e => setCidade(e.target.value)} style={fieldInput} />
@@ -194,7 +194,7 @@ function ImovelModal({ imovel, onClose, onSave }: {
             <input value={estado} onChange={e => setEstado(e.target.value)} style={fieldInput} maxLength={2} />
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div data-modal-grid style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div>
             <label style={fieldLabel}>Preço (R$)</label>
             <input value={preco} onChange={e => setPreco(e.target.value)} type="number" style={fieldInput} />
@@ -204,7 +204,7 @@ function ImovelModal({ imovel, onClose, onSave }: {
             <input value={area} onChange={e => setArea(e.target.value)} type="number" style={fieldInput} />
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 14 }}>
+        <div data-modal-grid="2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 14 }}>
           <div>
             <label style={fieldLabel}>Quartos</label>
             <input value={quartos} onChange={e => setQuartos(e.target.value)} type="number" style={fieldInput} />
@@ -222,7 +222,7 @@ function ImovelModal({ imovel, onClose, onSave }: {
             <input value={vagas} onChange={e => setVagas(e.target.value)} type="number" style={fieldInput} />
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div data-modal-grid style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div>
             <label style={fieldLabel}>Condomínio (R$/mês)</label>
             <input value={valorCondominio} onChange={e => setValorCondominio(e.target.value)} type="number" style={fieldInput} placeholder="Opcional" />

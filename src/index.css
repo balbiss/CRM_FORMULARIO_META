@@ -156,8 +156,9 @@ a:hover { color: var(--ink); }
     border-radius: 0 !important; max-height: 100dvh !important; height: 100dvh !important;
     overflow: hidden !important;
   }
-  /* grades de 2 colunas dentro de modal empilham */
+  /* grades dentro de modal: empilham (ou viram 2-up quando data-modal-grid="2") */
   .modal-card .grid2, .modal-card [data-modal-grid] { grid-template-columns: 1fr !important; }
+  .modal-card [data-modal-grid="2"] { grid-template-columns: 1fr 1fr !important; }
 }
 /* Conversas em tela cheia — quebra o padding do .app-main e ocupa toda a altura útil */
 .conv-fullbleed {

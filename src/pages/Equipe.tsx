@@ -42,12 +42,12 @@ export default function Equipe() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
+      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
         <div>
           <p style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 4px' }}>Pessoas</p>
           <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Equipe</h1>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div className="page-toolbar" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: 4 }}>
             {toggleBtn('cards', LayoutGrid, 'Cards')}
             {toggleBtn('lista', ListIcon, 'Lista')}
@@ -107,14 +107,14 @@ export default function Equipe() {
         </div>
       ) : (
         <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', gap: 14, padding: '13px 20px', borderBottom: '1px solid var(--line)', fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+          <div className="data-table-head" style={{ display: 'flex', gap: 14, padding: '13px 20px', borderBottom: '1px solid var(--line)', fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>
             <span style={{ flex: 1.6 }}>Nome</span><span style={{ flex: 1 }}>Cargo</span><span style={{ width: 70, textAlign: 'right' }}>Leads</span><span style={{ width: 100 }}>Status</span><span style={{ width: 260 }}>Ações</span>
           </div>
           {perfis.map(p => {
             const isCorretorRow = p.role === 'corretor';
             const canAct = isDono || isCorretorRow;
             return (
-              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 20px', borderBottom: '1px solid var(--line)' }}>
+              <div key={p.id} className="data-row" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 20px', borderBottom: '1px solid var(--line)' }}>
                 <span style={{ flex: 1.6, display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                   <span style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--terraSoft)', color: 'var(--terra)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flex: 'none' }}>{ini(p.nome)}</span>
                   <span style={{ fontSize: 13.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}</span>
@@ -126,7 +126,7 @@ export default function Equipe() {
                     ? <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#fff', background: '#A3341F', padding: '3px 8px', borderRadius: 20, whiteSpace: 'nowrap' }}>Bloqueado</span>
                     : <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--olive)', background: 'var(--oliveSoft)', padding: '3px 8px', borderRadius: 20 }}>Ativo</span>}
                 </span>
-                <span style={{ width: 260, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <span className="row-actions" style={{ width: 260, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {canAct ? (
                     <>
                       <button onClick={() => setEditing(p)} style={{ padding: '6px 9px', border: '1px solid var(--line)', borderRadius: 6, background: 'none', fontSize: 11.5, fontWeight: 600 }}>Editar</button>
@@ -167,8 +167,8 @@ function InviteModal({ isDono, onClose, onSubmit }: {
   };
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(28,27,26,.45)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 26, animation: 'fadeUp .14s ease' }}>
+    <div onClick={onClose} className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(8,17,31,.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26 }}>
+      <div onClick={e => e.stopPropagation()} className="modal-card" style={{ width: '100%', maxWidth: 420, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 26, animation: 'fadeUp .14s ease' }}>
         <h3 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 22, margin: '0 0 18px' }}>Convidar membro</h3>
         <label style={fieldLabel}>Nome</label>
         <input value={nome} onChange={e => setNome(e.target.value)} style={fieldInput} placeholder="Nome completo" />
@@ -209,8 +209,8 @@ function EditModal({ perfil, onClose, onSubmit }: {
   };
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(28,27,26,.45)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 26, animation: 'fadeUp .14s ease' }}>
+    <div onClick={onClose} className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(8,17,31,.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26 }}>
+      <div onClick={e => e.stopPropagation()} className="modal-card" style={{ width: '100%', maxWidth: 420, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 26, animation: 'fadeUp .14s ease' }}>
         <h3 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 22, margin: '0 0 18px' }}>Editar {perfil.nome}</h3>
         <label style={fieldLabel}>Nome</label>
         <input value={nome} onChange={e => setNome(e.target.value)} style={fieldInput} />
