@@ -81,7 +81,7 @@ export default function Conversas() {
           <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             {convBase.map(l => {
               const resumo = conversaPorLead.get(l.id);
-              const legendaAnexo = resumo?.anexoTipo === 'imagem' ? '📷 Foto' : resumo?.anexoTipo === 'video' ? '🎞️ Vídeo' : resumo?.anexoTipo === 'documento' ? '📎 Documento' : resumo?.anexoTipo === 'audio' ? '🎤 Áudio' : resumo?.texto;
+              const legendaAnexo = resumo?.anexoTipo === 'imagem' ? 'Foto' : resumo?.anexoTipo === 'video' ? 'Vídeo' : resumo?.anexoTipo === 'documento' ? 'Documento' : resumo?.anexoTipo === 'audio' ? 'Áudio' : resumo?.texto;
               const dataMsg = resumo ? new Date(resumo.enviadoEm) : null;
               const horaMsg = dataMsg ? dataMsg.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
               const diasMsg = dataMsg ? Math.max(0, Math.floor((Date.now() - dataMsg.getTime()) / 86400000)) : 0;
@@ -145,8 +145,8 @@ export default function Conversas() {
                     )}
                     <div style={css(m.rowStyle)}>
                       <span style={css(m.bubbleStyle)}>
-                        {m.bot && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'rgba(255,255,255,.18)', padding: '3px 8px', borderRadius: 20, marginBottom: 7 }}>🤖 Follow-up automático</span>}
-                        {m.anexoUrl && <AnexoMensagem url={m.anexoUrl} tipo={m.anexoTipo} />}
+                        {m.bot && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'rgba(255,255,255,.18)', padding: '3px 8px', borderRadius: 20, marginBottom: 7 }}>Follow-up automático</span>}
+                        {m.anexoUrl && <AnexoMensagem url={m.anexoUrl} tipo={m.anexoTipo} nome={m.anexoNome} />}
                         {m.texto && <span style={{ display: 'block' }}>{m.texto}</span>}
                         <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3, fontSize: 10.5, opacity: 0.75, marginTop: 5 }}>{m.stamp}<Visto estado={m.visto} /></span>
                       </span>

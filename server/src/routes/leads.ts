@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { leads, leadTags, mensagensWhatsapp } from '../db/schema.js';
+import { leads, leadTags, mensagensWhatsapp, filasAtendimento } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
+import { distribuirLead } from '../lib/roleta.js';
 import type { Server as SocketServer } from 'socket.io';
 
 export function leadsRouter(io: SocketServer) {
@@ -96,6 +97,22 @@ export function leadsRouter(io: SocketServer) {
     if (!row) return res.status(404).json({ error: 'Lead não encontrado' });
     io.to('imobiliaria:' + imobiliariaId).emit('lead:updated', row);
     res.json(row);
+  });
+
+  // Corretor recusa um lead que caiu pra ele — volta pra roleta (ele vai pro fim da fila).
+  router.post('/:id/recusar', async (req, res) => {
+    const { imobiliariaId, sub } = req.auth!;
+    const [lead] = await db.select().from(leads)
+      .where(and(eq(leads.id, req.params.id), eq(leads.imobiliariaId, imobiliariaId), eq(leads.corretorId, sub))).limit(1);
+    if (!lead) return res.status(404).json({ error: 'Lead não encontrado ou não é seu' });
+
+    await db.update(leads).set({ corretorId: null }).where(eq(leads.id, lead.id));
+    // quem recusou vai pro fim: marca ultimaAtribuicao como agora
+    await db.update(filasAtendimento).set({ ultimaAtribuicao: new Date() }).where(eq(filasAtendimento.corretorId, sub));
+    io.to('imobiliaria:' + imobiliariaId).emit('lead:updated', { ...lead, corretorId: null });
+
+    const novoCorretor = await distribuirLead(io, imobiliariaId, lead.id);
+    res.json({ ok: true, redistribuido: !!novoCorretor });
   });
 
   // Limpa só a conversa de WhatsApp do lead (o lead continua).

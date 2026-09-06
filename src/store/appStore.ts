@@ -44,7 +44,7 @@ export interface RemoteNotificacao { id: string; tipo: string; titulo: string; t
 
 export interface RemoteMensagem {
   id: string; leadId: string; direcao: 'in' | 'out'; texto: string | null;
-  anexoUrl: string | null; anexoTipo: AnexoTipo | null; canal: 'corretor' | 'followup'; enviadoEm: string;
+  anexoUrl: string | null; anexoTipo: AnexoTipo | null; anexoNome?: string | null; canal: 'corretor' | 'followup'; enviadoEm: string;
   ackStatus?: number | null;
 }
 
@@ -60,7 +60,7 @@ function mapRemoteMensagem(r: RemoteMensagem): ChatMsg {
   const off = Math.max(0, Math.floor((Date.now() - dt.getTime()) / 86400000));
   return {
     id: r.id, side: r.direcao, texto: r.texto ?? '', hora: dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    bot: r.canal === 'followup', off, anexoUrl: r.anexoUrl, anexoTipo: r.anexoTipo, ack: r.ackStatus ?? undefined,
+    bot: r.canal === 'followup', off, anexoUrl: r.anexoUrl, anexoTipo: r.anexoTipo, anexoNome: r.anexoNome ?? undefined, ack: r.ackStatus ?? undefined,
   };
 }
 
@@ -289,6 +289,8 @@ interface AppState {
   closeAlert: () => void;
   alertOk: () => void;
   alertAlt: () => void;
+  leadPendente: { id: string; nome: string; canal: string } | null;
+  recusarLeadPendente: (porTempo: boolean) => Promise<void>;
 
   blockMember: (id: string) => void;
   revokeMember: (nome: string) => void;
@@ -449,7 +451,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   conn: { 'Camila Rocha': true, 'Diego Antunes': true, 'Fernanda Lopes': false, 'Marcelo Braga': false, 'Priscila Nunes': true, 'Rafael Teixeira': false },
   qrFor: null, importOpen: false, newLeadOpen: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [],
 
-  alert: null, alertCount: 20, alertMenu: false, faqOpen: 'kanban', confirm: null, toasts: [], notificacoes: [], notifOpen: false, day: 17,
+  alert: null, alertCount: 45, alertMenu: false, faqOpen: 'kanban', confirm: null, toasts: [], notificacoes: [], notifOpen: false, day: 17, leadPendente: null,
 
   login: async (email, senha) => {
     set({ authLoading: true, authError: null });
@@ -520,7 +522,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (agoraEhMeu && !eraMeuAntes && me.role === 'corretor') {
         toqueLeadNovo();
         notificarNavegador('Novo lead pra você', raw.nome + (raw.canal ? ' · ' + raw.canal : ''));
-        get().toast('🔔 Novo lead: ' + raw.nome);
+        set({ leadPendente: { id: raw.id, nome: raw.nome, canal: raw.canal || 'WhatsApp' } });
+        get().fireAlert('lead');
       }
 
       set(s => {
@@ -1309,21 +1312,25 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAlertMenu: v => set({ alertMenu: v }),
   fireAlert: kind => {
     clearInterval(alertTimer);
-    set({ alert: kind, alertCount: 20, alertMenu: false });
+    set({ alert: kind, alertCount: 45, alertMenu: false });
     beep();
     if (kind === 'lead') {
       alertTimer = setInterval(() => {
         const c = get().alertCount;
-        if (c <= 1) { clearInterval(alertTimer); get().toast('Tempo esgotado — lead devolvido à roleta'); set({ alert: null, alertCount: 20 }); return; }
+        if (c <= 1) { clearInterval(alertTimer); set({ alert: null, alertCount: 45 }); get().recusarLeadPendente(true); return; }
         set({ alertCount: c - 1 });
       }, 1000);
     }
   },
-  closeAlert: () => { clearInterval(alertTimer); set({ alert: null, alertCount: 20 }); },
+  closeAlert: () => { clearInterval(alertTimer); set({ alert: null, alertCount: 45 }); },
   alertOk: () => {
     const k = get().alert;
+    const lp = get().leadPendente;
     get().closeAlert();
-    if (k === 'lead') get().toast('Atendimento aceito — lead atribuído a você');
+    if (k === 'lead') {
+      set({ leadPendente: null });
+      if (lp) { get().toast('Atendimento aceito — ' + lp.nome); get().openLead(lp.id, 'chat'); }
+    }
     else if (k === 'visita') get().toast('Lembrete enviado no WhatsApp');
     else if (k === 'credito') get().toast('Fila de crédito aberta');
     else if (k === 'tarefa') get().toast('Agenda aberta');
@@ -1331,10 +1338,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   alertAlt: () => {
     const k = get().alert;
     get().closeAlert();
-    if (k === 'lead') get().toast('Lead recusado — devolvido à roleta');
+    if (k === 'lead') get().recusarLeadPendente(false);
     else if (k === 'visita') get().toast('Visita marcada como confirmada');
     else if (k === 'credito') get().toast('Lembrete adiado por 1 hora');
     else if (k === 'tarefa') get().toast('Lembrete adiado por 30 minutos');
+  },
+  recusarLeadPendente: async (porTempo: boolean) => {
+    const lp = get().leadPendente;
+    const token = get().token;
+    set({ leadPendente: null });
+    if (!lp || !token) return;
+    try {
+      await apiFetch('/api/leads/' + lp.id + '/recusar', token, { method: 'POST' });
+      get().toast(porTempo ? 'Tempo esgotado — ' + lp.nome + ' voltou pra roleta' : lp.nome + ' recusado — voltou pra roleta');
+    } catch { /* já pode ter sido reatribuído */ }
   },
 
   blockMember: id => {

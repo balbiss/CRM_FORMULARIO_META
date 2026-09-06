@@ -114,6 +114,27 @@ export async function enviarTexto(sessionName: string, numero: string, texto: st
   return waha('/api/sendText', { method: 'POST', body: { session: sessionName, chatId: chatId(numero), text: texto } });
 }
 
+/** Baixa a mídia de uma mensagem recebida: pede pro WAHA baixar (downloadMedia=true) e puxa
+ *  o arquivo do storage local do WAHA (que exige a X-Api-Key). */
+export async function baixarMidiaMensagem(sessionName: string, chatId: string, msgId: string): Promise<{ buffer: Buffer; mimetype: string; filename: string | null } | null> {
+  try {
+    const msg = await waha<{ media?: { url?: string | null; mimetype?: string; filename?: string } }>(
+      `/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(msgId)}?downloadMedia=true`,
+    );
+    const url = msg?.media?.url;
+    if (!url) return null;
+    const r = await fetch(url, { headers: { 'X-Api-Key': key() } });
+    if (!r.ok) return null;
+    return {
+      buffer: Buffer.from(await r.arrayBuffer()),
+      mimetype: (msg.media?.mimetype || r.headers.get('content-type') || 'application/octet-stream').split(';')[0].trim(),
+      filename: msg.media?.filename || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function enviarMidia(sessionName: string, numero: string, url: string, tipo: 'imagem' | 'video' | 'documento' | 'audio', legenda?: string) {
   const endpoint = tipo === 'imagem' ? '/api/sendImage' : tipo === 'video' ? '/api/sendVideo' : tipo === 'audio' ? '/api/sendVoice' : '/api/sendFile';
   return waha(endpoint, { method: 'POST', body: { session: sessionName, chatId: chatId(numero), file: { url }, caption: legenda } });

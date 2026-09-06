@@ -19,9 +19,9 @@ const ALERT_LIST_TAREFA = [
 export function AlertModal() {
   const alert = useAppStore(s => s.alert);
   const alertCount = useAppStore(s => s.alertCount);
+  const leadPendente = useAppStore(s => s.leadPendente);
   const alertOk = useAppStore(s => s.alertOk);
   const alertAlt = useAppStore(s => s.alertAlt);
-  const leads = useAppStore(s => s.leads);
   const horario = useAppStore(s => s.horarioAtendimento);
   const nav = useNavigate();
   if (!alert) return null;
@@ -39,8 +39,8 @@ export function AlertModal() {
 
   const data = alert === 'lead'
     ? {
-        titulo: 'Novo lead atribuído a você',
-        texto: (leads[0]?.nome || 'Beatriz Aguiar') + ' acabou de entrar pela campanha Aurora — Lançamento. Aceite em ' + alertCount + 's ou o lead volta para a roleta.',
+        titulo: 'Novo lead pra você',
+        texto: (leadPendente?.nome || 'Um lead') + ' chegou pelo ' + (leadPendente?.canal || 'WhatsApp') + '. Aceite em ' + alertCount + 's ou ele volta para a roleta.',
         ok: 'Aceitar atendimento', alt: 'Recusar', showCount: true,
       }
     : alert === 'visita'

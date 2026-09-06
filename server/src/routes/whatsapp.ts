@@ -4,7 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { sessoesWhatsapp, imobiliarias, perfis, leads, colunasKanban, mensagensWhatsapp } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { wahaConfigurado, criarSessao, pararSessao, statusSessao, qrSessao, webhookSecret, fotoPerfil } from '../lib/waha.js';
+import { wahaConfigurado, criarSessao, pararSessao, statusSessao, qrSessao, webhookSecret, fotoPerfil, baixarMidiaMensagem } from '../lib/waha.js';
 import { uploadFile } from '../lib/storage.js';
 import { distribuirLead } from '../lib/roleta.js';
 import type { Server as SocketServer } from 'socket.io';
@@ -173,11 +173,33 @@ export function whatsappRouter(io: SocketServer) {
         })().catch(() => {});
       }
 
-      const anexoUrl: string | null = p.media?.url || p.mediaUrl || null;
-      const tipoRaw: string = p.media?.mimetype?.split('/')[0] || p.type || '';
-      const anexoTipo = (p.hasMedia || anexoUrl)
-        ? (/image/.test(tipoRaw) ? 'imagem' : /video/.test(tipoRaw) ? 'video' : /audio|ptt/.test(tipoRaw) ? 'audio' : 'documento')
+      // Tipo do anexo pelo shape do GOWS (_data.Message.xxxMessage) ou pelo mimetype/type.
+      const msgKeys = Object.keys(p._data?.Message || {});
+      const mimeHint: string = p.media?.mimetype || info.MediaType || p.type || '';
+      const anexoTipo = (p.hasMedia || msgKeys.some(k => /Message$/.test(k) && k !== 'extendedTextMessage'))
+        ? (msgKeys.includes('imageMessage') || /image/i.test(mimeHint) ? 'imagem'
+          : msgKeys.includes('videoMessage') || /video/i.test(mimeHint) ? 'video'
+          : msgKeys.includes('audioMessage') || /audio|ptt|voice/i.test(mimeHint) ? 'audio'
+          : msgKeys.includes('documentMessage') || msgKeys.includes('stickerMessage') ? 'documento'
+          : /image|video|audio/i.test(mimeHint) ? (/image/i.test(mimeHint) ? 'imagem' : /video/i.test(mimeHint) ? 'video' : 'audio')
+          : msgKeys.length ? 'documento' : null)
         : null;
+
+      // Baixa a mídia do WAHA e sobe pro MinIO (o webhook vem com media.url null).
+      let anexoUrl: string | null = p.media?.url || null;
+      let anexoNome: string | null = p.media?.filename || p._data?.Message?.documentMessage?.fileName || p._data?.Message?.documentMessage?.title || null;
+      if (anexoTipo && waId && !anexoUrl) {
+        const chatIdMidia = fromMe ? p.to || info.Chat : p.from || info.Chat;
+        const m = await baixarMidiaMensagem(ev.session, String(chatIdMidia || ''), waId).catch(() => null);
+        if (m) {
+          const ext = (m.filename?.match(/\.[a-z0-9]{1,6}$/i)?.[0])
+            || ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'video/mp4': '.mp4', 'audio/ogg': '.ogg', 'audio/mpeg': '.mp3', 'application/pdf': '.pdf' } as Record<string, string>)[m.mimetype]
+            || '';
+          const nomeArquivo = (anexoTipo === 'documento' && m.filename) ? m.filename : (waId.replace(/[^a-z0-9]/gi, '').slice(-24) + ext);
+          anexoUrl = await uploadFile(`wa/${lead.id}/${nomeArquivo}`, m.buffer, m.mimetype).catch(() => null);
+          if (!anexoNome && anexoTipo === 'documento') anexoNome = m.filename;
+        }
+      }
 
       const inseridas = await db.insert(mensagensWhatsapp).values({
         leadId: lead.id,
@@ -189,6 +211,7 @@ export function whatsappRouter(io: SocketServer) {
         texto,
         anexoUrl,
         anexoTipo,
+        anexoNome,
       }).onConflictDoNothing().returning(); // ON CONFLICT DO NOTHING (sem target — casa com o índice parcial)
 
       const msg = inseridas[0];

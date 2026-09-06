@@ -50,7 +50,7 @@ export default function PlataformaResumo() {
           Precisa de atenção
         </div>
         {atencao.length === 0 ? (
-          <div style={{ padding: 24, color: 'var(--muted)', fontSize: 13.5 }}>Nada pendente. Todas as imobiliárias em dia. 🎉</div>
+          <div style={{ padding: 24, color: 'var(--muted)', fontSize: 13.5 }}>Nada pendente. Todas as imobiliárias em dia.</div>
         ) : (
           atencao.map(i => (
             <button key={i.id} onClick={() => nav('/plataforma/imobiliarias?abrir=' + i.id)}

@@ -1,0 +1,1 @@
+ALTER TABLE "mensagens_whatsapp" ADD COLUMN "anexo_nome" text;

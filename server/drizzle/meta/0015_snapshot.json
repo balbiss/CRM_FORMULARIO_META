@@ -1,0 +1,2211 @@
+{
+  "id": "f9583753-9d29-41a5-90aa-f324aa7c2f2e",
+  "prevId": "1dcdd77f-c5d5-4741-bf15-e2de262c023d",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.admins_plataforma": {
+      "name": "admins_plataforma",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "senha_hash": {
+          "name": "senha_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "admins_plataforma_email_unique": {
+          "name": "admins_plataforma_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.colunas_kanban": {
+      "name": "colunas_kanban",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "imobiliaria_id": {
+          "name": "imobiliaria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titulo": {
+          "name": "titulo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordem": {
+          "name": "ordem",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "cor": {
+          "name": "cor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "colunas_kanban_imobiliaria_id_idx": {
+          "name": "colunas_kanban_imobiliaria_id_idx",
+          "columns": [
+            {
+              "expression": "imobiliaria_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "colunas_kanban_imobiliaria_id_imobiliarias_id_fk": {
+          "name": "colunas_kanban_imobiliaria_id_imobiliarias_id_fk",
+          "tableFrom": "colunas_kanban",
+          "tableTo": "imobiliarias",
+          "columnsFrom": [
+            "imobiliaria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.distribuicao_log": {
+      "name": "distribuicao_log",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "imobiliaria_id": {
+          "name": "imobiliaria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lead_id": {
+          "name": "lead_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "corretor_id": {
+          "name": "corretor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "origem": {
+          "name": "origem",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "distribuicao_log_imobiliaria_id_imobiliarias_id_fk": {
+          "name": "distribuicao_log_imobiliaria_id_imobiliarias_id_fk",
+          "tableFrom": "distribuicao_log",
+          "tableTo": "imobiliarias",
+          "columnsFrom": [
+            "imobiliaria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "distribuicao_log_lead_id_leads_id_fk": {
+          "name": "distribuicao_log_lead_id_leads_id_fk",
+          "tableFrom": "distribuicao_log",
+          "tableTo": "leads",
+          "columnsFrom": [
+            "lead_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "distribuicao_log_corretor_id_perfis_id_fk": {
+          "name": "distribuicao_log_corretor_id_perfis_id_fk",
+          "tableFrom": "distribuicao_log",
+          "tableTo": "perfis",
+          "columnsFrom": [
+            "corretor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.filas_atendimento": {
+      "name": "filas_atendimento",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "imobiliaria_id": {
+          "name": "imobiliaria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "corretor_id": {
+          "name": "corretor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "posicao": {
+          "name": "posicao",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "ultima_atribuicao": {
+          "name": "ultima_atribuicao",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "filas_atendimento_imobiliaria_id_imobiliarias_id_fk": {
+          "name": "filas_atendimento_imobiliaria_id_imobiliarias_id_fk",
+          "tableFrom": "filas_atendimento",
+          "tableTo": "imobiliarias",
+          "columnsFrom": [
+            "imobiliaria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "filas_atendimento_corretor_id_perfis_id_fk": {
+          "name": "filas_atendimento_corretor_id_perfis_id_fk",
+          "tableFrom": "filas_atendimento",
+          "tableTo": "perfis",
+          "columnsFrom": [
+            "corretor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "filas_atendimento_corretor_id_unique": {
+          "name": "filas_atendimento_corretor_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "corretor_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.followup_execucoes": {
+      "name": "followup_execucoes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "lead_id": {
+          "name": "lead_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fluxo_id": {
+          "name": "fluxo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "passo_atual": {
+          "name": "passo_atual",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "status": {
+          "name": "status",
+          "type": "execucao_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ativa'"
+        },
+        "iniciado_em": {
+          "name": "iniciado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "followup_execucoes_lead_id_leads_id_fk": {
+          "name": "followup_execucoes_lead_id_leads_id_fk",
+          "tableFrom": "followup_execucoes",
+          "tableTo": "leads",
+          "columnsFrom": [
+            "lead_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "followup_execucoes_fluxo_id_followup_fluxos_id_fk": {
+          "name": "followup_execucoes_fluxo_id_followup_fluxos_id_fk",
+          "tableFrom": "followup_execucoes",
+          "tableTo": "followup_fluxos",
+          "columnsFrom": [
+            "fluxo_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.followup_fluxos": {
+      "name": "followup_fluxos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "imobiliaria_id": {
+          "name": "imobiliaria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "corretor_id": {
+          "name": "corretor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ativo": {
+          "name": "ativo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "ao_esgotar": {
+          "name": "ao_esgotar",
+          "type": "ao_esgotar",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'nada'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "followup_fluxos_imobiliaria_id_imobiliarias_id_fk": {
+          "name": "followup_fluxos_imobiliaria_id_imobiliarias_id_fk",
+          "tableFrom": "followup_fluxos",
+          "tableTo": "imobiliarias",
+          "columnsFrom": [
+            "imobiliaria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "followup_fluxos_corretor_id_perfis_id_fk": {
+          "name": "followup_fluxos_corretor_id_perfis_id_fk",
+          "tableFrom": "followup_fluxos",
+          "tableTo": "perfis",
+          "columnsFrom": [
+            "corretor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.followup_passos": {
+      "name": "followup_passos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "fluxo_id": {
+          "name": "fluxo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordem": {
+          "name": "ordem",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "atraso_texto": {
+          "name": "atraso_texto",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "conteudo": {
+          "name": "conteudo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "followup_passos_fluxo_id_followup_fluxos_id_fk": {
+          "name": "followup_passos_fluxo_id_followup_fluxos_id_fk",
+          "tableFrom": "followup_passos",
+          "tableTo": "followup_fluxos",
+          "columnsFrom": [
+            "fluxo_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.imobiliarias": {
+      "name": "imobiliarias",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "horario_atendimento": {
+          "name": "horario_atendimento",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[{\"ativo\":false,\"abreMin\":480,\"fechaMin\":1080},{\"ativo\":true,\"abreMin\":480,\"fechaMin\":1100},{\"ativo\":true,\"abreMin\":480,\"fechaMin\":1100},{\"ativo\":true,\"abreMin\":480,\"fechaMin\":1100},{\"ativo\":true,\"abreMin\":480,\"fechaMin\":1160},{\"ativo\":true,\"abreMin\":480,\"fechaMin\":1100},{\"ativo\":true,\"abreMin\":480,\"fechaMin\":920}]'::jsonb"
+        },
+        "modo_whatsapp": {
+          "name": "modo_whatsapp",
+          "type": "modo_whatsapp",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'corretor'"
+        },
+        "status": {
+          "name": "status",
+          "type": "imobiliaria_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ativa'"
+        },
+        "bloqueio_motivo": {
+          "name": "bloqueio_motivo",
+          "type": "bloqueio_motivo",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plano": {
+          "name": "plano",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Padrão'"
+        },
+        "mensalidade": {
+          "name": "mensalidade",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "limite_corretores": {
+          "name": "limite_corretores",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "proximo_vencimento": {
+          "name": "proximo_vencimento",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dias_carencia": {
+          "name": "dias_carencia",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 5
+        },
+        "observacoes": {
+          "name": "observacoes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.imoveis": {
+      "name": "imoveis",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "imobiliaria_id": {
+          "name": "imobiliaria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "finalidade": {
+          "name": "finalidade",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titulo": {
+          "name": "titulo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endereco": {
+          "name": "endereco",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cidade": {
+          "name": "cidade",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "estado": {
+          "name": "estado",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preco": {
+          "name": "preco",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "area": {
+          "name": "area",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quartos": {
+          "name": "quartos",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "suites": {
+          "name": "suites",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "banheiros": {
+          "name": "banheiros",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "vagas": {
+          "name": "vagas",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "amenidades": {
+          "name": "amenidades",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'[]'::jsonb"
+        },
+        "descricao": {
+          "name": "descricao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "situacao": {
+          "name": "situacao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Pronto para morar'"
+        },
+        "previsao_entrega": {
+          "name": "previsao_entrega",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aceita_financiamento": {
+          "name": "aceita_financiamento",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "valor_condominio": {
+          "name": "valor_condominio",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "valor_iptu": {
+          "name": "valor_iptu",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "imagens": {
+          "name": "imagens",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'[]'::jsonb"
+        },
+        "video_url": {
+          "name": "video_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "imoveis_imobiliaria_id_imobiliarias_id_fk": {
+          "name": "imoveis_imobiliaria_id_imobiliarias_id_fk",
+          "tableFrom": "imoveis",
+          "tableTo": "imobiliarias",
+          "columnsFrom": [
+            "imobiliaria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.integracoes_facebook": {
+      "name": "integracoes_facebook",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "imobiliaria_id": {
+          "name": "imobiliaria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nome_conta": {
+          "name": "nome_conta",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "page_id": {
+          "name": "page_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "form_id": {
+          "name": "form_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_cifrado": {
+          "name": "token_cifrado",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_iv": {
+          "name": "token_iv",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_tag": {
+          "name": "token_tag",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ativo": {
+          "name": "ativo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "ultima_sync_em": {
+          "name": "ultima_sync_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ultimo_erro": {
+          "name": "ultimo_erro",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "integracoes_facebook_imobiliaria_id_idx": {
+          "name": "integracoes_facebook_imobiliaria_id_idx",
+          "columns": [
+            {
+              "expression": "imobiliaria_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "integracoes_facebook_imobiliaria_id_imobiliarias_id_fk": {
+          "name": "integracoes_facebook_imobiliaria_id_imobiliarias_id_fk",
+          "tableFrom": "integracoes_facebook",
+          "tableTo": "imobiliarias",
+          "columnsFrom": [
+            "imobiliaria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.lead_tags": {
+      "name": "lead_tags",
+      "schema": "",
+      "columns": {
+        "lead_id": {
+          "name": "lead_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tag_id": {
+          "name": "tag_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "lead_tags_lead_id_idx": {
+          "name": "lead_tags_lead_id_idx",
+          "columns": [
+            {
+              "expression": "lead_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "lead_tags_tag_id_idx": {
+          "name": "lead_tags_tag_id_idx",
+          "columns": [
+            {
+              "expression": "tag_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "lead_tags_lead_id_leads_id_fk": {
+          "name": "lead_tags_lead_id_leads_id_fk",
+          "tableFrom": "lead_tags",
+          "tableTo": "leads",
+          "columnsFrom": [
+            "lead_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "lead_tags_tag_id_tags_id_fk": {
+          "name": "lead_tags_tag_id_tags_id_fk",
+          "tableFrom": "lead_tags",
+          "tableTo": "tags",
+          "columnsFrom": [
+            "tag_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "lead_tags_lead_id_tag_id_pk": {
+          "name": "lead_tags_lead_id_tag_id_pk",
+          "columns": [
+            "lead_id",
+            "tag_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.leads": {
+      "name": "leads",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "imobiliaria_id": {
+          "name": "imobiliaria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "telefone": {
+          "name": "telefone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "foto_url": {
+          "name": "foto_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "imovel_titulo": {
+          "name": "imovel_titulo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "imovel_sub": {
+          "name": "imovel_sub",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "valor": {
+          "name": "valor",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "canal": {
+          "name": "canal",
+          "type": "canal",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Manual'"
+        },
+        "coluna_id": {
+          "name": "coluna_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "corretor_id": {
+          "name": "corretor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "campanha": {
+          "name": "campanha",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "segundo_cadastro": {
+          "name": "segundo_cadastro",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "motivo_descarte": {
+          "name": "motivo_descarte",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "renda_declarada": {
+          "name": "renda_declarada",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "entrou_na_coluna_em": {
+          "name": "entrou_na_coluna_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "leads_imobiliaria_id_idx": {
+          "name": "leads_imobiliaria_id_idx",
+          "columns": [
+            {
+              "expression": "imobiliaria_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "leads_corretor_id_idx": {
+          "name": "leads_corretor_id_idx",
+          "columns": [
+            {
+              "expression": "corretor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "leads_coluna_id_idx": {
+          "name": "leads_coluna_id_idx",
+          "columns": [
+            {
+              "expression": "coluna_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "leads_imobiliaria_id_imobiliarias_id_fk": {
+          "name": "leads_imobiliaria_id_imobiliarias_id_fk",
+          "tableFrom": "leads",
+          "tableTo": "imobiliarias",
+          "columnsFrom": [
+            "imobiliaria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "leads_coluna_id_colunas_kanban_id_fk": {
+          "name": "leads_coluna_id_colunas_kanban_id_fk",
+          "tableFrom": "leads",
+          "tableTo": "colunas_kanban",
+          "columnsFrom": [
+            "coluna_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "leads_corretor_id_perfis_id_fk": {
+          "name": "leads_corretor_id_perfis_id_fk",
+          "tableFrom": "leads",
+          "tableTo": "perfis",
+          "columnsFrom": [
+            "corretor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.links_uteis": {
+      "name": "links_uteis",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "imobiliaria_id": {
+          "name": "imobiliaria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "categoria": {
+          "name": "categoria",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titulo": {
+          "name": "titulo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "links_uteis_imobiliaria_id_imobiliarias_id_fk": {
+          "name": "links_uteis_imobiliaria_id_imobiliarias_id_fk",
+          "tableFrom": "links_uteis",
+          "tableTo": "imobiliarias",
+          "columnsFrom": [
+            "imobiliaria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mensagens_whatsapp": {
+      "name": "mensagens_whatsapp",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "lead_id": {
+          "name": "lead_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "direcao": {
+          "name": "direcao",
+          "type": "direcao",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wa_message_id": {
+          "name": "wa_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ack_status": {
+          "name": "ack_status",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lida": {
+          "name": "lida",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "enviado_por": {
+          "name": "enviado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "texto": {
+          "name": "texto",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anexo_url": {
+          "name": "anexo_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anexo_tipo": {
+          "name": "anexo_tipo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anexo_nome": {
+          "name": "anexo_nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "canal": {
+          "name": "canal",
+          "type": "mensagem_canal",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'corretor'"
+        },
+        "enviado_em": {
+          "name": "enviado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "mensagens_lead_id_idx": {
+          "name": "mensagens_lead_id_idx",
+          "columns": [
+            {
+              "expression": "lead_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mensagens_wa_message_id_uq": {
+          "name": "mensagens_wa_message_id_uq",
+          "columns": [
+            {
+              "expression": "wa_message_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"mensagens_whatsapp\".\"wa_message_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mensagens_whatsapp_lead_id_leads_id_fk": {
+          "name": "mensagens_whatsapp_lead_id_leads_id_fk",
+          "tableFrom": "mensagens_whatsapp",
+          "tableTo": "leads",
+          "columnsFrom": [
+            "lead_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mensagens_whatsapp_enviado_por_perfis_id_fk": {
+          "name": "mensagens_whatsapp_enviado_por_perfis_id_fk",
+          "tableFrom": "mensagens_whatsapp",
+          "tableTo": "perfis",
+          "columnsFrom": [
+            "enviado_por"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.notificacoes": {
+      "name": "notificacoes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "perfil_id": {
+          "name": "perfil_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titulo": {
+          "name": "titulo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "texto": {
+          "name": "texto",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lida": {
+          "name": "lida",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "notificacoes_perfil_id_perfis_id_fk": {
+          "name": "notificacoes_perfil_id_perfis_id_fk",
+          "tableFrom": "notificacoes",
+          "tableTo": "perfis",
+          "columnsFrom": [
+            "perfil_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pagamentos": {
+      "name": "pagamentos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "imobiliaria_id": {
+          "name": "imobiliaria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valor": {
+          "name": "valor",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "competencia": {
+          "name": "competencia",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pago_em": {
+          "name": "pago_em",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metodo": {
+          "name": "metodo",
+          "type": "pagamento_metodo",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pix'"
+        },
+        "observacao": {
+          "name": "observacao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "registrado_por": {
+          "name": "registrado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pagamentos_imobiliaria_id_idx": {
+          "name": "pagamentos_imobiliaria_id_idx",
+          "columns": [
+            {
+              "expression": "imobiliaria_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pagamentos_imobiliaria_id_imobiliarias_id_fk": {
+          "name": "pagamentos_imobiliaria_id_imobiliarias_id_fk",
+          "tableFrom": "pagamentos",
+          "tableTo": "imobiliarias",
+          "columnsFrom": [
+            "imobiliaria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "pagamentos_registrado_por_admins_plataforma_id_fk": {
+          "name": "pagamentos_registrado_por_admins_plataforma_id_fk",
+          "tableFrom": "pagamentos",
+          "tableTo": "admins_plataforma",
+          "columnsFrom": [
+            "registrado_por"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.perfis": {
+      "name": "perfis",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "imobiliaria_id": {
+          "name": "imobiliaria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "senha_hash": {
+          "name": "senha_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'corretor'"
+        },
+        "telefone": {
+          "name": "telefone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bloqueado": {
+          "name": "bloqueado",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "em_plantao": {
+          "name": "em_plantao",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "perfis_imobiliaria_id_idx": {
+          "name": "perfis_imobiliaria_id_idx",
+          "columns": [
+            {
+              "expression": "imobiliaria_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "perfis_imobiliaria_id_imobiliarias_id_fk": {
+          "name": "perfis_imobiliaria_id_imobiliarias_id_fk",
+          "tableFrom": "perfis",
+          "tableTo": "imobiliarias",
+          "columnsFrom": [
+            "imobiliaria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "perfis_email_unique": {
+          "name": "perfis_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sessoes_whatsapp": {
+      "name": "sessoes_whatsapp",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "imobiliaria_id": {
+          "name": "imobiliaria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "escopo": {
+          "name": "escopo",
+          "type": "sessao_escopo",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "corretor_id": {
+          "name": "corretor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "session_name": {
+          "name": "session_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "sessao_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'desconectada'"
+        },
+        "numero": {
+          "name": "numero",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "sessoes_whatsapp_imobiliaria_id_idx": {
+          "name": "sessoes_whatsapp_imobiliaria_id_idx",
+          "columns": [
+            {
+              "expression": "imobiliaria_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "sessoes_whatsapp_imobiliaria_id_imobiliarias_id_fk": {
+          "name": "sessoes_whatsapp_imobiliaria_id_imobiliarias_id_fk",
+          "tableFrom": "sessoes_whatsapp",
+          "tableTo": "imobiliarias",
+          "columnsFrom": [
+            "imobiliaria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "sessoes_whatsapp_corretor_id_perfis_id_fk": {
+          "name": "sessoes_whatsapp_corretor_id_perfis_id_fk",
+          "tableFrom": "sessoes_whatsapp",
+          "tableTo": "perfis",
+          "columnsFrom": [
+            "corretor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sessoes_whatsapp_session_name_unique": {
+          "name": "sessoes_whatsapp_session_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "session_name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tags": {
+      "name": "tags",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "imobiliaria_id": {
+          "name": "imobiliaria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cor": {
+          "name": "cor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'#123C87'"
+        },
+        "ordem": {
+          "name": "ordem",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "tags_imobiliaria_id_idx": {
+          "name": "tags_imobiliaria_id_idx",
+          "columns": [
+            {
+              "expression": "imobiliaria_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "tags_imobiliaria_id_imobiliarias_id_fk": {
+          "name": "tags_imobiliaria_id_imobiliarias_id_fk",
+          "tableFrom": "tags",
+          "tableTo": "imobiliarias",
+          "columnsFrom": [
+            "imobiliaria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.templates_mensagem": {
+      "name": "templates_mensagem",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "criado_por": {
+          "name": "criado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titulo": {
+          "name": "titulo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "texto": {
+          "name": "texto",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "anexo_url": {
+          "name": "anexo_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "templates_mensagem_criado_por_perfis_id_fk": {
+          "name": "templates_mensagem_criado_por_perfis_id_fk",
+          "tableFrom": "templates_mensagem",
+          "tableTo": "perfis",
+          "columnsFrom": [
+            "criado_por"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.treinamentos": {
+      "name": "treinamentos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "imobiliaria_id": {
+          "name": "imobiliaria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titulo": {
+          "name": "titulo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "descricao": {
+          "name": "descricao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duracao_texto": {
+          "name": "duracao_texto",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "categoria": {
+          "name": "categoria",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "video_url": {
+          "name": "video_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "treinamentos_imobiliaria_id_imobiliarias_id_fk": {
+          "name": "treinamentos_imobiliaria_id_imobiliarias_id_fk",
+          "tableFrom": "treinamentos",
+          "tableTo": "imobiliarias",
+          "columnsFrom": [
+            "imobiliaria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.ao_esgotar": {
+      "name": "ao_esgotar",
+      "schema": "public",
+      "values": [
+        "nada",
+        "descartar"
+      ]
+    },
+    "public.bloqueio_motivo": {
+      "name": "bloqueio_motivo",
+      "schema": "public",
+      "values": [
+        "manual",
+        "inadimplencia"
+      ]
+    },
+    "public.canal": {
+      "name": "canal",
+      "schema": "public",
+      "values": [
+        "WhatsApp",
+        "Instagram",
+        "Facebook",
+        "Indicacao",
+        "Manual"
+      ]
+    },
+    "public.direcao": {
+      "name": "direcao",
+      "schema": "public",
+      "values": [
+        "in",
+        "out"
+      ]
+    },
+    "public.execucao_status": {
+      "name": "execucao_status",
+      "schema": "public",
+      "values": [
+        "ativa",
+        "pausada",
+        "encerrada"
+      ]
+    },
+    "public.imobiliaria_status": {
+      "name": "imobiliaria_status",
+      "schema": "public",
+      "values": [
+        "ativa",
+        "bloqueada"
+      ]
+    },
+    "public.mensagem_canal": {
+      "name": "mensagem_canal",
+      "schema": "public",
+      "values": [
+        "corretor",
+        "followup"
+      ]
+    },
+    "public.modo_whatsapp": {
+      "name": "modo_whatsapp",
+      "schema": "public",
+      "values": [
+        "central",
+        "corretor"
+      ]
+    },
+    "public.pagamento_metodo": {
+      "name": "pagamento_metodo",
+      "schema": "public",
+      "values": [
+        "pix",
+        "boleto",
+        "cartao",
+        "transferencia",
+        "dinheiro",
+        "outro"
+      ]
+    },
+    "public.role": {
+      "name": "role",
+      "schema": "public",
+      "values": [
+        "dono",
+        "gerente",
+        "corretor"
+      ]
+    },
+    "public.sessao_escopo": {
+      "name": "sessao_escopo",
+      "schema": "public",
+      "values": [
+        "central",
+        "corretor"
+      ]
+    },
+    "public.sessao_status": {
+      "name": "sessao_status",
+      "schema": "public",
+      "values": [
+        "desconectada",
+        "conectando",
+        "conectada"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

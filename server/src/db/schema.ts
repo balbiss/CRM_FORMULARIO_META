@@ -222,7 +222,9 @@ export const mensagensWhatsapp = pgTable('mensagens_whatsapp', {
   texto: text('texto'),
   // Arquivo em si mora no MinIO (mesmo padrão de imóveis/templates/treinamentos) — aqui só a URL.
   anexoUrl: text('anexo_url'),
-  anexoTipo: text('anexo_tipo'), // 'imagem' | 'video' | 'documento'
+  anexoTipo: text('anexo_tipo'), // 'imagem' | 'video' | 'audio' | 'documento'
+  // Nome original do arquivo (importante pra PDF — o lead manda "Contrato.pdf" e tem que baixar com esse nome).
+  anexoNome: text('anexo_nome'),
   canal: mensagemCanalEnum('canal').notNull().default('corretor'),
   enviadoEm: timestamp('enviado_em', { withTimezone: true }).notNull().defaultNow(),
 }, table => ({
