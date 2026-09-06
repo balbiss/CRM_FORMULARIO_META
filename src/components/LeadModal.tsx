@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Paperclip } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { CADENCIAS, MOTIVOS_DESCARTE, APROVACAO, mapMsgs } from '../lib/data';
@@ -53,12 +53,17 @@ export function LeadModal() {
   const endSeq = useAppStore(s => s.endSeq);
 
   const L = leads.find(l => l.id === leadId);
+  const chatMsgs = mapMsgs((leadId && chats[leadId]) || []);
+  const fimChatRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (leadTab === 'chat') fimChatRef.current?.scrollIntoView({ block: 'end' });
+  }, [chatMsgs.length, leadTab, typing]);
+
   if (!L) return null;
 
   const colAtual = colunas.find(c => c.id === L.colunaId)?.titulo ?? '—';
   const cad = cadencia[L.id] || 'Chamada 1';
   const seqSt = seqState[L.id] || 'ativa';
-  const chatMsgs = mapMsgs(chats[L.id] || []);
 
   const fields = [
     { label: 'Nome completo', value: L.nome }, { label: 'Telefone', value: L.tel },
@@ -230,6 +235,7 @@ export function LeadModal() {
                     <span style={{ fontSize: 11.5, color: 'var(--muted)', marginLeft: 6 }}>{L.nome.split(' ')[0]} está digitando…</span>
                   </div>
                 )}
+                <div ref={fimChatRef} />
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                 {quickTemplates.map(q => (
@@ -248,8 +254,8 @@ export function LeadModal() {
                     if (!file || !token) return;
                     setEnviandoAnexo(true);
                     try {
-                      const { url } = await uploadArquivo(file, token);
-                      await enviarMensagem(L.id, { anexoUrl: url, anexoTipo: tipoDeArquivo(file.type) });
+                      const { url, nome } = await uploadArquivo(file, token);
+                      await enviarMensagem(L.id, { anexoUrl: url, anexoTipo: tipoDeArquivo(file.type), anexoNome: nome });
                     } catch (err) {
                       toast((err as Error).message || 'Não foi possível enviar o anexo');
                     } finally {
@@ -269,7 +275,7 @@ export function LeadModal() {
                     setEnviandoAnexo(true);
                     try {
                       const { url } = await uploadArquivo(file, token);
-                      await enviarMensagem(L.id, { anexoUrl: url, anexoTipo: 'audio' });
+                      await enviarMensagem(L.id, { anexoUrl: url, anexoTipo: "audio" });
                     } catch (err) {
                       toast((err as Error).message || 'Não foi possível enviar o áudio');
                     } finally {

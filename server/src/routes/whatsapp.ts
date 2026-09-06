@@ -185,16 +185,17 @@ export function whatsappRouter(io: SocketServer) {
           : msgKeys.length ? 'documento' : null)
         : null;
 
-      // Baixa a mídia do WAHA e sobe pro MinIO (o webhook vem com media.url null).
-      let anexoUrl: string | null = p.media?.url || null;
+      // SEMPRE baixa a mídia e sobe pro MinIO — a URL do WAHA (media.url) exige X-Api-Key,
+      // então o navegador não consegue abrir direto (img/audio/pdf davam 401).
+      let anexoUrl: string | null = null;
       let anexoNome: string | null = p.media?.filename || p._data?.Message?.documentMessage?.fileName || p._data?.Message?.documentMessage?.title || null;
-      if (anexoTipo && waId && !anexoUrl) {
+      if (anexoTipo && waId) {
         const chatIdMidia = fromMe ? p.to || info.Chat : p.from || info.Chat;
         const m = await baixarMidiaMensagem(ev.session, String(chatIdMidia || ''), waId).catch(() => null);
         if (m) {
           const ext = (m.filename?.match(/\.[a-z0-9]{1,6}$/i)?.[0])
-            || ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'video/mp4': '.mp4', 'audio/ogg': '.ogg', 'audio/mpeg': '.mp3', 'application/pdf': '.pdf' } as Record<string, string>)[m.mimetype]
-            || '';
+            || ({ 'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'video/mp4': '.mp4', 'audio/ogg': '.ogg', 'audio/opus': '.ogg', 'audio/mpeg': '.mp3', 'audio/mp4': '.m4a', 'application/pdf': '.pdf' } as Record<string, string>)[m.mimetype]
+            || '.bin';
           const nomeArquivo = (anexoTipo === 'documento' && m.filename) ? m.filename : (waId.replace(/[^a-z0-9]/gi, '').slice(-24) + ext);
           anexoUrl = await uploadFile(`wa/${lead.id}/${nomeArquivo}`, m.buffer, m.mimetype).catch(() => null);
           if (!anexoNome && anexoTipo === 'documento') anexoNome = m.filename;
@@ -314,6 +315,7 @@ export async function despacharPeloWhatsapp(opts: {
   texto?: string | null;
   anexoUrl?: string | null;
   anexoTipo?: 'imagem' | 'video' | 'documento' | 'audio' | null;
+  anexoNome?: string | null;
 }): Promise<{ enviado: boolean; erro?: string }> {
   if (!wahaConfigurado()) return { enviado: false, erro: 'WAHA não configurado' };
   const { enviarTexto, enviarMidia } = await import('../lib/waha.js');
@@ -330,7 +332,7 @@ export async function despacharPeloWhatsapp(opts: {
   if (!sessao) return { enviado: false, erro: 'nenhuma sessão conectada' };
 
   try {
-    if (opts.anexoUrl && opts.anexoTipo) await enviarMidia(sessao.sessionName, opts.telefone, opts.anexoUrl, opts.anexoTipo, opts.texto ?? undefined);
+    if (opts.anexoUrl && opts.anexoTipo) await enviarMidia(sessao.sessionName, opts.telefone, opts.anexoUrl, opts.anexoTipo, opts.texto ?? undefined, opts.anexoNome ?? undefined);
     else if (opts.texto) await enviarTexto(sessao.sessionName, opts.telefone, opts.texto);
     return { enviado: true };
   } catch (e) {

@@ -202,7 +202,7 @@ interface AppState {
   setDraft: (v: string) => void;
   sendMsg: () => void;
   fetchMensagens: (leadId: string) => void;
-  enviarMensagem: (leadId: string, input: { texto?: string; anexoUrl?: string; anexoTipo?: AnexoTipo }) => Promise<void>;
+  enviarMensagem: (leadId: string, input: { texto?: string; anexoUrl?: string; anexoTipo?: AnexoTipo; anexoNome?: string }) => Promise<void>;
   fetchConversas: () => void;
 
   pickConv: (id: string) => void;
@@ -759,7 +759,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return;
     const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
     const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    const otimista: ChatMsg = { id: tempId, side: 'out', texto: input.texto ?? '', hora, off: 0, anexoUrl: input.anexoUrl ?? null, anexoTipo: input.anexoTipo ?? null };
+    const otimista: ChatMsg = { id: tempId, side: 'out', texto: input.texto ?? '', hora, off: 0, anexoUrl: input.anexoUrl ?? null, anexoTipo: input.anexoTipo ?? null, anexoNome: input.anexoNome ?? null };
     set(s => ({ chats: { ...s.chats, [leadId]: [...(s.chats[leadId] || []), otimista] } }));
     try {
       const row = await apiFetch<RemoteMensagem>('/api/mensagens/' + leadId, token, { method: 'POST', body: JSON.stringify(input) });

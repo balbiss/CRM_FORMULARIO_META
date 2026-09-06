@@ -135,7 +135,15 @@ export async function baixarMidiaMensagem(sessionName: string, chatId: string, m
   }
 }
 
-export async function enviarMidia(sessionName: string, numero: string, url: string, tipo: 'imagem' | 'video' | 'documento' | 'audio', legenda?: string) {
+export async function enviarMidia(sessionName: string, numero: string, url: string, tipo: 'imagem' | 'video' | 'documento' | 'audio', legenda?: string, nomeArquivo?: string) {
   const endpoint = tipo === 'imagem' ? '/api/sendImage' : tipo === 'video' ? '/api/sendVideo' : tipo === 'audio' ? '/api/sendVoice' : '/api/sendFile';
-  return waha(endpoint, { method: 'POST', body: { session: sessionName, chatId: chatId(numero), file: { url }, caption: legenda } });
+  const mimetype = tipo === 'audio' ? 'audio/ogg; codecs=opus' : undefined;
+  const filename = tipo === 'documento' ? (nomeArquivo || url.split('/').pop()) : undefined;
+  const file: Record<string, string> = { url };
+  if (mimetype) file.mimetype = mimetype;
+  if (filename) file.filename = filename;
+  const body: Record<string, unknown> = { session: sessionName, chatId: chatId(numero), file };
+  if (tipo !== 'audio' && legenda) body.caption = legenda;
+  if (tipo === 'audio') body.convert = true; // WAHA converte se não estiver no formato certo
+  return waha(endpoint, { method: 'POST', body });
 }

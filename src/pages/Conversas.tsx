@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Paperclip } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
@@ -52,6 +52,8 @@ export default function Conversas() {
 
   const CL = convBase.find(l => l.id === convId);
   const convThread = mapMsgs(CL ? thread(CL) : []);
+  const fimRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { fimRef.current?.scrollIntoView({ block: 'end' }); }, [convThread.length, convId, convTyping]);
   const slashQ = (convDraft || '').startsWith('/') ? convDraft.slice(1).toLowerCase() : null;
   const SLASH_ITEMS: [string, string][] = [
     ['/tabela', 'Acabei de te enviar a tabela de valores atualizada. Qualquer dúvida, me chama.'],
@@ -161,6 +163,7 @@ export default function Conversas() {
                     <span style={{ fontSize: 11.5, color: 'var(--muted)', marginLeft: 6 }}>{CL.nome.split(' ')[0]} está digitando…</span>
                   </div>
                 )}
+                <div ref={fimRef} />
               </div>
               <div style={{ borderTop: '1px solid var(--line)', padding: '14px 18px', position: 'relative', background: 'var(--card)', flex: 'none' }}>
                 {slashQ !== null && slashItems.length > 0 && (
@@ -186,8 +189,8 @@ export default function Conversas() {
                       if (!file || !token || !CL) return;
                       setEnviandoAnexo(true);
                       try {
-                        const { url } = await uploadArquivo(file, token);
-                        await enviarMensagem(CL.id, { anexoUrl: url, anexoTipo: tipoDeArquivo(file.type) });
+                        const { url, nome } = await uploadArquivo(file, token);
+                        await enviarMensagem(CL.id, { anexoUrl: url, anexoTipo: tipoDeArquivo(file.type), anexoNome: nome });
                       } catch (err) {
                         toast((err as Error).message || 'Não foi possível enviar o anexo');
                       } finally {
@@ -207,7 +210,7 @@ export default function Conversas() {
                       setEnviandoAnexo(true);
                       try {
                         const { url } = await uploadArquivo(file, token);
-                        await enviarMensagem(CL.id, { anexoUrl: url, anexoTipo: 'audio' });
+                        await enviarMensagem(CL.id, { anexoUrl: url, anexoTipo: "audio" });
                       } catch (err) {
                         toast((err as Error).message || 'Não foi possível enviar o áudio');
                       } finally {

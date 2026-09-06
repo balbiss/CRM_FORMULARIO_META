@@ -77,6 +77,7 @@ export function mensagensRouter(io: SocketServer) {
     texto: z.string().min(1).optional(),
     anexoUrl: z.string().min(1).optional(),
     anexoTipo: z.enum(['imagem', 'video', 'documento', 'audio']).optional(),
+    anexoNome: z.string().optional(),
   }).refine(b => !!b.texto || !!b.anexoUrl, { message: 'Mensagem precisa ter texto ou anexo' });
 
   router.post('/:leadId', async (req, res) => {
@@ -88,10 +89,11 @@ export function mensagensRouter(io: SocketServer) {
     if (lead === undefined) return res.status(403).json({ error: 'Sem permissão para enviar nesta conversa' });
 
     const [row] = await db.insert(mensagensWhatsapp).values({
-      leadId: req.params.leadId, direcao: 'out', canal: 'corretor', enviadoPor: sub,
+      leadId: req.params.leadId, direcao: 'out', canal: 'corretor', enviadoPor: sub, ackStatus: 1,
       texto: parsed.data.texto ?? null,
       anexoUrl: parsed.data.anexoUrl ?? null,
       anexoTipo: parsed.data.anexoTipo ?? null,
+      anexoNome: parsed.data.anexoNome ?? null,
     }).returning();
 
     io.to('imobiliaria:' + imobiliariaId).emit('mensagem:created', row);
@@ -101,7 +103,7 @@ export function mensagensRouter(io: SocketServer) {
     // se não houver sessão conectada, a mensagem fica só no histórico do CRM.
     despacharPeloWhatsapp({
       imobiliariaId, telefone: lead.telefone, corretorId: lead.corretorId,
-      texto: parsed.data.texto, anexoUrl: parsed.data.anexoUrl, anexoTipo: parsed.data.anexoTipo,
+      texto: parsed.data.texto, anexoUrl: parsed.data.anexoUrl, anexoTipo: parsed.data.anexoTipo, anexoNome: parsed.data.anexoNome,
     })
       .then(r => { if (!r.enviado && r.erro && r.erro !== 'WAHA não configurado' && r.erro !== 'nenhuma sessão conectada') console.warn('WhatsApp não enviou:', r.erro); })
       .catch(() => {});
