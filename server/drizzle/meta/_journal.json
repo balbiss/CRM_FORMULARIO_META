@@ -71,6 +71,13 @@
       "when": 1788708195699,
       "tag": "0009_white_texas_twister",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788709882096,
+      "tag": "0010_confused_tempest",
+      "breakpoints": true
     }
   ]
 }

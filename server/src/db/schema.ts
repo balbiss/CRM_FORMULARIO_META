@@ -2,6 +2,7 @@ import { pgTable, uuid, text, boolean, integer, numeric, timestamp, pgEnum, json
 import { relations } from 'drizzle-orm';
 
 export const roleEnum = pgEnum('role', ['dono', 'gerente', 'corretor']);
+export const modoWhatsappEnum = pgEnum('modo_whatsapp', ['central', 'corretor']);
 export const canalEnum = pgEnum('canal', ['WhatsApp', 'Instagram', 'Facebook', 'Indicacao', 'Manual']);
 export const direcaoEnum = pgEnum('direcao', ['in', 'out']);
 export const mensagemCanalEnum = pgEnum('mensagem_canal', ['corretor', 'followup']);
@@ -27,8 +28,31 @@ export const imobiliarias = pgTable('imobiliarias', {
   nome: text('nome').notNull(),
   // Configurável pelo Dono/Gerente no painel — antes era hardcoded em lib/schedule.
   horarioAtendimento: jsonb('horario_atendimento').$type<DiaAtendimento[]>().notNull().default(HORARIO_ATENDIMENTO_PADRAO),
+  // 'corretor' = cada corretor usa o próprio WhatsApp (padrão atual);
+  // 'central'  = um número da imobiliária, todo mundo atende pelo CRM, dono/gerente veem tudo.
+  modoWhatsapp: modoWhatsappEnum('modo_whatsapp').notNull().default('corretor'),
   criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Conexão do Facebook Lead Ads de uma imobiliária — o workflow n8n dinâmico lê a lista de
+ *  conexões ativas de TODAS as imobiliárias e busca leads de cada uma com o token dela.
+ *  O access_token é cifrado em repouso (AES-256-GCM, ver lib/crypto). */
+export const integracoesFacebook = pgTable('integracoes_facebook', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  imobiliariaId: uuid('imobiliaria_id').notNull().references(() => imobiliarias.id, { onDelete: 'cascade' }),
+  nomeConta: text('nome_conta').notNull(),
+  pageId: text('page_id').notNull(),
+  formId: text('form_id').notNull(),
+  tokenCifrado: text('token_cifrado').notNull(),
+  tokenIv: text('token_iv').notNull(),
+  tokenTag: text('token_tag').notNull(),
+  ativo: boolean('ativo').notNull().default(true),
+  ultimaSyncEm: timestamp('ultima_sync_em', { withTimezone: true }),
+  ultimoErro: text('ultimo_erro'),
+  criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+}, table => ({
+  imobiliariaIdx: index('integracoes_facebook_imobiliaria_id_idx').on(table.imobiliariaId),
+}));
 
 export const perfis = pgTable('perfis', {
   id: uuid('id').primaryKey().defaultRandom(),

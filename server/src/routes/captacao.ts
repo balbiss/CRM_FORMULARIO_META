@@ -17,6 +17,9 @@ export function captacaoRouter(io: SocketServer) {
   });
 
   const schema = z.object({
+    // multi-tenant: o workflow n8n manda a imobiliária dona do lead. Sem isso, cai na primeira
+    // do banco (compat com o modo single-tenant antigo — a remover quando o fluxo dinâmico entrar).
+    imobiliariaId: z.string().uuid().optional(),
     nome: z.string().min(1),
     telefone: z.string().min(8),
     email: z.string().email().optional(),
@@ -30,8 +33,10 @@ export function captacaoRouter(io: SocketServer) {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dados inválidos' });
 
-    const [imob] = await db.select().from(imobiliarias).limit(1);
-    if (!imob) return res.status(500).json({ error: 'Nenhuma imobiliária configurada' });
+    const [imob] = parsed.data.imobiliariaId
+      ? await db.select().from(imobiliarias).where(eq(imobiliarias.id, parsed.data.imobiliariaId)).limit(1)
+      : await db.select().from(imobiliarias).limit(1);
+    if (!imob) return res.status(parsed.data.imobiliariaId ? 404 : 500).json({ error: 'Imobiliária não encontrada' });
 
     const [colunaNova] = await db.select().from(colunasKanban)
       .where(and(eq(colunasKanban.imobiliariaId, imob.id), eq(colunasKanban.titulo, 'Lead Novo')))

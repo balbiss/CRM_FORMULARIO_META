@@ -30,3 +30,18 @@ configRouter.put('/horario', requireRole('dono', 'gerente'), async (req, res) =>
   await db.update(imobiliarias).set({ horarioAtendimento: parsed.data }).where(eq(imobiliarias.id, req.auth!.imobiliariaId));
   res.json(parsed.data);
 });
+
+/** Modo de atendimento no WhatsApp: 'central' (número único da imobiliária, todo mundo
+ *  atende pelo CRM) ou 'corretor' (cada corretor usa o próprio número). */
+configRouter.get('/whatsapp', async (req, res) => {
+  const [imob] = await db.select({ modo: imobiliarias.modoWhatsapp })
+    .from(imobiliarias).where(eq(imobiliarias.id, req.auth!.imobiliariaId)).limit(1);
+  res.json({ modo: imob?.modo ?? 'corretor' });
+});
+
+configRouter.put('/whatsapp', requireRole('dono', 'gerente'), async (req, res) => {
+  const parsed = z.object({ modo: z.enum(['central', 'corretor']) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Modo inválido' });
+  await db.update(imobiliarias).set({ modoWhatsapp: parsed.data.modo }).where(eq(imobiliarias.id, req.auth!.imobiliariaId));
+  res.json({ modo: parsed.data.modo });
+});

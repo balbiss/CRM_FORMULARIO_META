@@ -18,6 +18,7 @@ import { mensagensRouter } from './routes/mensagens.js';
 import { captacaoRouter } from './routes/captacao.js';
 import { tagsRouter } from './routes/tags.js';
 import { configRouter } from './routes/config.js';
+import { integracoesRouter } from './routes/integracoes.js';
 import { verifyToken } from './lib/jwt.js';
 import { ensureBucket } from './lib/storage.js';
 
@@ -36,6 +37,7 @@ app.use('/api/links-uteis', linksUteisRouter);
 app.use('/api/treinamentos', treinamentosRouter);
 app.use('/api/notificacoes', notificacoesRouter);
 app.use('/api/config', configRouter);
+app.use('/api/integracoes', integracoesRouter);
 
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, { cors: { origin: process.env.CORS_ORIGIN || 'http://localhost:5173' } });

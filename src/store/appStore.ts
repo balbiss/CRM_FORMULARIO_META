@@ -10,6 +10,12 @@ import { mapRemoteLead, slugToColunaId, type RemoteColuna, type RemotePerfil, ty
 
 interface RemoteFilaRow { corretorId: string; posicao: number; nome: string; emPlantao: boolean; bloqueado: boolean }
 export interface RemoteTag { id: string; nome: string; cor: string; ordem: number }
+export type ModoWhatsapp = 'central' | 'corretor';
+export interface IntegracaoFacebook {
+  id: string; nomeConta: string; pageId: string; formId: string;
+  ativo: boolean; ultimaSyncEm: string | null; ultimoErro: string | null; criadoEm: string; tokenFinal: string;
+}
+export interface IntegracaoFacebookInput { nomeConta: string; pageId: string; formId: string; accessToken: string }
 export interface RemoteTemplate { id: string; titulo: string; texto: string; anexoUrl: string | null }
 export type SituacaoImovel = 'Pronto para morar' | 'Em obras' | 'Lançamento';
 export interface RemoteImovel {
@@ -95,6 +101,8 @@ interface AppState {
   tags: RemoteTag[];
   kbTag: string | null;
   horarioAtendimento: DiaAtendimento[];
+  modoWhatsapp: ModoWhatsapp;
+  integracoesFacebook: IntegracaoFacebook[];
 
   leads: Lead[];
   leadId: string | null;
@@ -158,6 +166,12 @@ interface AppState {
 
   fetchHorario: () => Promise<void>;
   salvarHorario: (dias: DiaAtendimento[]) => Promise<boolean>;
+  fetchIntegracoes: () => Promise<void>;
+  setModoWhatsapp: (modo: ModoWhatsapp) => Promise<void>;
+  criarIntegracaoFb: (input: IntegracaoFacebookInput) => Promise<boolean>;
+  atualizarIntegracaoFb: (id: string, patch: Partial<IntegracaoFacebookInput> & { ativo?: boolean }) => Promise<void>;
+  excluirIntegracaoFb: (id: string) => Promise<void>;
+  testarIntegracaoFb: (id: string) => Promise<{ ok: boolean; msg: string }>;
   setKbTag: (tagId: string | null) => void;
   fetchTags: () => Promise<void>;
   createTag: (nome: string, cor?: string) => Promise<RemoteTag | null>;
@@ -309,6 +323,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   tags: [],
   kbTag: null,
   horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO,
+  modoWhatsapp: 'corretor',
+  integracoesFacebook: [],
 
   colunasRemotas: [],
   perfisRemotos: [],
@@ -401,7 +417,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('nova_token');
     disconnectSocket();
-    set({ token: null, me: null, leads: [], colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [] });
+    set({ token: null, me: null, leads: [], colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [] });
   },
   hydrateAuth: () => {
     const token = localStorage.getItem('nova_token');
@@ -419,6 +435,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().fetchNotificacoes();
       get().fetchConversas();
       get().fetchHorario();
+      get().fetchIntegracoes();
       })
       .catch(() => { localStorage.removeItem('nova_token'); set({ token: null, me: null, authLoading: false }); });
   },
@@ -729,6 +746,72 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) {
       get().toast((e as ApiError).message || 'Não foi possível salvar o horário');
       return false;
+    }
+  },
+
+  fetchIntegracoes: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const [{ modo }, lista] = await Promise.all([
+        apiFetch<{ modo: ModoWhatsapp }>('/api/config/whatsapp', token),
+        apiFetch<IntegracaoFacebook[]>('/api/integracoes/facebook', token).catch(() => [] as IntegracaoFacebook[]),
+      ]);
+      set({ modoWhatsapp: modo, integracoesFacebook: lista });
+    } catch { /* provável corretor sem permissão — mantém o padrão */ }
+  },
+  setModoWhatsapp: async modo => {
+    const token = get().token;
+    if (!token) return;
+    const anterior = get().modoWhatsapp;
+    set({ modoWhatsapp: modo });
+    try {
+      await apiFetch('/api/config/whatsapp', token, { method: 'PUT', body: JSON.stringify({ modo }) });
+      get().toast(modo === 'central' ? 'Modo: número central da imobiliária' : 'Modo: WhatsApp de cada corretor');
+    } catch (e) {
+      set({ modoWhatsapp: anterior });
+      get().toast((e as ApiError).message || 'Não foi possível trocar o modo');
+    }
+  },
+  criarIntegracaoFb: async input => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const row = await apiFetch<IntegracaoFacebook>('/api/integracoes/facebook', token, { method: 'POST', body: JSON.stringify(input) });
+      set(s => ({ integracoesFacebook: [...s.integracoesFacebook, row] }));
+      get().toast('Conexão do Facebook adicionada');
+      return true;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível salvar a conexão');
+      return false;
+    }
+  },
+  atualizarIntegracaoFb: async (id, patch) => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const row = await apiFetch<IntegracaoFacebook>('/api/integracoes/facebook/' + id, token, { method: 'PATCH', body: JSON.stringify(patch) });
+      set(s => ({ integracoesFacebook: s.integracoesFacebook.map(x => (x.id === id ? row : x)) }));
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível atualizar a conexão'); }
+  },
+  excluirIntegracaoFb: async id => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      await apiFetch('/api/integracoes/facebook/' + id, token, { method: 'DELETE' });
+      set(s => ({ integracoesFacebook: s.integracoesFacebook.filter(x => x.id !== id) }));
+      get().toast('Conexão removida');
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível remover a conexão'); }
+  },
+  testarIntegracaoFb: async id => {
+    const token = get().token;
+    if (!token) return { ok: false, msg: 'Sem sessão' };
+    try {
+      const r = await apiFetch<{ ok: boolean; formulario?: string; erro?: string }>('/api/integracoes/facebook/' + id + '/testar', token, { method: 'POST' });
+      get().fetchIntegracoes();
+      return r.ok ? { ok: true, msg: 'OK — formulário "' + (r.formulario || '') + '"' } : { ok: false, msg: r.erro || 'Falhou' };
+    } catch (e) {
+      return { ok: false, msg: (e as ApiError).message || 'Falhou' };
     }
   },
   enforceHorarioComercial: meNome => {
