@@ -5,6 +5,7 @@ import { db } from '../db/client.js';
 import { sessoesWhatsapp, imobiliarias, perfis, leads, colunasKanban, mensagensWhatsapp } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { wahaConfigurado, criarSessao, pararSessao, statusSessao, qrSessao, webhookSecret, fotoPerfil } from '../lib/waha.js';
+import { uploadFile } from '../lib/storage.js';
 import type { Server as SocketServer } from 'socket.io';
 
 const soDigitos = (s: string) => (s || '').replace(/[^0-9]/g, '');
@@ -146,12 +147,22 @@ export function whatsappRouter(io: SocketServer) {
       }
 
       // Foto de perfil do WhatsApp — busca uma vez (fire-and-forget) se o lead ainda não tem.
+      // A URL do WhatsApp expira, então baixa e guarda no MinIO (cai de volta na URL crua se o upload falhar).
       if (!lead.fotoUrl && !fromMe) {
         const leadId = lead.id, imobId = sessao.imobiliariaId, sn = sessao.sessionName, tel = numero;
         void (async () => {
-          const url = await fotoPerfil(sn, tel);
-          if (!url) return;
-          const [row] = await db.update(leads).set({ fotoUrl: url }).where(and(eq(leads.id, leadId), isNull(leads.fotoUrl))).returning();
+          const urlWa = await fotoPerfil(sn, tel);
+          if (!urlWa) return;
+          let fotoUrl = urlWa;
+          try {
+            const img = await fetch(urlWa);
+            if (img.ok) {
+              const buf = Buffer.from(await img.arrayBuffer());
+              const ct = img.headers.get('content-type') || 'image/jpeg';
+              fotoUrl = await uploadFile(`perfis-wa/${leadId}.jpg`, buf, ct);
+            }
+          } catch { /* usa a URL crua do WhatsApp */ }
+          const [row] = await db.update(leads).set({ fotoUrl }).where(and(eq(leads.id, leadId), isNull(leads.fotoUrl))).returning();
           if (row) io.to('imobiliaria:' + imobId).emit('lead:updated', row);
         })().catch(() => {});
       }
