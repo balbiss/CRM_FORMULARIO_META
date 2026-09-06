@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { leads, colunasKanban, imobiliarias } from '../db/schema.js';
+import { distribuirLead } from '../lib/roleta.js';
 import type { Server as SocketServer } from 'socket.io';
 
 /** Endpoint de ingestão de automação (n8n etc.) — sem JWT de usuário, protegido por segredo
@@ -56,6 +57,8 @@ export function captacaoRouter(io: SocketServer) {
 
     io.to('imobiliaria:' + imob.id).emit('lead:created', row);
     res.status(201).json(row);
+
+    distribuirLead(io, imob.id, row.id).catch(e => console.error('roleta captação:', (e as Error).message));
   });
 
   return router;

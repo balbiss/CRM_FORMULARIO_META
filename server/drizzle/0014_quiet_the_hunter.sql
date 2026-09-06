@@ -1,0 +1,1 @@
+ALTER TABLE "filas_atendimento" ADD COLUMN "ultima_atribuicao" timestamp with time zone;

@@ -5,6 +5,7 @@ import { db } from '../db/client.js';
 import { filasAtendimento, perfis, imobiliarias } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 import { isBusinessHoursOpen, horarioAtendimentoLabel } from '../lib/schedule.js';
+import { distribuirPendentes } from '../lib/roleta.js';
 import type { Server as SocketServer } from 'socket.io';
 
 export function filasRouter(io: SocketServer) {
@@ -69,6 +70,17 @@ export function filasRouter(io: SocketServer) {
 
     io.to('imobiliaria:' + imobiliariaId).emit('fila:atualizada', { corretorId: row.id, emPlantao: row.emPlantao });
     res.json({ corretorId: row.id, emPlantao: row.emPlantao });
+
+    // entrou no plantão -> distribui o que estava acumulado sem corretor (fire-and-forget)
+    if (vaiLigar) distribuirPendentes(io, imobiliariaId).catch(e => console.error('roleta pendentes:', (e as Error).message));
+  });
+
+  // Distribui manualmente os leads da coluna "Lead Novo" que estão sem corretor.
+  router.post('/distribuir', async (req, res) => {
+    const { imobiliariaId, role } = req.auth!;
+    if (role === 'corretor') return res.status(403).json({ error: 'Só dono ou gerente pode distribuir a roleta' });
+    const n = await distribuirPendentes(io, imobiliariaId);
+    res.json({ distribuidos: n });
   });
 
   router.post('/embaralhar', async (req, res) => {

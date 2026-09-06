@@ -187,6 +187,8 @@ export const filasAtendimento = pgTable('filas_atendimento', {
   imobiliariaId: uuid('imobiliaria_id').notNull().references(() => imobiliarias.id, { onDelete: 'cascade' }),
   corretorId: uuid('corretor_id').notNull().references(() => perfis.id, { onDelete: 'cascade' }).unique(),
   posicao: integer('posicao').notNull().default(0),
+  // Quando esse corretor recebeu o último lead da roleta — o próximo lead vai pro que faz mais tempo.
+  ultimaAtribuicao: timestamp('ultima_atribuicao', { withTimezone: true }),
 });
 
 /** Sessão de WhatsApp (WAHA). 'central' = número único da imobiliária;

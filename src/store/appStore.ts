@@ -221,6 +221,7 @@ interface AppState {
   bolsaoAssume: (id: string) => void;
   bolsaoDiscard: (id: string, nome: string) => void;
   shuffle: () => void;
+  distribuirPendentes: () => Promise<void>;
   pull: () => void;
 
   addStep: () => void;
@@ -520,6 +521,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     socket.off('conversa:lida').on('conversa:lida', (msg: { leadId: string }) => {
       set(s => ({ conversas: s.conversas.map(c => (c.leadId === msg.leadId ? { ...c, naoLidas: 0 } : c)) }));
     });
+    socket.off('horario:mudou').on('horario:mudou', (dias: DiaAtendimento[]) => {
+      if (Array.isArray(dias) && dias.length === 7) set({ horarioAtendimento: dias });
+    });
     socket.off('mensagem:ack').on('mensagem:ack', (msg: { id: string; ackStatus: number }) => {
       set(s => {
         const next: typeof s.chats = {};
@@ -744,7 +748,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Checagem otimista local (feedback instantâneo) — o backend valida de novo e manda de verdade.
     const bloqueado = get().perfisRemotos.find(p => p.id === f.corretorId)?.bloqueado ?? false;
     if (bloqueado) { get().toast(f.nome + ' está com acesso bloqueado — não pode entrar na roleta'); return false; }
-    if (!f.ativo && !isBusinessHoursOpen(get().horarioAtendimento)) { get().fireAlert('fora-horario'); return false; }
+    if (!f.ativo && !isBusinessHoursOpen(get().horarioAtendimento)) {
+      // pode ser horário desatualizado (o dono acabou de mudar) — revalida com o servidor antes de barrar
+      await get().fetchHorario();
+      if (!isBusinessHoursOpen(get().horarioAtendimento)) { get().fireAlert('fora-horario'); return false; }
+    }
 
     const token = get().token;
     if (!token) return false;
@@ -769,7 +777,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token || !me) return;
     const naFila = get().fila.find(f => f.corretorId === me.id);
     const ativoAgora = naFila ? naFila.ativo : !!me.emPlantao;
-    if (!ativoAgora && !isBusinessHoursOpen(get().horarioAtendimento)) { get().fireAlert('fora-horario'); return; }
+    if (!ativoAgora && !isBusinessHoursOpen(get().horarioAtendimento)) {
+      await get().fetchHorario();
+      if (!isBusinessHoursOpen(get().horarioAtendimento)) { get().fireAlert('fora-horario'); return; }
+    }
     try {
       const res = await apiFetch<{ corretorId: string; emPlantao: boolean }>('/api/filas/disponibilidade', token, {
         method: 'PATCH',
@@ -957,6 +968,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       .then(rows => set({ fila: rows.map(f => ({ corretorId: f.corretorId, nome: f.nome, ativo: f.emPlantao })) }))
       .then(() => get().toast('Roleta embaralhada'))
       .catch(() => get().toast('Não foi possível embaralhar a roleta'));
+  },
+  distribuirPendentes: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const r = await apiFetch<{ distribuidos: number }>('/api/filas/distribuir', token, { method: 'POST' });
+      get().toast(r.distribuidos ? r.distribuidos + ' lead(s) distribuído(s) na roleta' : 'Nenhum lead pendente para distribuir');
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível distribuir');
+    }
   },
   pull: () => get().toast('3 rebatidas puxadas para o seu atendimento'),
 

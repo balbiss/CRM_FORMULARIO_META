@@ -38,7 +38,6 @@ app.use('/api/uploads', uploadsRouter);
 app.use('/api/links-uteis', linksUteisRouter);
 app.use('/api/treinamentos', treinamentosRouter);
 app.use('/api/notificacoes', notificacoesRouter);
-app.use('/api/config', configRouter);
 app.use('/api/integracoes', integracoesRouter);
 app.use('/api/plataforma', plataformaRouter);
 
@@ -60,6 +59,7 @@ io.on('connection', socket => {
   socket.join('imobiliaria:' + socket.data.claims.imobiliariaId);
 });
 
+app.use('/api/config', configRouter(io));
 app.use('/api/colunas', colunasRouter(io));
 app.use('/api/leads', leadsRouter(io));
 app.use('/api/filas', filasRouter(io));

@@ -6,6 +6,7 @@ import { sessoesWhatsapp, imobiliarias, perfis, leads, colunasKanban, mensagensW
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { wahaConfigurado, criarSessao, pararSessao, statusSessao, qrSessao, webhookSecret, fotoPerfil } from '../lib/waha.js';
 import { uploadFile } from '../lib/storage.js';
+import { distribuirLead } from '../lib/roleta.js';
 import type { Server as SocketServer } from 'socket.io';
 
 const soDigitos = (s: string) => (s || '').replace(/[^0-9]/g, '');
@@ -134,6 +135,11 @@ export function whatsappRouter(io: SocketServer) {
         }).returning();
         lead = novo;
         io.to('imobiliaria:' + sessao.imobiliariaId).emit('lead:created', novo);
+        // modo central: sem corretor fixo -> roleta. modo corretor: já nasceu com o dono da sessão.
+        if (!novo.corretorId) {
+          const leadNovoId = novo.id, imobNovo = sessao.imobiliariaId;
+          void distribuirLead(io, imobNovo, leadNovoId).catch(e => console.error('roleta wa:', (e as Error).message));
+        }
       }
       if (!lead) return;
 

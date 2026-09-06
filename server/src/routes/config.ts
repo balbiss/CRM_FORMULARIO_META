@@ -4,8 +4,10 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { imobiliarias, HORARIO_ATENDIMENTO_PADRAO } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import type { Server as SocketServer } from 'socket.io';
 
-export const configRouter = Router();
+export function configRouter(io: SocketServer) {
+const configRouter = Router();
 configRouter.use(requireAuth);
 
 /** Horário de atendimento da equipe — controla quando o corretor pode ficar "No Plantão".
@@ -28,6 +30,8 @@ configRouter.put('/horario', requireRole('dono', 'gerente'), async (req, res) =>
   const parsed = bodySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Configuração inválida (7 dias, minutos 0–1440)' });
   await db.update(imobiliarias).set({ horarioAtendimento: parsed.data }).where(eq(imobiliarias.id, req.auth!.imobiliariaId));
+  // avisa a equipe conectada pra atualizar o horário na hora (senão o corretor fica com o antigo até recarregar)
+  io.to('imobiliaria:' + req.auth!.imobiliariaId).emit('horario:mudou', parsed.data);
   res.json(parsed.data);
 });
 
@@ -45,3 +49,6 @@ configRouter.put('/whatsapp', requireRole('dono', 'gerente'), async (req, res) =
   await db.update(imobiliarias).set({ modoWhatsapp: parsed.data.modo }).where(eq(imobiliarias.id, req.auth!.imobiliariaId));
   res.json({ modo: parsed.data.modo });
 });
+
+  return configRouter;
+}
