@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Paperclip } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
-import { COLS, CADENCIAS, MOTIVOS_DESCARTE, APROVACAO, mapMsgs } from '../lib/data';
+import { CADENCIAS, MOTIVOS_DESCARTE, APROVACAO, mapMsgs } from '../lib/data';
 import { BRL, canalPill, thumb } from '../lib/format';
 import { css } from '../lib/css';
 import { uploadArquivo, tipoDeArquivo } from '../lib/upload';
@@ -31,7 +31,8 @@ export function LeadModal() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cadencia = useAppStore(s => s.cadencia);
   const setCadencia = useAppStore(s => s.setCadencia);
-  const setColByTitle = useAppStore(s => s.setColByTitle);
+  const move = useAppStore(s => s.move);
+  const colunas = useAppStore(s => s.colunasRemotas);
   const advance = useAppStore(s => s.advance);
   const discardOpen = useAppStore(s => s.discardOpen);
   const discardWarn = useAppStore(s => s.discardWarn);
@@ -48,7 +49,7 @@ export function LeadModal() {
   const L = leads.find(l => l.id === leadId);
   if (!L) return null;
 
-  const col = COLS.find(c => c.id === L.col)!;
+  const colAtual = colunas.find(c => c.id === L.colunaId)?.titulo ?? '—';
   const cad = cadencia[L.id] || 'Chamada 1';
   const seqSt = seqState[L.id] || 'ativa';
   const chatMsgs = mapMsgs(chats[L.id] || []);
@@ -60,7 +61,7 @@ export function LeadModal() {
   ];
 
   const historico = [
-    { titulo: 'Movido para ' + col.title, sub: 'por Camila Rocha', quando: 'há 2 h' },
+    { titulo: 'Movido para ' + colAtual, sub: 'por Camila Rocha', quando: 'há 2 h' },
     { titulo: 'Mensagem recebida no WhatsApp', sub: '"Quinta funciona. Me confirma o endereço."', quando: 'há 5 h' },
     { titulo: 'Follow-up automático enviado', sub: 'Passo 2 — "+1 dia"', quando: 'ontem' },
     { titulo: 'Visita agendada', sub: '17 set, 09:00 · Edifício Aurora', quando: 'ontem' },
@@ -86,7 +87,7 @@ export function LeadModal() {
           <span style={css(thumb(3, 46))} />
           <span style={{ flex: 1, minWidth: 0 }}>
             <span style={{ display: 'block', fontFamily: 'Newsreader,serif', fontSize: 26, lineHeight: 1.15 }}>{L.nome}</span>
-            <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>{L.tel} · {L.corretor} · {col.title}</span>
+            <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>{L.tel} · {L.corretor} · {colAtual}</span>
           </span>
           <span style={css(canalPill(L.canal) + ';align-self:center')}>{L.canal}</span>
           <button onClick={closeLead} style={{ border: '1px solid var(--line)', background: 'none', width: 30, height: 30, borderRadius: 8, flex: 'none' }}>×</button>
@@ -135,8 +136,8 @@ export function LeadModal() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 7 }}>Coluna do Kanban</label>
-                  <select value={col.title} onChange={e => setColByTitle(L.id, e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5 }}>
-                    {COLS.map(c => <option key={c.id}>{c.title}</option>)}
+                  <select value={L.colunaId} onChange={e => move(L.id, e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5 }}>
+                    {colunas.map(c => <option key={c.id} value={c.id}>{c.titulo}</option>)}
                   </select>
                 </div>
               </div>

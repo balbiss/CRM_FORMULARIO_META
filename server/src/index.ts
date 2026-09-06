@@ -29,7 +29,6 @@ app.use(express.json());
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.use('/api/auth', authRouter);
-app.use('/api/colunas', colunasRouter);
 app.use('/api/templates', templatesRouter);
 app.use('/api/imoveis', imoveisRouter);
 app.use('/api/uploads', uploadsRouter);
@@ -57,6 +56,7 @@ io.on('connection', socket => {
   socket.join('imobiliaria:' + socket.data.claims.imobiliariaId);
 });
 
+app.use('/api/colunas', colunasRouter(io));
 app.use('/api/leads', leadsRouter(io));
 app.use('/api/filas', filasRouter(io));
 app.use('/api/perfis', perfisRouter(io));

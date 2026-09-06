@@ -1,6 +1,8 @@
 import { dayLabel, stamp, stripAccents } from './format';
 
 export type Role = 'Dono' | 'Gerente' | 'Corretor';
+/** Slugs das colunas "de sistema" — outras telas (Dashboard, Crédito, Bolsão, roleta) dependem
+ *  desses nomes fixos. Colunas criadas pelo usuário não têm slug. */
 export type ColId = 'novo' | 'atend' | 'credito' | 'visita' | 'proposta' | 'venda' | 'rebatida';
 
 export interface Col {
@@ -9,6 +11,8 @@ export interface Col {
   color: string;
 }
 
+/** Catálogo das colunas de sistema (título e cor padrão). O Kanban de verdade é montado a
+ *  partir das colunas do banco (colunasRemotas); isto aqui é só referência/seed. */
 export const COLS: Col[] = [
   { id: 'novo', title: 'Lead Novo', color: 'var(--muted)' },
   { id: 'atend', title: 'Em Atendimento', color: 'var(--terra)' },
@@ -69,11 +73,13 @@ export interface Lead {
   tel: string;
   email: string;
   foto: string;
+  colunaId: string;
   imovel: string;
   imovelSub: string;
   valor: number;
   canal: string;
-  col: ColId;
+  /** slug da coluna de sistema, OU o id da coluna quando for uma coluna customizada sem slug */
+  col: string;
   dias: number;
   segundo: boolean;
   corretor: string;
@@ -103,7 +109,7 @@ export function buildLeads(): Lead[] {
       tel: '(11) 9' + (8000 + i * 37) + '-' + (1000 + i * 13),
       email: stripAccents(nome.toLowerCase()).replace(/ /g, '.') + '@email.com',
       imovel: im[0], imovelSub: im[1], valor: im[2],
-      canal: CANAIS[i % CANAIS.length], col: dist[i], dias: (i * 3) % 11,
+      canal: CANAIS[i % CANAIS.length], col: dist[i], colunaId: dist[i], dias: (i * 3) % 11,
       segundo: i % 7 === 0, corretor: CORRETORES[i % CORRETORES.length].nome,
       campanha: i % 2 ? 'Aurora — Lançamento' : 'Vila Serena — Fase 2',
       motivo: MOTIVOS[i % MOTIVOS.length], renda: 9000 + (i % 6) * 4200,

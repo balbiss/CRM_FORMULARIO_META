@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { useRoleInfo, scopeLeads } from '../lib/selectors';
-import { COLS, CANAIS, CORRETORES } from '../lib/data';
+import { CANAIS, CORRETORES } from '../lib/data';
 import { BRL, ini } from '../lib/format';
 
 export default function Dashboard() {
@@ -13,14 +13,15 @@ export default function Dashboard() {
   const toast = useAppStore(s => s.toast);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
+  const colunas = useAppStore(s => s.colunasRemotas);
   const leads = useMemo(() => scopeLeads(allLeads, isManager, meNome), [allLeads, isManager, meNome]);
 
-  const counts = COLS.map(c => leads.filter(l => l.col === c.id).length);
+  const counts = colunas.map(c => leads.filter(l => l.colunaId === c.id).length);
   const maxC = Math.max(...counts, 1);
-  const funnel = COLS.map((c, i) => ({
-    colId: c.id, title: c.title, label: counts[i] + ' leads',
+  const funnel = colunas.map((c, i) => ({
+    colId: c.id, title: c.titulo, label: counts[i] + ' leads',
     pct: Math.round((counts[i] / maxC) * 100),
-    color: c.id === 'venda' ? 'var(--olive)' : 'var(--terra)',
+    color: c.slug === 'venda' ? 'var(--olive)' : 'var(--terra)',
   }));
 
   const oCount = CANAIS.map(c => leads.filter(l => l.canal === c).length);

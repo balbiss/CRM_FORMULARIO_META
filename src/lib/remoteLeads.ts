@@ -1,6 +1,6 @@
 import { COLS, type ColId, type Lead } from './data';
 
-export interface RemoteColuna { id: string; titulo: string; ordem: number; cor: string | null }
+export interface RemoteColuna { id: string; titulo: string; ordem: number; cor: string | null; slug: string | null }
 export interface RemotePerfil { id: string; nome: string; email: string; role: string; telefone: string | null; bloqueado: boolean; emPlantao: boolean }
 export interface RemoteLead {
   id: string;
@@ -25,16 +25,16 @@ export interface RemoteLead {
 
 const CANAL_LABEL: Record<string, string> = { Indicacao: 'Indicação' };
 
-/** Colunas do backend são criadas com os MESMOS títulos de COLS (ver seed) — casamos por título
- * pra manter o resto do app (Kanban, Dashboard, Bolsão etc.) funcionando com o mesmo ColId de sempre. */
-export function colIdToSlug(colunaId: string | null, colunas: RemoteColuna[]): ColId {
-  const titulo = colunas.find(c => c.id === colunaId)?.titulo;
-  return (COLS.find(c => c.title === titulo)?.id ?? 'novo') as ColId;
+/** slug da coluna de sistema, ou o próprio id quando a coluna é customizada (sem slug). */
+export function colToSemantico(colunaId: string | null, colunas: RemoteColuna[]): string {
+  const c = colunas.find(x => x.id === colunaId);
+  return c?.slug ?? colunaId ?? 'novo';
 }
 
+/** id real da coluna que tem esse slug de sistema (pra ações tipo "descartar" = mandar pra 'rebatida'). */
 export function slugToColunaId(slug: ColId, colunas: RemoteColuna[]): string | undefined {
-  const titulo = COLS.find(c => c.id === slug)?.title;
-  return colunas.find(c => c.titulo === titulo)?.id;
+  return colunas.find(c => c.slug === slug)?.id
+    ?? colunas.find(c => c.titulo === COLS.find(x => x.id === slug)?.title)?.id;
 }
 
 export function mapRemoteLead(r: RemoteLead, colunas: RemoteColuna[], perfis: RemotePerfil[]): Lead {
@@ -49,7 +49,8 @@ export function mapRemoteLead(r: RemoteLead, colunas: RemoteColuna[], perfis: Re
     imovelSub: r.imovelSub ?? '',
     valor: r.valor ? Number(r.valor) : 0,
     canal: CANAL_LABEL[r.canal] ?? r.canal,
-    col: colIdToSlug(r.colunaId, colunas),
+    colunaId: r.colunaId ?? '',
+    col: colToSemantico(r.colunaId, colunas),
     dias,
     segundo: r.segundoCadastro,
     corretor: perfis.find(p => p.id === r.corretorId)?.nome ?? '',

@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import {
-  COLS,
   type Role, type ColId, type Lead, type ChatMsg, type AnexoTipo,
 } from '../lib/data';
 import { apiFetch, type ApiError } from '../lib/api';
@@ -179,7 +178,13 @@ interface AppState {
   deleteTag: (id: string) => Promise<void>;
   toggleLeadTag: (leadId: string, tagId: string) => Promise<void>;
 
-  move: (id: string, col: ColId) => void;
+  move: (id: string, colunaId: string) => void;
+  moverPorSlug: (id: string, slug: ColId) => void;
+  criarColuna: (titulo: string) => Promise<void>;
+  renomearColuna: (id: string, titulo: string) => Promise<void>;
+  excluirColuna: (id: string) => Promise<void>;
+  reordenarColunas: (ids: string[]) => Promise<void>;
+  fetchColunas: () => Promise<void>;
   openLead: (id: string, tab?: LeadTab) => void;
   closeLead: () => void;
   setLeadTab: (tab: LeadTab) => void;
@@ -459,6 +464,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       set(s => ({ leads: s.leads.map(l => (l.id === msg.leadId ? { ...l, tags: msg.tagIds } : l)) }));
     });
     socket.off('tag:changed').on('tag:changed', () => { get().fetchTags(); });
+    socket.off('colunas:mudou').on('colunas:mudou', () => { get().fetchColunas(); });
     socket.off('fila:atualizada').on('fila:atualizada', (msg: { corretorId: string; emPlantao: boolean }) => {
       set(s => ({ fila: s.fila.map(f => (f.corretorId === msg.corretorId ? { ...f, ativo: msg.emPlantao } : f)) }));
     });
@@ -581,21 +587,26 @@ export const useAppStore = create<AppState>((set, get) => ({
   closeConfirm: () => set({ confirm: null }),
   confirmOk: () => { const c = get().confirm; set({ confirm: null }); c?.fn(); },
 
-  move: (id, col) => {
-    const l = get().leads.find(x => x.id === id);
-    if (!l || l.col === col) return;
-    const colunaAnterior = l.col;
-    set(s => ({ leads: s.leads.map(x => (x.id === id ? { ...x, col, dias: 0 } : x)) }));
-    get().toast(l.nome + ' → ' + COLS.find(c => c.id === col)!.title);
-
-    const { token, colunasRemotas } = get();
-    const colunaId = slugToColunaId(col, colunasRemotas);
-    if (!token || !colunaId) return; // sem backend/coluna real casada (ex: coluna adicionada só localmente) — fica só otimista
+  // move(leadId, colunaId) — colunaId é o id REAL da coluna do banco.
+  move: (id, colunaId) => {
+    const { leads, colunasRemotas, token } = get();
+    const l = leads.find(x => x.id === id);
+    const destino = colunasRemotas.find(c => c.id === colunaId);
+    if (!l || !destino || l.colunaId === colunaId) return;
+    const antes = { colunaId: l.colunaId, col: l.col };
+    const semantico = destino.slug ?? destino.id;
+    set(s => ({ leads: s.leads.map(x => (x.id === id ? { ...x, colunaId, col: semantico, dias: 0 } : x)) }));
+    get().toast(l.nome + ' → ' + destino.titulo);
+    if (!token) return;
     apiFetch('/api/leads/' + id + '/mover', token, { method: 'PATCH', body: JSON.stringify({ colunaId }) })
       .catch(() => {
-        set(s => ({ leads: s.leads.map(x => (x.id === id ? { ...x, col: colunaAnterior } : x)) }));
+        set(s => ({ leads: s.leads.map(x => (x.id === id ? { ...x, ...antes } : x)) }));
         get().toast('Não deu pra salvar — ' + l.nome + ' voltou pra coluna anterior');
       });
+  },
+  moverPorSlug: (id, slug) => {
+    const cid = slugToColunaId(slug, get().colunasRemotas);
+    if (cid) get().move(id, cid);
   },
 
   openLead: (id, tab = 'detalhes') => {
@@ -828,7 +839,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setBolsaoTab: t => set({ bolsaoTab: t }),
-  bolsaoAssume: id => get().move(id, 'novo'),
+  bolsaoAssume: id => get().moverPorSlug(id, 'novo'),
   bolsaoDiscard: (id, nome) => get().ask(
     'Descartar ' + nome + '?',
     'O lead sai do bolsão e vai para a base de descadastrados. Esta ação não pode ser desfeita.',
@@ -898,7 +909,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   })),
 
   setCadencia: (leadId, value) => { set(s => ({ cadencia: { ...s.cadencia, [leadId]: value } })); get().toast(get().leads.find(l => l.id === leadId)?.nome + ': ' + value); },
-  setColByTitle: (leadId, title) => { const c = COLS.find(x => x.title === title); if (c) get().move(leadId, c.id); },
+  setColByTitle: (leadId, title) => { const c = get().colunasRemotas.find(x => x.titulo === title); if (c) get().move(leadId, c.id); },
   openDiscard: () => set(s => ({ discardOpen: !s.discardOpen, discardWarn: null })),
   closeDiscard: () => set({ discardOpen: false, discardWarn: null }),
   pickMotivoDescarte: motivo => {
@@ -911,7 +922,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       'Descartar ' + (l ? l.nome : 'lead') + '?',
       'Motivo: ' + motivo + '. O lead vai para o bolsão de rebatidas e a sequência de follow-up é interrompida.',
       'Descartar',
-      () => { if (l) { get().move(l.id, 'rebatida'); set({ leadId: null }); } },
+      () => { if (l) { get().moverPorSlug(l.id, 'rebatida'); set({ leadId: null }); } },
     );
   },
   requestApproval: () => { set({ discardOpen: false, discardWarn: null }); get().toast('Solicitação enviada ao gerente para aprovação'); },
@@ -1244,7 +1255,61 @@ export const useAppStore = create<AppState>((set, get) => ({
   savePerfil: () => get().toast('Perfil atualizado'),
   invite: () => get().toast('Convite enviado por e-mail'),
   exportCsv: () => get().toast('Relatório exportado — relatorio-nova-set-2026.csv'),
-  addColumn: () => get().toast('Nova coluna criada — arraste para posicionar'),
+  addColumn: () => get().toast('Use o botão "Nova coluna" no Kanban'),
+  fetchColunas: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const colunas = await apiFetch<RemoteColuna[]>('/api/colunas', token);
+      set(s => ({
+        colunasRemotas: colunas,
+        // reavalia o slug/id de cada lead com as colunas novas
+        leads: s.leads.map(l => {
+          const c = colunas.find(x => x.id === l.colunaId);
+          return c ? { ...l, col: c.slug ?? c.id } : l;
+        }),
+      }));
+    } catch { /* ignore */ }
+  },
+  criarColuna: async titulo => {
+    const token = get().token;
+    if (!token || !titulo.trim()) return;
+    try {
+      const row = await apiFetch<RemoteColuna>('/api/colunas', token, { method: 'POST', body: JSON.stringify({ titulo: titulo.trim() }) });
+      set(s => ({ colunasRemotas: [...s.colunasRemotas, row] }));
+      get().toast('Coluna "' + row.titulo + '" criada');
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível criar a coluna'); }
+  },
+  renomearColuna: async (id, titulo) => {
+    const token = get().token;
+    if (!token || !titulo.trim()) return;
+    try {
+      const row = await apiFetch<RemoteColuna>('/api/colunas/' + id, token, { method: 'PATCH', body: JSON.stringify({ titulo: titulo.trim() }) });
+      set(s => ({ colunasRemotas: s.colunasRemotas.map(c => (c.id === id ? row : c)) }));
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível renomear'); }
+  },
+  excluirColuna: async id => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      await apiFetch('/api/colunas/' + id, token, { method: 'DELETE' });
+      await get().fetchColunas();
+      await get().fetchKanbanData();
+      get().toast('Coluna removida — os leads foram pra primeira coluna');
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível excluir a coluna'); }
+  },
+  reordenarColunas: async ids => {
+    const token = get().token;
+    if (!token) return;
+    const antes = get().colunasRemotas;
+    set({ colunasRemotas: ids.map(id => antes.find(c => c.id === id)).filter(Boolean) as RemoteColuna[] });
+    try {
+      await apiFetch('/api/colunas', token, { method: 'PATCH', body: JSON.stringify({ ordem: ids }) });
+    } catch (e) {
+      set({ colunasRemotas: antes });
+      get().toast((e as ApiError).message || 'Não foi possível reordenar');
+    }
+  },
   newLead: () => set({ newLeadOpen: true }),
   setNewLeadOpen: v => set({ newLeadOpen: v }),
   criarLeadManual: async input => {
@@ -1272,12 +1337,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       return false;
     }
   },
-  advance: id => { const l = get().leads.find(x => x.id === id); if (!l) return; const i = COLS.findIndex(c => c.id === l.col); get().move(id, COLS[Math.min(i + 1, 5)].id); },
+  advance: id => {
+    const { leads, colunasRemotas } = get();
+    const l = leads.find(x => x.id === id);
+    if (!l) return;
+    const i = colunasRemotas.findIndex(c => c.id === l.colunaId);
+    const proxima = colunasRemotas[i + 1];
+    // não avança pra "rebatida" automaticamente (é descarte, não progresso)
+    if (proxima && proxima.slug !== 'rebatida') get().move(id, proxima.id);
+  },
   askDiscard: (id, nome) => get().ask(
     'Descartar ' + nome + '?',
     'O lead vai para o bolsão de rebatidas e a sequência de follow-up é interrompida.',
     'Descartar lead',
-    () => { get().move(id, 'rebatida'); set({ leadId: null }); },
+    () => { get().moverPorSlug(id, 'rebatida'); set({ leadId: null }); },
   ),
   goDay: n => set({ day: n }),
 }));

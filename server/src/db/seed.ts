@@ -18,13 +18,13 @@ const CORRETORES = [
 ];
 
 const COLS = [
-  { titulo: 'Lead Novo', cor: 'var(--muted)' },
-  { titulo: 'Em Atendimento', cor: 'var(--terra)' },
-  { titulo: 'Análise de Crédito', cor: 'var(--terra)' },
-  { titulo: 'Visita Agendada', cor: 'var(--terra)' },
-  { titulo: 'Proposta', cor: 'var(--terra)' },
-  { titulo: 'Venda Concluída', cor: 'var(--olive)' },
-  { titulo: 'Rebatida', cor: 'var(--muted)' },
+  { titulo: 'Lead Novo', cor: 'var(--muted)', slug: 'novo' },
+  { titulo: 'Em Atendimento', cor: 'var(--terra)', slug: 'atend' },
+  { titulo: 'Análise de Crédito', cor: 'var(--terra)', slug: 'credito' },
+  { titulo: 'Visita Agendada', cor: 'var(--terra)', slug: 'visita' },
+  { titulo: 'Proposta', cor: 'var(--terra)', slug: 'proposta' },
+  { titulo: 'Venda Concluída', cor: 'var(--olive)', slug: 'venda' },
+  { titulo: 'Rebatida', cor: 'var(--muted)', slug: 'rebatida' },
 ];
 
 const IMOVEIS = [
@@ -78,7 +78,7 @@ async function main() {
   console.log('Seed:', perfisRows.length, 'perfis criados (senha padrão: 123456; Dono usa senha própria)');
 
   const colunasRows = await db.insert(schema.colunasKanban).values(
-    COLS.map((c, i) => ({ imobiliariaId: imob.id, titulo: c.titulo, ordem: i, cor: c.cor })),
+    COLS.map((c, i) => ({ imobiliariaId: imob.id, titulo: c.titulo, ordem: i, cor: c.cor, slug: c.slug })),
   ).returning();
 
   const colunaByTitulo = new Map(colunasRows.map(c => [c.titulo, c.id]));

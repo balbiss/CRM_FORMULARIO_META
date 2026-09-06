@@ -1,22 +1,23 @@
 import { useMemo } from 'react';
 import { useAppStore } from '../store/appStore';
 import { useRoleInfo, scopeLeads } from '../lib/selectors';
-import { COLS, CORRETORES } from '../lib/data';
+import { CORRETORES } from '../lib/data';
 import { BRL } from '../lib/format';
 
 export default function Relatorios() {
   const allLeads = useAppStore(s => s.leads);
+  const colunas = useAppStore(s => s.colunasRemotas);
   const exportCsv = useAppStore(s => s.exportCsv);
   const toast = useAppStore(s => s.toast);
   const { isManager, meNome } = useRoleInfo();
 
   const leads = useMemo(() => scopeLeads(allLeads, isManager, meNome), [allLeads, isManager, meNome]);
-  const counts = COLS.map(c => leads.filter(l => l.col === c.id).length);
+  const counts = colunas.map(c => leads.filter(l => l.colunaId === c.id).length);
   const maxC = Math.max(...counts, 1);
-  const funnel = COLS.map((c, i) => ({
-    title: c.title, label: counts[i] + ' leads',
+  const funnel = colunas.map((c, i) => ({
+    title: c.titulo, label: counts[i] + ' leads',
     pct: Math.round((counts[i] / maxC) * 100),
-    color: c.id === 'venda' ? 'var(--olive)' : 'var(--terra)',
+    color: c.slug === 'venda' ? 'var(--olive)' : 'var(--terra)',
   }));
   const ranking = [...CORRETORES].sort((a, b) => b.vgv - a.vgv);
 
