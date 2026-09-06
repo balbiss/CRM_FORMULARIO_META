@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
-import { ROLETA_LOG } from '../lib/data';
 import { canalPill, thumb, PILL } from '../lib/format';
 import { css } from '../lib/css';
 import type { BolsaoTab } from '../store/appStore';
@@ -24,7 +23,7 @@ export default function Bolsao() {
   const pull = useAppStore(s => s.pull);
   const openLead = useAppStore(s => s.openLead);
   const toast = useAppStore(s => s.toast);
-  const { isManager, meNome } = useRoleInfo();
+  const { isManager } = useRoleInfo();
   const [query, setQuery] = useState('');
   const [cidade, setCidade] = useState('Todas as Cidades');
   const [de, setDe] = useState('');
@@ -52,7 +51,9 @@ export default function Bolsao() {
   const leadsNovos = filtrados.filter(l => l.col === 'novo');
   const rebatidasGeral = filtrados.filter(l => l.col === 'rebatida' && !MOTIVOS_EXTREMOS.includes(l.motivo));
   const descadastrar = filtrados.filter(l => l.col === 'rebatida' && MOTIVOS_EXTREMOS.includes(l.motivo));
-  const roletaLog = ROLETA_LOG.filter(r => isManager || r[2] === meNome);
+  const roletaLog = useAppStore(s => s.roletaLog);
+  const fetchRoletaLog = useAppStore(s => s.fetchRoletaLog);
+  useEffect(() => { fetchRoletaLog(); }, [fetchRoletaLog]);
 
   return (
     <div>
@@ -172,14 +173,18 @@ export default function Bolsao() {
           <div className="data-table-head" style={{ display: 'flex', gap: 14, padding: '13px 20px', borderBottom: '1px solid var(--line)', fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>
             <span style={{ width: 130 }}>Data / hora</span><span style={{ flex: 1 }}>Lead</span><span style={{ flex: 1 }}>Recebido por</span><span style={{ width: 170 }}>Origem</span>
           </div>
-          {roletaLog.map((r, i) => (
-            <div key={i} className="data-row" style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--line)' }}>
-              <span style={{ width: 130, fontSize: 12.5, color: 'var(--muted)' }}>{r[0]}</span>
-              <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600 }}>{r[1]}</span>
-              <span style={{ flex: 1, fontSize: 13 }}>{r[2]}</span>
-              <span style={{ width: 170 }}><span style={css(PILL + (r[3] === 'Roleta automática' ? 'background:var(--oliveSoft);color:var(--olive)' : 'background:var(--terraSoft);color:var(--terra)'))}>{r[3]}</span></span>
-            </div>
-          ))}
+          {roletaLog.length === 0 && <div style={{ padding: '44px 20px', textAlign: 'center' }}><p style={{ fontSize: 13.5, color: 'var(--muted)', margin: 0 }}>Nenhuma distribuição registrada ainda.</p></div>}
+          {roletaLog.map((r, i) => {
+            const dt = new Date(r.criadoEm);
+            return (
+              <div key={i} className="data-row" style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--line)' }}>
+                <span style={{ width: 130, fontSize: 12.5, color: 'var(--muted)' }}>{dt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} · {dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600 }}>{r.leadNome}</span>
+                <span style={{ flex: 1, fontSize: 13 }}>{r.corretorNome}</span>
+                <span style={{ width: 170 }}><span style={css(PILL + 'background:var(--oliveSoft);color:var(--olive)')}>{r.origem === 'roleta' ? 'Roleta automática' : r.origem}</span></span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

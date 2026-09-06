@@ -109,6 +109,8 @@ interface AppState {
   wahaConfigurado: boolean;
 
   leads: Lead[];
+  /** leadId -> corretorId conhecido (pra detectar quando um lead é atribuído a mim). */
+  leadsCorretorIds: Record<string, string | null>;
   leadId: string | null;
   leadTab: LeadTab;
   chats: Record<string, ChatMsg[]>;
@@ -222,6 +224,8 @@ interface AppState {
   bolsaoDiscard: (id: string, nome: string) => void;
   shuffle: () => void;
   distribuirPendentes: () => Promise<void>;
+  roletaLog: Array<{ criadoEm: string; origem: string; leadNome: string; corretorNome: string }>;
+  fetchRoletaLog: () => Promise<void>;
   pull: () => void;
 
   addStep: () => void;
@@ -327,6 +331,41 @@ function beep() {
   } catch { /* audio not available */ }
 }
 
+/** Toque mais chamativo (3 notas) pra "lead novo caiu pra você". */
+function toqueLeadNovo() {
+  try {
+    const C = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!C) return;
+    const ctx = new C();
+    [880, 1175, 1568].forEach((f, i) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.16);
+      g.gain.exponentialRampToValueAtTime(0.13, ctx.currentTime + i * 0.16 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.16 + 0.22);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(ctx.currentTime + i * 0.16); o.stop(ctx.currentTime + i * 0.16 + 0.24);
+    });
+    setTimeout(() => ctx.close(), 900);
+  } catch { /* ignore */ }
+  try { navigator.vibrate?.([120, 60, 120]); } catch { /* ignore */ }
+}
+
+/** Notificação do navegador (desktop/celular). Pede permissão na 1ª vez. */
+export function pedirPermissaoNotificacao() {
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission();
+  } catch { /* ignore */ }
+}
+
+function notificarNavegador(titulo: string, corpo: string) {
+  try {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const n = new Notification(titulo, { body: corpo, icon: '/icon-192.png', tag: 'lead-novo' });
+    n.onclick = () => { window.focus(); n.close(); };
+  } catch { /* ignore */ }
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   token: null,
   me: null,
@@ -350,6 +389,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   kanbanLoading: false,
 
   leads: [],
+  leadsCorretorIds: {},
+  roletaLog: [],
   leadId: null,
   leadTab: 'detalhes',
   chats: {},
@@ -436,7 +477,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('nova_token');
     disconnectSocket();
-    set({ token: null, me: null, leads: [], colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [] });
+    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [] });
   },
   hydrateAuth: () => {
     const token = localStorage.getItem('nova_token');
@@ -470,13 +511,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return;
     const socket = connectSocket(token);
     const upsert = (raw: RemoteLead) => {
-      const { colunasRemotas, perfisRemotos } = get();
+      const { colunasRemotas, perfisRemotos, me, leadsCorretorIds } = get();
       if (!colunasRemotas.length) return; // ainda carregando colunas/perfis — o fetch inicial já vai trazer esse lead
+
+      // "caiu um lead pra mim agora" — antes não era meu (ou não existia), agora é.
+      const eraMeuAntes = leadsCorretorIds[raw.id] === me?.id;
+      const agoraEhMeu = !!me && raw.corretorId === me.id;
+      if (agoraEhMeu && !eraMeuAntes && me.role === 'corretor') {
+        toqueLeadNovo();
+        notificarNavegador('Novo lead pra você', raw.nome + (raw.canal ? ' · ' + raw.canal : ''));
+        get().toast('🔔 Novo lead: ' + raw.nome);
+      }
+
       set(s => {
         const anterior = s.leads.find(l => l.id === raw.id);
         // o payload do socket não traz etiquetas — preserva as que já estão em memória
         const mapped = { ...mapRemoteLead(raw, colunasRemotas, perfisRemotos), tags: raw.tagIds ?? anterior?.tags ?? [] };
-        return { leads: anterior ? s.leads.map(l => (l.id === mapped.id ? mapped : l)) : [...s.leads, mapped] };
+        return {
+          leads: anterior ? s.leads.map(l => (l.id === mapped.id ? mapped : l)) : [...s.leads, mapped],
+          leadsCorretorIds: { ...s.leadsCorretorIds, [raw.id]: raw.corretorId },
+        };
       });
     };
     socket.off('lead:created').on('lead:created', upsert);
@@ -569,8 +623,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         apiFetch<RemoteTag[]>('/api/tags', token),
       ]);
       const leads = leadsRaw.map(r => mapRemoteLead(r, colunas, perfis));
+      const leadsCorretorIds = Object.fromEntries(leadsRaw.map(r => [r.id, r.corretorId]));
       const fila = filaRaw.map(f => ({ corretorId: f.corretorId, nome: f.nome, ativo: f.emPlantao }));
-      set({ colunasRemotas: colunas, perfisRemotos: perfis, leads, fila, tags: tagsRaw, kanbanLoading: false });
+      set({ colunasRemotas: colunas, perfisRemotos: perfis, leads, leadsCorretorIds, fila, tags: tagsRaw, kanbanLoading: false });
     } catch (e) {
       get().toast('Não foi possível carregar os leads do servidor');
       set({ kanbanLoading: false });
@@ -763,6 +818,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       set(s => ({ fila: s.fila.map((x, i) => (i === index ? { ...x, ativo: res.emPlantao } : x)) }));
       get().toast(f.nome + (res.emPlantao ? ' entrou na roleta' : ' saiu da roleta'));
+      if (res.emPlantao && f.corretorId === get().me?.id) pedirPermissaoNotificacao();
       return true;
     } catch (e) {
       get().toast((e as ApiError).message || 'Não foi possível alterar a disponibilidade');
@@ -798,7 +854,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           .then(rows => set({ fila: rows.map(r => ({ corretorId: r.corretorId, nome: r.nome, ativo: r.emPlantao })) }))
           .catch(() => {});
       }
-      if (res.emPlantao) get().fireAlert('plantao');
+      if (res.emPlantao) { pedirPermissaoNotificacao(); get().fireAlert('plantao'); }
       else get().toast('Você saiu do plantão');
     } catch (e) {
       get().toast((e as ApiError).message || 'Não foi possível alterar seu plantão');
@@ -975,9 +1031,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const r = await apiFetch<{ distribuidos: number }>('/api/filas/distribuir', token, { method: 'POST' });
       get().toast(r.distribuidos ? r.distribuidos + ' lead(s) distribuído(s) na roleta' : 'Nenhum lead pendente para distribuir');
+      get().fetchRoletaLog();
     } catch (e) {
       get().toast((e as ApiError).message || 'Não foi possível distribuir');
     }
+  },
+  fetchRoletaLog: async () => {
+    const token = get().token;
+    if (!token) return;
+    try { set({ roletaLog: await apiFetch('/api/filas/log', token) }); } catch { /* ignore */ }
   },
   pull: () => get().toast('3 rebatidas puxadas para o seu atendimento'),
 

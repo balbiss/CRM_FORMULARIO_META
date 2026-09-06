@@ -2,8 +2,15 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { useRoleInfo, scopeLeads } from '../lib/selectors';
-import { CANAIS, CORRETORES } from '../lib/data';
+import { CANAIS } from '../lib/data';
 import { BRL, ini } from '../lib/format';
+
+const CARGO: Record<string, string> = { dono: 'Dono', gerente: 'Gerente', corretor: 'Corretor' };
+
+function saudacaoAgora() {
+  const h = Number(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }));
+  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+}
 
 export default function Dashboard() {
   const allLeads = useAppStore(s => s.leads);
@@ -12,8 +19,10 @@ export default function Dashboard() {
   const nav = useNavigate();
   const toast = useAppStore(s => s.toast);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const saudacao = useMemo(saudacaoAgora, []);
 
   const colunas = useAppStore(s => s.colunasRemotas);
+  const perfis = useAppStore(s => s.perfisRemotos);
   const leads = useMemo(() => scopeLeads(allLeads, isManager, meNome), [allLeads, isManager, meNome]);
 
   const counts = colunas.map(c => leads.filter(l => l.colunaId === c.id).length);
@@ -32,54 +41,44 @@ export default function Dashboard() {
   const vgv = vendas.reduce((a, l) => a + l.valor, 0);
   const totalLeads = leads.length;
   const convPct = totalLeads ? Math.round((vendas.length / totalLeads) * 1000) / 10 : 0;
-  const meResp = CORRETORES.find(c => c.nome === meNome)?.resp || '—';
 
   const kpis = isManager
     ? [
         { label: 'Leads no mês', value: String(totalLeads), delta: 'todos os corretores' },
         { label: 'Taxa de conversão', value: convPct + '%', delta: vendas.length + ' vendas fechadas' },
         { label: 'Vendas fechadas', value: BRL(vgv), delta: vendas.length + ' contratos assinados' },
-        { label: 'Tempo médio de resposta', value: '8 min', delta: 'meta: 5 min' },
+        { label: 'Leads sem corretor', value: String(allLeads.filter(l => l.col === 'novo' && !l.corretor).length), delta: 'aguardando distribuição' },
       ]
     : [
         { label: 'Meus leads', value: String(totalLeads), delta: 'atribuídos a você' },
         { label: 'Minha conversão', value: convPct + '%', delta: vendas.length + ' vendas fechadas' },
         { label: 'Minhas vendas', value: BRL(vgv), delta: vendas.length + ' contratos assinados' },
-        { label: 'Meu tempo de resposta', value: meResp, delta: 'média dos últimos 30 dias' },
+        { label: 'Em atendimento', value: String(leads.filter(l => l.col !== 'novo' && l.col !== 'venda' && l.col !== 'rebatida').length), delta: 'leads ativos com você' },
       ];
 
-  const ranking = [...CORRETORES].sort((a, b) => b.vgv - a.vgv);
+  const ranking = perfis
+    .map(p => {
+      const meus = allLeads.filter(l => l.corretor === p.nome);
+      const v = meus.filter(l => l.col === 'venda');
+      return { nome: p.nome, cargo: CARGO[p.role] || p.role, vgv: v.reduce((a, l) => a + l.valor, 0), conv: meus.length ? Math.round((v.length / meus.length) * 100) + '%' : '0%', leads: meus.length };
+    })
+    .filter(r => r.leads > 0)
+    .sort((a, b) => b.vgv - a.vgv);
 
-  const overdue = [
-    { titulo: 'Retornar ligação — Henrique Sampaio', sub: 'Diego Antunes · Análise de Crédito', atraso: '3 dias' },
-    { titulo: 'Confirmar visita — Renata Palhares', sub: 'Fernanda Lopes · Visita Agendada', atraso: '1 dia' },
-    { titulo: 'Documentos pendentes — Otávio Bandeira', sub: 'Priscila Nunes · Análise de Crédito', atraso: '5 dias' },
-  ]
-    .filter(t => isManager || t.sub.includes(meNome))
-    .filter(t => !dismissed.has(t.titulo))
-    .map(t => ({ ...t, leadId: allLeads.find(l => t.titulo.includes(l.nome))?.id }));
+  // Sem tabela de tarefas ainda — mostramos os leads parados há dias na coluna atual (sinal real de atenção).
+  const overdue = leads
+    .filter(l => l.dias >= 3 && l.col !== 'venda' && l.col !== 'rebatida')
+    .filter(l => !dismissed.has(l.id))
+    .sort((a, b) => b.dias - a.dias)
+    .slice(0, 7)
+    .map(l => ({ id: l.id, titulo: l.nome, sub: (l.corretor || 'Sem corretor') + ' · ' + (colunas.find(c => c.id === l.colunaId)?.titulo || l.col), atraso: l.dias + (l.dias === 1 ? ' dia' : ' dias'), leadId: l.id }));
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 18 }}>
         <div>
           <p style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 4px' }}>Visão geral</p>
-          <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Bom dia, {meNome.split(' ')[0]}.</h1>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <select onChange={e => toast('Período: ' + e.target.value)} style={{ padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13 }}>
-            <option>Últimos 30 dias</option><option>Este mês</option><option>Último trimestre</option><option>Este ano</option>
-          </select>
-          {isManager && (
-            <>
-              <select onChange={e => toast('Filtro de corretor: ' + e.target.value)} style={{ padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13 }}>
-                <option>Todos os corretores</option>{CORRETORES.map(c => <option key={c.nome}>{c.nome}</option>)}
-              </select>
-              <select onChange={e => toast('Campanha: ' + e.target.value)} style={{ padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13 }}>
-                <option>Todas as campanhas</option><option>Aurora — Lançamento</option><option>Vila Serena — Fase 2</option><option>Remarketing Instagram</option>
-              </select>
-            </>
-          )}
+          <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: 0, lineHeight: 1.2 }}>{saudacao}, {meNome.split(' ')[0]}.</h1>
         </div>
       </div>
 
@@ -142,6 +141,7 @@ export default function Dashboard() {
         <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', padding: 22 }}>
           <h2 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 22, margin: '0 0 18px' }}>Ranking de corretores</h2>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {ranking.length === 0 && <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>Ainda sem leads atribuídos a corretores.</p>}
             {ranking.map((r, i) => (
               <div key={r.nome} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid var(--line)' }}>
                 <span style={{ fontFamily: 'Newsreader,serif', fontSize: 17, color: 'var(--muted)', width: 20 }}>{i + 1}</span>
@@ -157,20 +157,20 @@ export default function Dashboard() {
         </div>
         <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', padding: 22 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 18 }}>
-            <h2 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 22, margin: 0 }}>Tarefas atrasadas</h2>
-            <span style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--terra)', fontWeight: 700 }}>{overdue.length} pendentes</span>
+            <h2 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 22, margin: 0 }}>Leads parados</h2>
+            <span style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--terra)', fontWeight: 700 }}>{overdue.length} há 3+ dias</span>
           </div>
           {overdue.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {overdue.map(t => (
                 <div
-                  key={t.titulo}
-                  onClick={() => (t.leadId ? openLead(t.leadId) : toast('Esse card ainda não tem um lead vinculado'))}
+                  key={t.id}
+                  onClick={() => openLead(t.leadId)}
                   style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 0', borderBottom: '1px solid var(--line)', cursor: 'pointer' }}
                 >
                   <button
-                    onClick={e => { e.stopPropagation(); setDismissed(s => new Set(s).add(t.titulo)); toast('Tarefa marcada como concluída'); }}
-                    title="Marcar como concluída"
+                    onClick={e => { e.stopPropagation(); setDismissed(s => new Set(s).add(t.id)); toast('Escondido do painel'); }}
+                    title="Esconder do painel"
                     style={{ width: 17, height: 17, border: '1.5px solid var(--line)', borderRadius: 5, background: 'none', flex: 'none' }}
                   />
                   <span style={{ flex: 1, minWidth: 0 }}>

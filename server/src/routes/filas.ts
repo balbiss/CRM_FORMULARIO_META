@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { filasAtendimento, perfis, imobiliarias } from '../db/schema.js';
+import { filasAtendimento, perfis, imobiliarias, distribuicaoLog, leads } from '../db/schema.js';
+import { desc } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
 import { isBusinessHoursOpen, horarioAtendimentoLabel } from '../lib/schedule.js';
 import { distribuirPendentes } from '../lib/roleta.js';
@@ -25,6 +26,27 @@ export function filasRouter(io: SocketServer) {
       .innerJoin(perfis, eq(perfis.id, filasAtendimento.corretorId))
       .where(eq(filasAtendimento.imobiliariaId, req.auth!.imobiliariaId))
       .orderBy(asc(filasAtendimento.posicao));
+    res.json(rows);
+  });
+
+  // Histórico de distribuição da roleta (últimas 100). Corretor vê só as dele.
+  router.get('/log', async (req, res) => {
+    const { imobiliariaId, role, sub } = req.auth!;
+    const base = eq(distribuicaoLog.imobiliariaId, imobiliariaId);
+    const rows = await db
+      .select({
+        criadoEm: distribuicaoLog.criadoEm,
+        origem: distribuicaoLog.origem,
+        leadNome: leads.nome,
+        corretorNome: perfis.nome,
+        corretorId: distribuicaoLog.corretorId,
+      })
+      .from(distribuicaoLog)
+      .innerJoin(leads, eq(leads.id, distribuicaoLog.leadId))
+      .innerJoin(perfis, eq(perfis.id, distribuicaoLog.corretorId))
+      .where(role === 'corretor' ? and(base, eq(distribuicaoLog.corretorId, sub)) : base)
+      .orderBy(desc(distribuicaoLog.criadoEm))
+      .limit(100);
     res.json(rows);
   });
 
