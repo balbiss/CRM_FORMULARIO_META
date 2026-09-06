@@ -33,13 +33,18 @@ function webhookConfig() {
   return url ? { webhooks: [{ url, events: EVENTOS }] } : {};
 }
 
+// Engine do WhatsApp. GOWS (Go/whatsmeow, sem browser) é o recomendado — o WEBJS
+// (Chromium) quebra quando a versão do WhatsApp Web muda e para de receber mensagens.
+// Ignorado se a instância do WAHA não permitir engine por sessão (aí vale o default dela).
+const ENGINE = process.env.WAHA_ENGINE || 'GOWS';
+
 /** Cria (ou recria) a sessão no WAHA já com o webhook apontando pro nosso backend.
  *  Se a sessão já existe, ATUALIZA a config do webhook (corrige webhook quebrado) e reinicia. */
 export async function criarSessao(sessionName: string) {
   const config = webhookConfig();
   await waha('/api/sessions', {
     method: 'POST',
-    body: { name: sessionName, start: true, config },
+    body: { name: sessionName, start: true, config, engine: ENGINE },
   }).catch(async e => {
     if (String(e).includes('422') || String(e).includes('already') || String(e).includes('exist')) {
       // já existe -> reescreve a config do webhook e reinicia pra aplicar
