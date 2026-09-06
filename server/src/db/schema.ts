@@ -1,7 +1,11 @@
-import { pgTable, uuid, text, boolean, integer, numeric, timestamp, pgEnum, jsonb, index, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, boolean, integer, numeric, timestamp, date, pgEnum, jsonb, index, primaryKey } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 export const roleEnum = pgEnum('role', ['dono', 'gerente', 'corretor']);
+// Situação da imobiliária no SaaS. 'bloqueada' = sem acesso ao CRM (manual ou por inadimplência).
+export const imobiliariaStatusEnum = pgEnum('imobiliaria_status', ['ativa', 'bloqueada']);
+export const bloqueioMotivoEnum = pgEnum('bloqueio_motivo', ['manual', 'inadimplencia']);
+export const pagamentoMetodoEnum = pgEnum('pagamento_metodo', ['pix', 'boleto', 'cartao', 'transferencia', 'dinheiro', 'outro']);
 export const modoWhatsappEnum = pgEnum('modo_whatsapp', ['central', 'corretor']);
 export const sessaoEscopoEnum = pgEnum('sessao_escopo', ['central', 'corretor']);
 export const sessaoStatusEnum = pgEnum('sessao_status', ['desconectada', 'conectando', 'conectada']);
@@ -33,8 +37,50 @@ export const imobiliarias = pgTable('imobiliarias', {
   // 'corretor' = cada corretor usa o próprio WhatsApp (padrão atual);
   // 'central'  = um número da imobiliária, todo mundo atende pelo CRM, dono/gerente veem tudo.
   modoWhatsapp: modoWhatsappEnum('modo_whatsapp').notNull().default('corretor'),
+
+  // --- Gestão da assinatura (painel Dono do SaaS) ---
+  status: imobiliariaStatusEnum('status').notNull().default('ativa'),
+  bloqueioMotivo: bloqueioMotivoEnum('bloqueio_motivo'),
+  plano: text('plano').notNull().default('Padrão'),
+  mensalidade: numeric('mensalidade', { precision: 12, scale: 2 }).notNull().default('0'),
+  // Teto de corretores (perfil 'corretor'). 0 = ilimitado.
+  limiteCorretores: integer('limite_corretores').notNull().default(0),
+  // Data do próximo vencimento da mensalidade (YYYY-MM-DD). null = sem cobrança configurada.
+  proximoVencimento: date('proximo_vencimento', { mode: 'string' }),
+  // Dias de tolerância após o vencimento antes do bloqueio automático.
+  diasCarencia: integer('dias_carencia').notNull().default(5),
+  observacoes: text('observacoes'),
+
   criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Administrador da plataforma (dono do SaaS) — NÃO pertence a nenhuma imobiliária.
+ *  Acessa só o painel /plataforma. Bootstrap via env PLATFORM_ADMIN_EMAIL/PASSWORD. */
+export const adminsPlataforma = pgTable('admins_plataforma', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  nome: text('nome').notNull(),
+  email: text('email').notNull().unique(),
+  senhaHash: text('senha_hash').notNull(),
+  criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Pagamento de mensalidade registrado manualmente pelo dono do SaaS.
+ *  Registrar um pagamento empurra imobiliarias.proximoVencimento em +1 mês e reativa
+ *  a imobiliária se ela estava bloqueada por inadimplência. */
+export const pagamentos = pgTable('pagamentos', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  imobiliariaId: uuid('imobiliaria_id').notNull().references(() => imobiliarias.id, { onDelete: 'cascade' }),
+  valor: numeric('valor', { precision: 12, scale: 2 }).notNull(),
+  // Mês de competência a que o pagamento se refere (YYYY-MM).
+  competencia: text('competencia').notNull(),
+  pagoEm: date('pago_em', { mode: 'string' }).notNull(),
+  metodo: pagamentoMetodoEnum('metodo').notNull().default('pix'),
+  observacao: text('observacao'),
+  registradoPor: uuid('registrado_por').references(() => adminsPlataforma.id, { onDelete: 'set null' }),
+  criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+}, table => ({
+  imobiliariaIdx: index('pagamentos_imobiliaria_id_idx').on(table.imobiliariaId),
+}));
 
 /** Conexão do Facebook Lead Ads de uma imobiliária — o workflow n8n dinâmico lê a lista de
  *  conexões ativas de TODAS as imobiliárias e busca leads de cada uma com o token dela.

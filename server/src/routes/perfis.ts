@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { perfis, filasAtendimento } from '../db/schema.js';
+import { perfis, filasAtendimento, imobiliarias } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import type { Server as SocketServer } from 'socket.io';
 
@@ -41,6 +41,17 @@ export function perfisRouter(io: SocketServer) {
     const email = parsed.data.email.toLowerCase();
     const [existe] = await db.select({ id: perfis.id }).from(perfis).where(eq(perfis.email, email)).limit(1);
     if (existe) return res.status(409).json({ error: 'Já existe um perfil com esse e-mail' });
+
+    // Teto de corretores definido pelo dono do SaaS (0 = ilimitado).
+    if (parsed.data.role === 'corretor') {
+      const [imob] = await db.select({ limite: imobiliarias.limiteCorretores }).from(imobiliarias).where(eq(imobiliarias.id, imobiliariaId)).limit(1);
+      const limite = imob?.limite ?? 0;
+      if (limite > 0) {
+        const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(perfis)
+          .where(and(eq(perfis.imobiliariaId, imobiliariaId), eq(perfis.role, 'corretor')));
+        if (n >= limite) return res.status(403).json({ error: `Limite de ${limite} corretores atingido. Fale com o suporte da Visita IA para ampliar o plano.` });
+      }
+    }
 
     const senhaHash = await bcrypt.hash('123456', 10);
     const [inserido] = await db.insert(perfis).values({
@@ -95,6 +106,20 @@ export function perfisRouter(io: SocketServer) {
       io.to('imobiliaria:' + imobiliariaId).emit('fila:atualizada', { corretorId: row.id, emPlantao: row.emPlantao });
     }
     res.json(perfil);
+  });
+
+  // Redefinir senha de um subordinado: gera uma senha temporária mostrada uma vez pra quem
+  // redefiniu repassar. Atende o fluxo "esqueci minha senha" (o pedido chega como notificação).
+  router.post('/:id/redefinir-senha', requireRole('dono', 'gerente'), async (req, res) => {
+    const { imobiliariaId, role } = req.auth!;
+    const [alvo] = await db.select().from(perfis).where(and(eq(perfis.id, req.params.id), eq(perfis.imobiliariaId, imobiliariaId))).limit(1);
+    if (!alvo) return res.status(404).json({ error: 'Perfil não encontrado' });
+    if (role === 'gerente' && alvo.role !== 'corretor') return res.status(403).json({ error: 'Gerente só redefine senha de corretores' });
+
+    const senhaTemporaria = 'vi' + Math.random().toString(36).slice(2, 8);
+    const senhaHash = await bcrypt.hash(senhaTemporaria, 10);
+    await db.update(perfis).set({ senhaHash }).where(eq(perfis.id, alvo.id));
+    res.json({ ok: true, senhaTemporaria });
   });
 
   router.delete('/:id', requireRole('dono'), async (req, res) => {

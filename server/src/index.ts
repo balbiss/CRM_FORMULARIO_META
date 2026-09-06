@@ -20,8 +20,10 @@ import { tagsRouter } from './routes/tags.js';
 import { configRouter } from './routes/config.js';
 import { integracoesRouter } from './routes/integracoes.js';
 import { whatsappRouter } from './routes/whatsapp.js';
+import { plataformaRouter } from './routes/plataforma.js';
 import { verifyToken } from './lib/jwt.js';
 import { ensureBucket } from './lib/storage.js';
+import { bootstrapAdminPlataforma, varrerInadimplencia } from './lib/bootstrapPlataforma.js';
 
 const app = express();
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }));
@@ -38,6 +40,7 @@ app.use('/api/treinamentos', treinamentosRouter);
 app.use('/api/notificacoes', notificacoesRouter);
 app.use('/api/config', configRouter);
 app.use('/api/integracoes', integracoesRouter);
+app.use('/api/plataforma', plataformaRouter);
 
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, { cors: { origin: process.env.CORS_ORIGIN || 'http://localhost:5173' } });
@@ -67,6 +70,14 @@ app.use('/api/tags', tagsRouter(io));
 app.use('/api/whatsapp', whatsappRouter(io));
 
 const port = Number(process.env.PORT) || 3001;
+
+// Painel Dono do SaaS: cria o admin inicial (env) e varre inadimplência agora + de hora em hora.
+bootstrapAdminPlataforma().catch(err => console.error('Plataforma: bootstrap falhou —', err.message));
+varrerInadimplencia().catch(err => console.error('Plataforma: varredura falhou —', err.message));
+setInterval(() => {
+  varrerInadimplencia().catch(err => console.error('Plataforma: varredura falhou —', err.message));
+}, 60 * 60 * 1000);
+
 ensureBucket()
   .catch(err => console.error('MinIO: não foi possível preparar o bucket —', err.message))
   .finally(() => httpServer.listen(port, () => console.log('NOVA backend rodando em http://localhost:' + port)));

@@ -451,7 +451,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().fetchHorario();
       get().fetchIntegracoes();
       })
-      .catch(() => { localStorage.removeItem('nova_token'); set({ token: null, me: null, authLoading: false }); });
+      .catch((e: ApiError) => {
+        localStorage.removeItem('nova_token');
+        const suspenso = /ACESSO_SUSPENSO|suspenso/i.test(e?.message || '');
+        set({
+          token: null, me: null, authLoading: false,
+          authError: suspenso ? 'Acesso suspenso. Fale com o suporte da Visita IA.' : null,
+        });
+      });
   },
   connectRealtime: () => {
     const token = get().token;
