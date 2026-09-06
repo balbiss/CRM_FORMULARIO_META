@@ -4,7 +4,8 @@ import { useAppStore } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
 import { mapMsgs, type Lead } from '../lib/data';
 import { Visto } from '../components/Visto';
-import { ini, canalPill, dayLabel } from '../lib/format';
+import { ChatAvatar } from '../components/ChatAvatar';
+import { canalPill, dayLabel } from '../lib/format';
 import { css } from '../lib/css';
 import { uploadArquivo, tipoDeArquivo } from '../lib/upload';
 import { AnexoMensagem } from '../components/AnexoMensagem';
@@ -91,7 +92,7 @@ export default function Conversas() {
                   onClick={() => pickConv(l.id)}
                   style={{ width: '100%', display: 'flex', gap: 11, alignItems: 'center', padding: '13px 14px', border: 'none', borderBottom: '1px solid var(--line)', background: on ? 'var(--bg)' : 'transparent', boxShadow: 'inset 3px 0 0 ' + (on ? 'var(--terra)' : 'transparent') }}
                 >
-                  <span style={{ width: 38, height: 38, borderRadius: '50%', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700, background: 'var(--terraSoft)', color: 'var(--terra)' }}>{ini(l.nome)}</span>
+                  <ChatAvatar nome={l.nome} foto={l.foto} size={38} />
                   <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.nome}</span>
@@ -123,7 +124,7 @@ export default function Conversas() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid var(--line)', background: 'var(--card)', flex: 'none' }}>
                 <button className="conv-back" onClick={backToList} style={{ display: 'none', width: 30, height: 30, flex: 'none', border: '1px solid var(--line)', borderRadius: 8, background: 'none', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>‹</button>
                 <button onClick={() => openLead(CL.id, 'chat')} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, background: 'none', border: 'none', textAlign: 'left', padding: 0 }}>
-                  <span style={{ width: 38, height: 38, borderRadius: '50%', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700, background: 'var(--terraSoft)', color: 'var(--terra)' }}>{ini(CL.nome)}</span>
+                  <ChatAvatar nome={CL.nome} foto={CL.foto} size={38} />
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: 14.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{CL.nome}</span>
                     <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{CL.imovel} · {CL.corretor}</span>
