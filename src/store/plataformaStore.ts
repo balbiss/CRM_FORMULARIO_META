@@ -80,6 +80,7 @@ interface PlataformaState {
   editar: (id: string, patch: Partial<NovaImobiliariaInput> & { proximoVencimento?: string | null; observacoes?: string | null }) => Promise<void>;
   bloquear: (id: string) => Promise<void>;
   liberar: (id: string) => Promise<void>;
+  excluir: (id: string, confirmarNome: string) => Promise<void>;
   registrarPagamento: (id: string, p: { valor: number; competencia: string; pagoEm?: string; metodo: PagamentoMetodo; observacao?: string }) => Promise<{ reativada: boolean; proximoVencimento: string }>;
   excluirPagamento: (id: string, pid: string) => Promise<void>;
   resetSenhaDono: (id: string) => Promise<{ email: string; senhaTemporaria: string }>;
@@ -162,6 +163,11 @@ export const usePlataformaStore = create<PlataformaState>((set, get) => ({
 
   liberar: async (id) => {
     await apiFetch('/api/plataforma/imobiliarias/' + id + '/liberar', get().token, { method: 'POST' });
+    await get().carregar();
+  },
+
+  excluir: async (id, confirmarNome) => {
+    await apiFetch('/api/plataforma/imobiliarias/' + id, get().token, { method: 'DELETE', body: JSON.stringify({ confirmarNome }) });
     await get().carregar();
   },
 

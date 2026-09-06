@@ -121,6 +121,7 @@ function DetalheModal({ id, onClose }: { id: string; onClose: () => void }) {
   const [pg, setPg] = useState({ valor: '', competencia: compAtual(), pagoEm: hojeISO(), metodo: 'pix' as PagamentoMetodo, observacao: '' });
   const [edit, setEdit] = useState({ plano: '', mensalidade: '', limiteCorretores: '', diasCarencia: '', proximoVencimento: '', observacoes: '' });
   const [savingEdit, setSavingEdit] = useState(false);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
 
   const recarregar = useCallback(async () => {
     const det = await st.detalhe(id);
@@ -236,6 +237,29 @@ function DetalheModal({ id, onClose }: { id: string; onClose: () => void }) {
                 </div>
               ))}
             </div>
+          </section>
+
+          <section>
+            <h3 style={{ ...sec, color: '#C0392B' }}>Zona de perigo</h3>
+            {!confirmDel ? (
+              <button style={{ ...btn('sec'), color: '#C0392B', borderColor: '#C0392B' }} onClick={() => setConfirmDel('')}>
+                <Trash2 size={14} /> Excluir imobiliária
+              </button>
+            ) : (
+              <div style={{ border: '1px solid #C0392B', borderRadius: 8, padding: 14 }}>
+                <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 10px', lineHeight: 1.6 }}>
+                  Apaga <b>tudo</b> — leads, conversas, equipe, colunas, pagamentos. Não tem volta. Digite <b>{d.nome}</b> para confirmar.
+                </p>
+                <input style={inp} value={confirmDel} onChange={e => setConfirmDel(e.target.value)} placeholder={d.nome} />
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button style={btn('sec')} onClick={() => setConfirmDel(null)}>Cancelar</button>
+                  <button style={btn('danger')} disabled={confirmDel !== d.nome}
+                    onClick={async () => { try { await st.excluir(id, confirmDel!); onClose(); } catch (e) { setErro((e as Error).message); } }}>
+                    Excluir definitivamente
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
         </div>
       </div>

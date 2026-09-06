@@ -66,11 +66,22 @@ export async function statusSessao(sessionName: string): Promise<{ status: 'desc
 
 /** QR code em data-URL (base64 png) pra exibir na tela. */
 export async function qrSessao(sessionName: string): Promise<string | null> {
+  // format=image → { mimetype, data } com o PNG em base64 (raw devolve só a string do QR, não renderiza).
   try {
-    const r = await waha<{ mimetype?: string; data?: string; value?: string }>(`/api/${sessionName}/auth/qr?format=raw`);
-    const b64 = r.data || r.value;
-    if (!b64) return null;
-    return b64.startsWith('data:') ? b64 : `data:${r.mimetype || 'image/png'};base64,${b64}`;
+    const r = await waha<{ mimetype?: string; data?: string }>(`/api/${sessionName}/auth/qr?format=image`);
+    if (r?.data) return r.data.startsWith('data:') ? r.data : `data:${r.mimetype || 'image/png'};base64,${r.data}`;
+  } catch { /* tenta o binário abaixo */ }
+  // Fallback: endpoint devolve o PNG binário direto.
+  try {
+    const res = await fetch(base() + `/api/${sessionName}/auth/qr`, { headers: { 'X-Api-Key': key(), Accept: 'image/png' } });
+    if (!res.ok) return null;
+    const ct = res.headers.get('content-type') || 'image/png';
+    if (ct.includes('json')) {
+      const jj = await res.json() as { mimetype?: string; data?: string };
+      return jj.data ? `data:${jj.mimetype || 'image/png'};base64,${jj.data}` : null;
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    return `data:${ct};base64,${buf.toString('base64')}`;
   } catch {
     return null;
   }

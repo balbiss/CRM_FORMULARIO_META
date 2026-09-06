@@ -3,9 +3,10 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { and, eq, sql, desc, inArray } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { imobiliarias, perfis, leads, colunasKanban, pagamentos, adminsPlataforma } from '../db/schema.js';
+import { imobiliarias, perfis, leads, colunasKanban, pagamentos, adminsPlataforma, sessoesWhatsapp } from '../db/schema.js';
 import { signPlatformToken } from '../lib/jwt.js';
 import { requirePlataforma } from '../middleware/plataforma.js';
+import { pararSessao, wahaConfigurado } from '../lib/waha.js';
 
 export const plataformaRouter = Router();
 
@@ -260,6 +261,24 @@ plataformaRouter.post('/imobiliarias/:id/liberar', async (req, res) => {
   if (!imob) return res.status(404).json({ error: 'Imobiliária não encontrada' });
   await db.update(imobiliarias).set({ status: 'ativa', bloqueioMotivo: null }).where(eq(imobiliarias.id, req.params.id));
   res.json({ ok: true, status: 'ativa' });
+});
+
+// --- excluir imobiliária (apaga TUDO: leads, conversas, equipe, colunas, pagamentos) ---
+
+plataformaRouter.delete('/imobiliarias/:id', async (req, res) => {
+  const parsed = z.object({ confirmarNome: z.string() }).safeParse(req.body);
+  const [imob] = await db.select().from(imobiliarias).where(eq(imobiliarias.id, req.params.id)).limit(1);
+  if (!imob) return res.status(404).json({ error: 'Imobiliária não encontrada' });
+  if (!parsed.success || parsed.data.confirmarNome.trim() !== imob.nome) {
+    return res.status(400).json({ error: 'Digite o nome exato da imobiliária para confirmar a exclusão' });
+  }
+
+  if (wahaConfigurado()) {
+    const sess = await db.select().from(sessoesWhatsapp).where(eq(sessoesWhatsapp.imobiliariaId, imob.id));
+    await Promise.all(sess.map(s => pararSessao(s.sessionName).catch(() => {})));
+  }
+  await db.delete(imobiliarias).where(eq(imobiliarias.id, imob.id)); // FKs ON DELETE CASCADE limpam o resto
+  res.json({ ok: true });
 });
 
 // --- registrar pagamento ---
