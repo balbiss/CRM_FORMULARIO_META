@@ -81,9 +81,8 @@ export default function Integracoes() {
           </p>
         </div>
         {!isManager && <p style={{ fontSize: 12, color: 'var(--muted)', margin: '10px 2px 0' }}>Só Dono ou Gerente altera o modo de atendimento.</p>}
-        <p style={{ fontSize: 12, color: 'var(--muted)', margin: '10px 2px 0' }}>
-          A conexão dos números (QR code) e o espelhamento entram numa próxima etapa, quando o motor de WhatsApp for plugado.
-        </p>
+
+        {isManager && <ConexaoWhatsapp modo={modo} />}
       </section>
 
       {/* ---- Facebook Lead Ads ---- */}
@@ -242,6 +241,115 @@ function ConexaoModal({ conexao, onClose }: { conexao: IntegracaoFacebook | null
             {saving ? 'Salvando…' : editando ? 'Salvar' : 'Adicionar conexão'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ---- Conexão de número WhatsApp (WAHA) ----
+function ConexaoWhatsapp({ modo }: { modo: ModoWhatsapp }) {
+  const wahaOk = useAppStore(s => s.wahaConfigurado);
+  const sessoes = useAppStore(s => s.sessoesWhatsapp);
+  const perfis = useAppStore(s => s.perfisRemotos);
+  const conectar = useAppStore(s => s.conectarWhatsapp);
+  const desconectar = useAppStore(s => s.desconectarWhatsapp);
+  const fetchSessoes = useAppStore(s => s.fetchSessoesWhatsapp);
+  const [qrPara, setQrPara] = useState<string | null>(null);
+
+  const corretores = perfis.filter(p => p.role === 'corretor');
+  const central = sessoes.find(s => s.escopo === 'central');
+  const sessaoDoCorretor = (id: string) => sessoes.find(s => s.escopo === 'corretor' && s.corretorId === id);
+
+  const abrirConexao = async (escopo: 'central' | 'corretor', corretorId?: string) => {
+    const id = await conectar(escopo, corretorId);
+    if (id) setQrPara(id);
+  };
+
+  if (!wahaOk) {
+    return (
+      <div style={{ ...card, marginTop: 14, background: 'var(--bg)' }}>
+        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0, lineHeight: 1.6 }}>
+          A conexão dos números (QR code) fica disponível quando o motor de WhatsApp (WAHA) for
+          configurado no servidor.
+        </p>
+      </div>
+    );
+  }
+
+  const linha = (nome: string, s: { id: string; status: string; numero: string | null } | undefined, onConnect: () => void) => (
+    <div className="data-row" style={{ ...card, display: 'flex', alignItems: 'center', gap: 14 }}>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: s?.status === 'conectada' ? 'var(--olive)' : 'var(--muted)' }} />
+          <span style={{ fontSize: 13.5, fontWeight: 700 }}>{nome}</span>
+        </span>
+        <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
+          {s?.status === 'conectada' ? '+' + s.numero : s?.status === 'conectando' ? 'aguardando leitura do QR…' : 'não conectado'}
+        </span>
+      </span>
+      <div className="row-actions" style={{ display: 'flex', gap: 7, flex: 'none' }}>
+        {s?.status === 'conectada'
+          ? <button onClick={() => desconectar(s.id)} style={btn}>Desconectar</button>
+          : <button onClick={onConnect} style={{ ...btn, background: 'var(--terra)', color: '#fff', border: 'none' }}>Conectar</button>}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <p style={secTitle}>{modo === 'central' ? 'Número central' : 'Números dos corretores'}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+        {modo === 'central'
+          ? linha('Número da imobiliária', central, () => central ? setQrPara(central.id) : abrirConexao('central'))
+          : (corretores.length === 0
+              ? <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0 }}>Nenhum corretor cadastrado ainda.</p>
+              : corretores.map(c => {
+                  const s = sessaoDoCorretor(c.id);
+                  return <div key={c.id}>{linha(c.nome, s, () => s ? setQrPara(s.id) : abrirConexao('corretor', c.id))}</div>;
+                }))}
+      </div>
+      {qrPara && <QrWhatsappModal sessaoId={qrPara} onClose={() => { setQrPara(null); fetchSessoes(); }} />}
+    </div>
+  );
+}
+
+function QrWhatsappModal({ sessaoId, onClose }: { sessaoId: string; onClose: () => void }) {
+  const qrWhatsapp = useAppStore(s => s.qrWhatsapp);
+  const [qr, setQr] = useState<string | null>(null);
+  const [status, setStatus] = useState('conectando');
+
+  useEffect(() => {
+    let vivo = true;
+    const tick = async () => {
+      const r = await qrWhatsapp(sessaoId);
+      if (!vivo) return;
+      setQr(r.qr);
+      setStatus(r.status);
+      if (r.status === 'conectada') setTimeout(onClose, 1200);
+    };
+    tick();
+    const t = setInterval(tick, 3500);
+    return () => { vivo = false; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessaoId]);
+
+  return (
+    <div onClick={onClose} className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(8,17,31,.55)', zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26 }}>
+      <div onClick={e => e.stopPropagation()} className="modal-card" style={{ width: '100%', maxWidth: 380, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 26, textAlign: 'center', animation: 'fadeUp .14s ease' }}>
+        <h3 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 22, margin: '0 0 6px' }}>Conectar WhatsApp</h3>
+        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 20px', lineHeight: 1.6 }}>
+          No celular: WhatsApp › Aparelhos conectados › Conectar um aparelho, e aponte pra este código.
+        </p>
+        {status === 'conectada' ? (
+          <p style={{ fontSize: 14, color: 'var(--olive)', fontWeight: 700, margin: '30px 0' }}>✓ Conectado!</p>
+        ) : qr ? (
+          <img src={qr} alt="QR code" style={{ width: 240, height: 240, margin: '0 auto', display: 'block', borderRadius: 8, border: '1px solid var(--line)' }} />
+        ) : (
+          <div style={{ width: 240, height: 240, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--line)', borderRadius: 8 }}>
+            <span style={{ width: 26, height: 26, border: '2px solid var(--line)', borderTopColor: 'var(--terra)', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+          </div>
+        )}
+        <button onClick={onClose} style={{ marginTop: 20, padding: '10px 18px', border: '1px solid var(--line)', borderRadius: 8, background: 'none', fontSize: 13, fontWeight: 600 }}>Fechar</button>
       </div>
     </div>
   );

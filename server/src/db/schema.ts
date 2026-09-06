@@ -3,6 +3,8 @@ import { relations } from 'drizzle-orm';
 
 export const roleEnum = pgEnum('role', ['dono', 'gerente', 'corretor']);
 export const modoWhatsappEnum = pgEnum('modo_whatsapp', ['central', 'corretor']);
+export const sessaoEscopoEnum = pgEnum('sessao_escopo', ['central', 'corretor']);
+export const sessaoStatusEnum = pgEnum('sessao_status', ['desconectada', 'conectando', 'conectada']);
 export const canalEnum = pgEnum('canal', ['WhatsApp', 'Instagram', 'Facebook', 'Indicacao', 'Manual']);
 export const direcaoEnum = pgEnum('direcao', ['in', 'out']);
 export const mensagemCanalEnum = pgEnum('mensagem_canal', ['corretor', 'followup']);
@@ -141,10 +143,29 @@ export const filasAtendimento = pgTable('filas_atendimento', {
   posicao: integer('posicao').notNull().default(0),
 });
 
+/** Sessão de WhatsApp (WAHA). 'central' = número único da imobiliária;
+ *  'corretor' = espelho do WhatsApp de um corretor específico. */
+export const sessoesWhatsapp = pgTable('sessoes_whatsapp', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  imobiliariaId: uuid('imobiliaria_id').notNull().references(() => imobiliarias.id, { onDelete: 'cascade' }),
+  escopo: sessaoEscopoEnum('escopo').notNull(),
+  corretorId: uuid('corretor_id').references(() => perfis.id, { onDelete: 'cascade' }),
+  sessionName: text('session_name').notNull().unique(),
+  status: sessaoStatusEnum('status').notNull().default('desconectada'),
+  numero: text('numero'),
+  criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+}, table => ({
+  imobiliariaIdx: index('sessoes_whatsapp_imobiliaria_id_idx').on(table.imobiliariaId),
+}));
+
 export const mensagensWhatsapp = pgTable('mensagens_whatsapp', {
   id: uuid('id').primaryKey().defaultRandom(),
   leadId: uuid('lead_id').notNull().references(() => leads.id, { onDelete: 'cascade' }),
   direcao: direcaoEnum('direcao').notNull(),
+  // id da mensagem no WhatsApp (WAHA) — evita duplicar ao processar o webhook 2x.
+  waMessageId: text('wa_message_id'),
+  // quem enviou (corretor), quando a mensagem sai pelo número central.
+  enviadoPor: uuid('enviado_por').references(() => perfis.id, { onDelete: 'set null' }),
   // Mensagem pode ser só texto, só anexo, ou os dois — por isso texto virou opcional.
   texto: text('texto'),
   // Arquivo em si mora no MinIO (mesmo padrão de imóveis/templates/treinamentos) — aqui só a URL.

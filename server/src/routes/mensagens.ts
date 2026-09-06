@@ -4,6 +4,7 @@ import { and, asc, desc, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { leads, mensagensWhatsapp } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
+import { despacharPeloWhatsapp } from './whatsapp.js';
 import type { Server as SocketServer } from 'socket.io';
 
 /** Carrega o lead e confere que quem está pedindo pode ver essa conversa: precisa ser da mesma
@@ -70,10 +71,8 @@ export function mensagensRouter(io: SocketServer) {
     if (lead === null) return res.status(404).json({ error: 'Lead não encontrado' });
     if (lead === undefined) return res.status(403).json({ error: 'Sem permissão para enviar nesta conversa' });
 
-    // Envio real via WAHA entra numa próxima etapa — por enquanto só persiste a mensagem do
-    // corretor (direção "out"). Não fabricamos resposta automática do lead.
     const [row] = await db.insert(mensagensWhatsapp).values({
-      leadId: req.params.leadId, direcao: 'out', canal: 'corretor',
+      leadId: req.params.leadId, direcao: 'out', canal: 'corretor', enviadoPor: sub,
       texto: parsed.data.texto ?? null,
       anexoUrl: parsed.data.anexoUrl ?? null,
       anexoTipo: parsed.data.anexoTipo ?? null,
@@ -81,6 +80,15 @@ export function mensagensRouter(io: SocketServer) {
 
     io.to('imobiliaria:' + imobiliariaId).emit('mensagem:created', row);
     res.status(201).json(row);
+
+    // dispara pelo WhatsApp (central ou do corretor) sem travar a resposta;
+    // se não houver sessão conectada, a mensagem fica só no histórico do CRM.
+    despacharPeloWhatsapp({
+      imobiliariaId, telefone: lead.telefone, corretorId: lead.corretorId,
+      texto: parsed.data.texto, anexoUrl: parsed.data.anexoUrl, anexoTipo: parsed.data.anexoTipo,
+    })
+      .then(r => { if (!r.enviado && r.erro && r.erro !== 'WAHA não configurado' && r.erro !== 'nenhuma sessão conectada') console.warn('WhatsApp não enviou:', r.erro); })
+      .catch(() => {});
   });
 
   return router;

@@ -1,0 +1,201 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { and, eq } from 'drizzle-orm';
+import { db } from '../db/client.js';
+import { sessoesWhatsapp, imobiliarias, perfis, leads, colunasKanban, mensagensWhatsapp } from '../db/schema.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import { wahaConfigurado, criarSessao, pararSessao, statusSessao, qrSessao, webhookSecret } from '../lib/waha.js';
+import type { Server as SocketServer } from 'socket.io';
+
+const soDigitos = (s: string) => (s || '').replace(/[^0-9]/g, '');
+/** telefone do lead casa com o número do WhatsApp? compara os últimos 8 dígitos (número local). */
+function mesmoNumero(a: string, b: string) {
+  const x = soDigitos(a), y = soDigitos(b);
+  if (!x || !y) return false;
+  return x.slice(-8) === y.slice(-8);
+}
+
+export function whatsappRouter(io: SocketServer) {
+  const router = Router();
+
+  // ---------------------------------------------------------------
+  // WEBHOOK do WAHA — sem JWT (o WAHA chama), protegido por ?secret=
+  // ---------------------------------------------------------------
+  router.post('/webhook', async (req, res) => {
+    if (req.query.secret !== webhookSecret()) return res.status(401).json({ error: 'segredo inválido' });
+    res.json({ ok: true }); // responde rápido, processa depois
+
+    try {
+      const ev = req.body as { event?: string; session?: string; payload?: any };
+      if (!ev.session || !(ev.event === 'message' || ev.event === 'message.any')) return;
+      const p = ev.payload || {};
+      const fromMe: boolean = !!p.fromMe;
+      const numeroRaw: string = (fromMe ? p.to : p.from) || '';
+      const numero = soDigitos(numeroRaw);
+      const texto: string | null = p.body || null;
+      const waId: string | undefined = p.id;
+      if (!numero || (numero.length > 15)) return; // grupos etc
+
+      const [sessao] = await db.select().from(sessoesWhatsapp).where(eq(sessoesWhatsapp.sessionName, ev.session)).limit(1);
+      if (!sessao) return;
+
+      // dedup
+      if (waId) {
+        const [existe] = await db.select({ id: mensagensWhatsapp.id }).from(mensagensWhatsapp).where(eq(mensagensWhatsapp.waMessageId, waId)).limit(1);
+        if (existe) return;
+      }
+
+      // acha o lead pelo telefone dentro da imobiliária (do corretor, se a sessão é de um corretor)
+      const escopoLeads = sessao.escopo === 'corretor' && sessao.corretorId
+        ? and(eq(leads.imobiliariaId, sessao.imobiliariaId), eq(leads.corretorId, sessao.corretorId))
+        : eq(leads.imobiliariaId, sessao.imobiliariaId);
+      const candidatos = await db.select().from(leads).where(escopoLeads);
+      let lead = candidatos.find(l => mesmoNumero(l.telefone, numero));
+
+      // sem lead e é mensagem RECEBIDA -> cria um lead novo na coluna "Lead Novo"
+      if (!lead && !fromMe) {
+        const [colNova] = await db.select().from(colunasKanban)
+          .where(and(eq(colunasKanban.imobiliariaId, sessao.imobiliariaId), eq(colunasKanban.slug, 'novo'))).limit(1);
+        const [novo] = await db.insert(leads).values({
+          imobiliariaId: sessao.imobiliariaId,
+          nome: p.notifyName || p._data?.notifyName || ('WhatsApp ' + numero.slice(-4)),
+          telefone: numero,
+          canal: 'WhatsApp',
+          colunaId: colNova?.id,
+          corretorId: sessao.escopo === 'corretor' ? sessao.corretorId : null,
+        }).returning();
+        lead = novo;
+        io.to('imobiliaria:' + sessao.imobiliariaId).emit('lead:created', novo);
+      }
+      if (!lead) return;
+
+      const [msg] = await db.insert(mensagensWhatsapp).values({
+        leadId: lead.id,
+        direcao: fromMe ? 'out' : 'in',
+        canal: 'corretor',
+        waMessageId: waId ?? null,
+        texto,
+        anexoUrl: p.mediaUrl ?? null,
+        anexoTipo: p.hasMedia ? (p.type === 'image' ? 'imagem' : p.type === 'video' ? 'video' : p.type === 'ptt' || p.type === 'audio' ? 'audio' : 'documento') : null,
+      }).returning();
+      io.to('imobiliaria:' + sessao.imobiliariaId).emit('mensagem:created', msg);
+    } catch (e) {
+      console.error('webhook WAHA:', (e as Error).message);
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Sessões — Dono/Gerente
+  // ---------------------------------------------------------------
+  router.use(requireAuth);
+
+  router.get('/status', async (req, res) => {
+    const rows = await db.select().from(sessoesWhatsapp).where(eq(sessoesWhatsapp.imobiliariaId, req.auth!.imobiliariaId));
+    res.json({ wahaConfigurado: wahaConfigurado(), conectadas: rows.filter(r => r.status === 'conectada').length, total: rows.length });
+  });
+
+  router.use(requireRole('dono', 'gerente'));
+
+  async function refrescar(sessionName: string, id: string) {
+    if (!wahaConfigurado()) return;
+    const st = await statusSessao(sessionName);
+    await db.update(sessoesWhatsapp).set({ status: st.status, numero: st.numero }).where(eq(sessoesWhatsapp.id, id));
+  }
+
+  router.get('/sessoes', async (req, res) => {
+    const rows = await db.select().from(sessoesWhatsapp).where(eq(sessoesWhatsapp.imobiliariaId, req.auth!.imobiliariaId));
+    // atualiza status de cada uma no WAHA (em paralelo)
+    await Promise.all(rows.map(r => refrescar(r.sessionName, r.id).catch(() => {})));
+    const atualizados = await db.select().from(sessoesWhatsapp).where(eq(sessoesWhatsapp.imobiliariaId, req.auth!.imobiliariaId));
+    res.json({ wahaConfigurado: wahaConfigurado(), sessoes: atualizados });
+  });
+
+  router.post('/sessoes', async (req, res) => {
+    if (!wahaConfigurado()) return res.status(400).json({ error: 'WAHA não está configurado no servidor ainda (WAHA_URL / WAHA_API_KEY).' });
+    const parsed = z.object({ escopo: z.enum(['central', 'corretor']), corretorId: z.string().uuid().optional() }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Dados inválidos' });
+    const { imobiliariaId } = req.auth!;
+
+    if (parsed.data.escopo === 'corretor') {
+      if (!parsed.data.corretorId) return res.status(400).json({ error: 'Escolha o corretor' });
+      const [c] = await db.select({ id: perfis.id }).from(perfis).where(and(eq(perfis.id, parsed.data.corretorId), eq(perfis.imobiliariaId, imobiliariaId))).limit(1);
+      if (!c) return res.status(404).json({ error: 'Corretor não encontrado' });
+    }
+
+    const sessionName = parsed.data.escopo === 'central'
+      ? 'imob-' + imobiliariaId
+      : 'cor-' + parsed.data.corretorId;
+
+    const [ja] = await db.select().from(sessoesWhatsapp).where(eq(sessoesWhatsapp.sessionName, sessionName)).limit(1);
+    let row = ja;
+    if (!row) {
+      [row] = await db.insert(sessoesWhatsapp).values({
+        imobiliariaId, escopo: parsed.data.escopo,
+        corretorId: parsed.data.escopo === 'corretor' ? parsed.data.corretorId : null,
+        sessionName, status: 'conectando',
+      }).returning();
+    } else {
+      await db.update(sessoesWhatsapp).set({ status: 'conectando' }).where(eq(sessoesWhatsapp.id, row.id));
+    }
+
+    try {
+      await criarSessao(sessionName);
+    } catch (e) {
+      return res.status(502).json({ error: 'WAHA recusou: ' + (e as Error).message });
+    }
+    res.status(201).json(row);
+  });
+
+  router.get('/sessoes/:id/qr', async (req, res) => {
+    const [row] = await db.select().from(sessoesWhatsapp)
+      .where(and(eq(sessoesWhatsapp.id, req.params.id), eq(sessoesWhatsapp.imobiliariaId, req.auth!.imobiliariaId))).limit(1);
+    if (!row) return res.status(404).json({ error: 'Sessão não encontrada' });
+    await refrescar(row.sessionName, row.id).catch(() => {});
+    const [atual] = await db.select().from(sessoesWhatsapp).where(eq(sessoesWhatsapp.id, row.id)).limit(1);
+    const qr = atual.status === 'conectada' ? null : await qrSessao(row.sessionName).catch(() => null);
+    res.json({ status: atual.status, numero: atual.numero, qr });
+  });
+
+  router.delete('/sessoes/:id', async (req, res) => {
+    const [row] = await db.select().from(sessoesWhatsapp)
+      .where(and(eq(sessoesWhatsapp.id, req.params.id), eq(sessoesWhatsapp.imobiliariaId, req.auth!.imobiliariaId))).limit(1);
+    if (!row) return res.status(404).json({ error: 'Sessão não encontrada' });
+    await pararSessao(row.sessionName).catch(() => {});
+    await db.delete(sessoesWhatsapp).where(eq(sessoesWhatsapp.id, row.id));
+    res.json({ ok: true });
+  });
+
+  return router;
+}
+
+/** Usado pelo mensagens.ts: manda a mensagem pelo WhatsApp certo (central ou do corretor). */
+export async function despacharPeloWhatsapp(opts: {
+  imobiliariaId: string;
+  telefone: string;
+  corretorId: string | null;
+  texto?: string | null;
+  anexoUrl?: string | null;
+  anexoTipo?: 'imagem' | 'video' | 'documento' | 'audio' | null;
+}): Promise<{ enviado: boolean; erro?: string }> {
+  if (!wahaConfigurado()) return { enviado: false, erro: 'WAHA não configurado' };
+  const { enviarTexto, enviarMidia } = await import('../lib/waha.js');
+  const [imob] = await db.select({ modo: imobiliarias.modoWhatsapp }).from(imobiliarias).where(eq(imobiliarias.id, opts.imobiliariaId)).limit(1);
+
+  let sessao;
+  if (imob?.modo === 'central') {
+    [sessao] = await db.select().from(sessoesWhatsapp)
+      .where(and(eq(sessoesWhatsapp.imobiliariaId, opts.imobiliariaId), eq(sessoesWhatsapp.escopo, 'central'), eq(sessoesWhatsapp.status, 'conectada'))).limit(1);
+  } else if (opts.corretorId) {
+    [sessao] = await db.select().from(sessoesWhatsapp)
+      .where(and(eq(sessoesWhatsapp.corretorId, opts.corretorId), eq(sessoesWhatsapp.status, 'conectada'))).limit(1);
+  }
+  if (!sessao) return { enviado: false, erro: 'nenhuma sessão conectada' };
+
+  try {
+    if (opts.anexoUrl && opts.anexoTipo) await enviarMidia(sessao.sessionName, opts.telefone, opts.anexoUrl, opts.anexoTipo, opts.texto ?? undefined);
+    else if (opts.texto) await enviarTexto(sessao.sessionName, opts.telefone, opts.texto);
+    return { enviado: true };
+  } catch (e) {
+    return { enviado: false, erro: (e as Error).message };
+  }
+}

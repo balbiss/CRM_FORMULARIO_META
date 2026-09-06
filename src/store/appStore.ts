@@ -15,6 +15,7 @@ export interface IntegracaoFacebook {
   ativo: boolean; ultimaSyncEm: string | null; ultimoErro: string | null; criadoEm: string; tokenFinal: string;
 }
 export interface IntegracaoFacebookInput { nomeConta: string; pageId: string; formId: string; accessToken: string }
+export interface SessaoWhatsapp { id: string; escopo: 'central' | 'corretor'; corretorId: string | null; status: 'desconectada' | 'conectando' | 'conectada'; numero: string | null }
 export interface RemoteTemplate { id: string; titulo: string; texto: string; anexoUrl: string | null }
 export type SituacaoImovel = 'Pronto para morar' | 'Em obras' | 'Lançamento';
 export interface RemoteImovel {
@@ -102,6 +103,8 @@ interface AppState {
   horarioAtendimento: DiaAtendimento[];
   modoWhatsapp: ModoWhatsapp;
   integracoesFacebook: IntegracaoFacebook[];
+  sessoesWhatsapp: SessaoWhatsapp[];
+  wahaConfigurado: boolean;
 
   leads: Lead[];
   leadId: string | null;
@@ -171,6 +174,10 @@ interface AppState {
   atualizarIntegracaoFb: (id: string, patch: Partial<IntegracaoFacebookInput> & { ativo?: boolean }) => Promise<void>;
   excluirIntegracaoFb: (id: string) => Promise<void>;
   testarIntegracaoFb: (id: string) => Promise<{ ok: boolean; msg: string }>;
+  fetchSessoesWhatsapp: () => Promise<void>;
+  conectarWhatsapp: (escopo: 'central' | 'corretor', corretorId?: string) => Promise<string | null>;
+  qrWhatsapp: (id: string) => Promise<{ status: string; numero: string | null; qr: string | null }>;
+  desconectarWhatsapp: (id: string) => Promise<void>;
   setKbTag: (tagId: string | null) => void;
   fetchTags: () => Promise<void>;
   createTag: (nome: string, cor?: string) => Promise<RemoteTag | null>;
@@ -330,6 +337,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO,
   modoWhatsapp: 'corretor',
   integracoesFacebook: [],
+  sessoesWhatsapp: [],
+  wahaConfigurado: false,
 
   colunasRemotas: [],
   perfisRemotos: [],
@@ -422,7 +431,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('nova_token');
     disconnectSocket();
-    set({ token: null, me: null, leads: [], colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [] });
+    set({ token: null, me: null, leads: [], colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [] });
   },
   hydrateAuth: () => {
     const token = localStorage.getItem('nova_token');
@@ -769,6 +778,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         apiFetch<IntegracaoFacebook[]>('/api/integracoes/facebook', token).catch(() => [] as IntegracaoFacebook[]),
       ]);
       set({ modoWhatsapp: modo, integracoesFacebook: lista });
+      get().fetchSessoesWhatsapp();
     } catch { /* provável corretor sem permissão — mantém o padrão */ }
   },
   setModoWhatsapp: async modo => {
@@ -824,6 +834,47 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) {
       return { ok: false, msg: (e as ApiError).message || 'Falhou' };
     }
+  },
+
+  fetchSessoesWhatsapp: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const r = await apiFetch<{ wahaConfigurado: boolean; sessoes: SessaoWhatsapp[] }>('/api/whatsapp/sessoes', token);
+      set({ wahaConfigurado: r.wahaConfigurado, sessoesWhatsapp: r.sessoes });
+    } catch { /* provável corretor sem permissão */ }
+  },
+  conectarWhatsapp: async (escopo, corretorId) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const row = await apiFetch<SessaoWhatsapp>('/api/whatsapp/sessoes', token, { method: 'POST', body: JSON.stringify({ escopo, ...(corretorId ? { corretorId } : {}) }) });
+      await get().fetchSessoesWhatsapp();
+      return row.id;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível iniciar a conexão');
+      return null;
+    }
+  },
+  qrWhatsapp: async id => {
+    const token = get().token;
+    if (!token) return { status: 'desconectada', numero: null, qr: null };
+    try {
+      const r = await apiFetch<{ status: string; numero: string | null; qr: string | null }>('/api/whatsapp/sessoes/' + id + '/qr', token);
+      if (r.status === 'conectada') get().fetchSessoesWhatsapp();
+      return r;
+    } catch {
+      return { status: 'desconectada', numero: null, qr: null };
+    }
+  },
+  desconectarWhatsapp: async id => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      await apiFetch('/api/whatsapp/sessoes/' + id, token, { method: 'DELETE' });
+      set(s => ({ sessoesWhatsapp: s.sessoesWhatsapp.filter(x => x.id !== id) }));
+      get().toast('WhatsApp desconectado');
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível desconectar'); }
   },
   enforceHorarioComercial: meNome => {
     if (isBusinessHoursOpen(get().horarioAtendimento)) return;

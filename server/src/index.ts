@@ -19,6 +19,7 @@ import { captacaoRouter } from './routes/captacao.js';
 import { tagsRouter } from './routes/tags.js';
 import { configRouter } from './routes/config.js';
 import { integracoesRouter } from './routes/integracoes.js';
+import { whatsappRouter } from './routes/whatsapp.js';
 import { verifyToken } from './lib/jwt.js';
 import { ensureBucket } from './lib/storage.js';
 
@@ -63,6 +64,7 @@ app.use('/api/perfis', perfisRouter(io));
 app.use('/api/mensagens', mensagensRouter(io));
 app.use('/api/captacao', captacaoRouter(io));
 app.use('/api/tags', tagsRouter(io));
+app.use('/api/whatsapp', whatsappRouter(io));
 
 const port = Number(process.env.PORT) || 3001;
 ensureBucket()
