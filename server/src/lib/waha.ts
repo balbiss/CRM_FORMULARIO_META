@@ -98,6 +98,18 @@ export async function qrSessao(sessionName: string): Promise<string | null> {
 
 const chatId = (numero: string) => numero.replace(/[^0-9]/g, '') + '@c.us';
 
+/** URL da foto de perfil do contato no WhatsApp (null se não tiver / for privada). */
+export async function fotoPerfil(sessionName: string, numero: string): Promise<string | null> {
+  try {
+    const r = await waha<{ profilePictureURL?: string; url?: string }>(
+      `/api/contacts/profile-picture?contactId=${encodeURIComponent(chatId(numero))}&session=${encodeURIComponent(sessionName)}`,
+    );
+    return r?.profilePictureURL || r?.url || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function enviarTexto(sessionName: string, numero: string, texto: string) {
   return waha('/api/sendText', { method: 'POST', body: { session: sessionName, chatId: chatId(numero), text: texto } });
 }

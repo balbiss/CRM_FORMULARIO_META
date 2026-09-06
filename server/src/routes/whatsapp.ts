@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { sessoesWhatsapp, imobiliarias, perfis, leads, colunasKanban, mensagensWhatsapp } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { wahaConfigurado, criarSessao, pararSessao, statusSessao, qrSessao, webhookSecret } from '../lib/waha.js';
+import { wahaConfigurado, criarSessao, pararSessao, statusSessao, qrSessao, webhookSecret, fotoPerfil } from '../lib/waha.js';
 import type { Server as SocketServer } from 'socket.io';
 
 const soDigitos = (s: string) => (s || '').replace(/[^0-9]/g, '');
@@ -70,7 +70,6 @@ export function whatsappRouter(io: SocketServer) {
 
       if (ev.event !== 'message' && ev.event !== 'message.any') return;
       const p = ev.payload || {};
-      if (process.env.WA_DEBUG === '1') console.log('WA payload:', JSON.stringify(p).slice(0, 2000));
       const info = p._data?.Info || p._data?.info || {};
       const fromMe: boolean = !!(p.fromMe ?? info.IsFromMe);
       if (info.IsGroup || info.IsNewsletterStatus) return;
@@ -146,6 +145,17 @@ export function whatsappRouter(io: SocketServer) {
         }
       }
 
+      // Foto de perfil do WhatsApp — busca uma vez (fire-and-forget) se o lead ainda não tem.
+      if (!lead.fotoUrl && !fromMe) {
+        const leadId = lead.id, imobId = sessao.imobiliariaId, sn = sessao.sessionName, tel = numero;
+        void (async () => {
+          const url = await fotoPerfil(sn, tel);
+          if (!url) return;
+          const [row] = await db.update(leads).set({ fotoUrl: url }).where(and(eq(leads.id, leadId), isNull(leads.fotoUrl))).returning();
+          if (row) io.to('imobiliaria:' + imobId).emit('lead:updated', row);
+        })().catch(() => {});
+      }
+
       const anexoUrl: string | null = p.media?.url || p.mediaUrl || null;
       const tipoRaw: string = p.media?.mimetype?.split('/')[0] || p.type || '';
       const anexoTipo = (p.hasMedia || anexoUrl)
@@ -162,7 +172,7 @@ export function whatsappRouter(io: SocketServer) {
         texto,
         anexoUrl,
         anexoTipo,
-      }).onConflictDoNothing({ target: mensagensWhatsapp.waMessageId }).returning();
+      }).onConflictDoNothing().returning(); // ON CONFLICT DO NOTHING (sem target — casa com o índice parcial)
 
       const msg = inseridas[0];
       if (!msg) return; // era duplicada (webhook 2x) — ignora em silêncio
