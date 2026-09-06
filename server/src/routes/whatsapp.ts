@@ -44,21 +44,27 @@ export function whatsappRouter(io: SocketServer) {
 
       if (ev.event !== 'message' && ev.event !== 'message.any') return;
       const p = ev.payload || {};
-      const fromMe: boolean = !!p.fromMe;
+      const info = p._data?.Info || {};
+      const fromMe: boolean = !!(p.fromMe ?? info.IsFromMe);
+      if (info.IsGroup || info.IsNewsletterStatus) return;
 
       // Endereço do contato. Rejeita grupo / canal / lista de transmissão / status.
-      const enderecoRaw: string = (fromMe ? p.to : p.from) || p._data?.id?.remote || '';
+      const enderecoRaw: string = (fromMe ? p.to : p.from) || info.Sender || info.Chat || p._data?.id?.remote || '';
       if (/@g\.us|@newsletter|@broadcast|status@broadcast/i.test(enderecoRaw)) return;
 
-      // @lid = id interno do WhatsApp (não é telefone). Tenta resolver pro número real; senão descarta.
+      // @lid = id interno do WhatsApp (não é telefone). Resolve pro número real:
+      //  - GOWS: _data.Info.SenderAlt / RecipientAlt (@s.whatsapp.net)
+      //  - WEBJS/NOWEB: _data.key.remoteJidAlt / _data.author
       let numeroRaw = enderecoRaw;
       if (/@lid$/i.test(enderecoRaw)) {
-        const alt = p._data?.key?.remoteJidAlt || p._data?.author || '';
+        const alt = (fromMe ? info.RecipientAlt : info.SenderAlt)
+          || info.SenderAlt || info.RecipientAlt
+          || p._data?.key?.remoteJidAlt || p._data?.author || '';
         if (!/@s\.whatsapp\.net|@c\.us/i.test(alt)) return;
         numeroRaw = alt;
       }
       const numero = soDigitos(numeroRaw);
-      const texto: string | null = p.body || null;
+      const texto: string | null = p.body || p._data?.Message?.conversation || null;
       const waId: string | undefined = p.id;
       // Número de verdade tem no máximo 13 dígitos (55 + DDD + 9 + 8). Acima disso é lixo (LID não resolvido).
       if (!numero || numero.length > 13) return;
@@ -89,7 +95,7 @@ export function whatsappRouter(io: SocketServer) {
           .where(and(eq(colunasKanban.imobiliariaId, sessao.imobiliariaId), eq(colunasKanban.slug, 'novo'))).limit(1);
         const [novo] = await db.insert(leads).values({
           imobiliariaId: sessao.imobiliariaId,
-          nome: p.notifyName || p._data?.notifyName || ('WhatsApp ' + numero.slice(-4)),
+          nome: p.notifyName || p._data?.notifyName || info.PushName || p._data?.pushName || ('WhatsApp ' + numero.slice(-4)),
           telefone: numero,
           canal: 'WhatsApp',
           colunaId: colNova?.id,
