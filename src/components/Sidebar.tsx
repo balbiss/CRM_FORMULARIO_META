@@ -5,13 +5,14 @@ import { useRoleInfo, useUnreadTotal, useRebatidasTotal } from '../lib/selectors
 import { css } from '../lib/css';
 import { NAV_ITEMS } from '../lib/nav';
 import { ini } from '../lib/format';
+import Logo, { LogoMark } from './Logo';
 
 export function Sidebar() {
   const open = useAppStore(s => s.sidebarOpen);
   const toggleSidebar = useAppStore(s => s.toggleSidebar);
   const fila = useAppStore(s => s.fila);
-  const toggleFila = useAppStore(s => s.toggleFila);
-  const fireAlert = useAppStore(s => s.fireAlert);
+  const me = useAppStore(s => s.me);
+  const toggleMeuPlantao = useAppStore(s => s.toggleMeuPlantao);
   const toast = useAppStore(s => s.toast);
   const logout = useAppStore(s => s.logout);
   const { isManager, role, meNome } = useRoleInfo();
@@ -25,8 +26,8 @@ export function Sidebar() {
 
   const badgeFor = (path: string) => (path === '/conversas' ? unread : path === '/rebatidas' ? rebatidas : 0);
 
-  const meIdx = fila.findIndex(f => f.nome === meNome);
-  const noPlantao = meIdx >= 0 ? fila[meIdx].ativo : false;
+  const minhaFila = me ? fila.find(f => f.corretorId === me.id) : undefined;
+  const noPlantao = minhaFila ? minhaFila.ativo : !!me?.emPlantao;
 
   // Botão em vez de <a> de propósito: navegador nenhum mostra preview de URL ao passar o mouse
   // (o dono pediu pra tirar isso), mas Ctrl/Cmd+clique e clique do meio continuam abrindo em nova aba.
@@ -42,14 +43,14 @@ export function Sidebar() {
         style={{
           display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', border: 'none', borderRadius: 8,
           fontSize: 13.5, fontWeight: isActive ? 700 : 500, textAlign: 'left',
-          background: isActive ? 'rgba(181,101,47,.16)' : 'transparent',
-          color: isActive ? 'var(--terra)' : 'var(--sideMuted)', width: '100%', flex: 'none',
+          background: isActive ? 'rgba(76,141,240,.16)' : 'transparent',
+          color: isActive ? 'var(--side-accent)' : 'var(--sideMuted)', width: '100%', flex: 'none',
         }}
       >
-        <span style={css('width:7px;height:7px;flex:none;transform:rotate(45deg);background:' + (isActive ? 'var(--terra)' : '#4a4640'))} />
+        <span style={css('width:7px;height:7px;flex:none;transform:rotate(45deg);background:' + (isActive ? 'var(--side-accent)' : '#3a4456'))} />
         {open && <span style={{ flex: 1, textAlign: 'left' }}>{label}</span>}
         {open && badge > 0 && (
-          <span style={{ minWidth: 17, height: 17, padding: '0 4px', borderRadius: 9, background: 'var(--terra)', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{badge}</span>
+          <span style={{ minWidth: 17, height: 17, padding: '0 4px', borderRadius: 9, background: 'var(--side-accent)', color: '#08111F', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{badge}</span>
         )}
       </button>
     );
@@ -61,11 +62,10 @@ export function Sidebar() {
       style={{ width: open ? 248 : 68, flex: 'none', background: 'var(--side)', display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', position: 'fixed', top: 0, left: 0, zIndex: 50, transition: 'width .18s ease' }}
     >
       <div style={{ flex: 'none', padding: '22px 20px 26px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 11, overflow: 'hidden' }}>
-          <div style={{ width: 12, height: 12, background: 'var(--terra)', transform: 'rotate(45deg)', flex: 'none' }} />
-          {open && <span style={{ fontFamily: 'Newsreader,serif', fontSize: 15, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--sideInk)', whiteSpace: 'nowrap' }}>Hinode Imóveis</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11, overflow: 'hidden', color: 'var(--sideInk)' }}>
+          {open ? <Logo markSize={26} wordSize={13} showCrm={false} gap={9} /> : <LogoMark size={26} />}
         </div>
-        <button onClick={toggleSidebar} style={{ background: 'none', border: '1px solid #37342f', color: 'var(--sideMuted)', width: 26, height: 26, borderRadius: 6, flex: 'none', fontSize: 13, lineHeight: 1 }}>
+        <button onClick={toggleSidebar} style={{ background: 'none', border: '1px solid #243043', color: 'var(--sideMuted)', width: 26, height: 26, borderRadius: 6, flex: 'none', fontSize: 13, lineHeight: 1 }}>
           {open ? '‹' : '›'}
         </button>
       </div>
@@ -78,21 +78,21 @@ export function Sidebar() {
         {toolItems.map(item)}
       </div>
 
-      <div style={{ flex: 'none', borderTop: '1px solid #2c2a26', padding: 10 }}>
+      <div style={{ flex: 'none', borderTop: '1px solid #1c2636', padding: 10 }}>
         <button
           role="switch"
           aria-checked={noPlantao}
-          onClick={async () => { if (meIdx < 0) return; const goingOnline = !noPlantao; const ok = await toggleFila(meIdx, true); if (ok && goingOnline) fireAlert('plantao'); }}
+          onClick={() => toggleMeuPlantao()}
           style={{
             width: '100%', marginBottom: 8, display: open ? 'flex' : 'none', alignItems: 'center', justifyContent: 'space-between',
-            borderRadius: 6, background: 'rgba(255,255,255,.05)', padding: '7px 8px', border: '1px solid #2c2a26',
+            borderRadius: 6, background: 'rgba(255,255,255,.05)', padding: '7px 8px', border: '1px solid #1c2636',
           }}
         >
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: noPlantao ? 'var(--terra)' : 'var(--sideMuted)' }} />
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: noPlantao ? 'var(--side-accent)' : 'var(--sideMuted)' }} />
             <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.9)' }}>{noPlantao ? 'No Plantão' : 'Offline'}</span>
           </span>
-          <span style={{ position: 'relative', width: 28, height: 16, borderRadius: 8, background: noPlantao ? 'var(--terra)' : '#37342f', flex: 'none' }}>
+          <span style={{ position: 'relative', width: 28, height: 16, borderRadius: 8, background: noPlantao ? 'var(--side-accent)' : '#2a3446', flex: 'none' }}>
             <span style={{ position: 'absolute', top: 2, left: noPlantao ? 14 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left .15s ease' }} />
           </span>
         </button>

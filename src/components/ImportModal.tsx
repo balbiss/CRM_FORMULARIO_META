@@ -13,8 +13,8 @@ export function ImportModal() {
   const confirmImport = useAppStore(s => s.confirmImport);
   if (!importOpen) return null;
   return (
-    <div onClick={() => setImportOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(28,27,26,.45)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 640, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 26, animation: 'fadeUp .14s ease' }}>
+    <div onClick={() => setImportOpen(false)} className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(8,17,31,.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26 }}>
+      <div onClick={e => e.stopPropagation()} className="modal-card" style={{ width: '100%', maxWidth: 640, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 26, animation: 'fadeUp .14s ease' }}>
         <h3 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 25, margin: '0 0 6px' }}>Importar leads via planilha</h3>
         <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 20px' }}>CSV ou XLSX · até 500 linhas por importação</p>
         <div style={{ border: '1px dashed var(--line)', borderRadius: 10, padding: 22, textAlign: 'center', marginBottom: 20, background: 'var(--bg)' }}>

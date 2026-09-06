@@ -68,6 +68,7 @@ export interface Lead {
   nome: string;
   tel: string;
   email: string;
+  foto: string;
   imovel: string;
   imovelSub: string;
   valor: number;
@@ -80,6 +81,7 @@ export interface Lead {
   motivo: string;
   renda: number;
   entrouNaColunaEm?: string;
+  tags: string[];
 }
 
 export function buildLeads(): Lead[] {
@@ -97,6 +99,7 @@ export function buildLeads(): Lead[] {
     return {
       id: 'L' + (100 + i),
       nome,
+      foto: '',
       tel: '(11) 9' + (8000 + i * 37) + '-' + (1000 + i * 13),
       email: stripAccents(nome.toLowerCase()).replace(/ /g, '.') + '@email.com',
       imovel: im[0], imovelSub: im[1], valor: im[2],
@@ -104,6 +107,7 @@ export function buildLeads(): Lead[] {
       segundo: i % 7 === 0, corretor: CORRETORES[i % CORRETORES.length].nome,
       campanha: i % 2 ? 'Aurora — Lançamento' : 'Vila Serena — Fase 2',
       motivo: MOTIVOS[i % MOTIVOS.length], renda: 9000 + (i % 6) * 4200,
+      tags: [],
     };
   });
 }

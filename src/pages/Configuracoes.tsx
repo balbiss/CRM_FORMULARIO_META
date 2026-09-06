@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
 import { ini } from '../lib/format';
+import { HorarioAtendimento } from '../components/HorarioAtendimento';
 
-type Tab = 'perfil' | 'seguranca' | 'imobiliaria' | 'uso';
+type Tab = 'perfil' | 'seguranca' | 'imobiliaria' | 'atendimento' | 'uso';
 
 export default function Configuracoes() {
   const savePerfil = useAppStore(s => s.savePerfil);
@@ -13,11 +14,11 @@ export default function Configuracoes() {
 
   const tabs: [Tab, string][] = [
     ['perfil', 'Perfil'], ['seguranca', 'Segurança'],
-    ...(isManager ? ([['imobiliaria', 'Imobiliária'], ['uso', 'Uso']] as [Tab, string][]) : []),
+    ...(isManager ? ([['imobiliaria', 'Imobiliária'], ['atendimento', 'Atendimento'], ['uso', 'Uso']] as [Tab, string][]) : []),
   ];
 
   return (
-    <div style={{ maxWidth: 640 }}>
+    <div>
       <div style={{ marginBottom: 16 }}>
         <p style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 4px' }}>Conta</p>
         <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Ajustes</h1>
@@ -37,7 +38,7 @@ export default function Configuracoes() {
             <span style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--terraSoft)', color: 'var(--terra)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700 }}>{ini(meNome)}</span>
             <span>
               <span style={{ display: 'block', fontFamily: 'Newsreader,serif', fontSize: 24 }}>{meNome}</span>
-              <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)', letterSpacing: '.08em', textTransform: 'uppercase', marginTop: 3 }}>{role} · Hinode Imóveis</span>
+              <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)', letterSpacing: '.08em', textTransform: 'uppercase', marginTop: 3 }}>{role} · Visita IA</span>
             </span>
           </div>
           <label style={{ display: 'block', fontSize: 11.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 7 }}>Nome</label>
@@ -79,7 +80,7 @@ export default function Configuracoes() {
         <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', padding: 24 }}>
           <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 18px' }}>Informações públicas exibidas para os leads.</p>
           <label style={{ display: 'block', fontSize: 11.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 7 }}>Nome da imobiliária</label>
-          <input defaultValue="Hinode Imóveis" style={{ width: '100%', padding: '11px 13px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5, marginBottom: 16 }} />
+          <input defaultValue="Minha Imobiliária" style={{ width: '100%', padding: '11px 13px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5, marginBottom: 16 }} />
           <label style={{ display: 'block', fontSize: 11.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 7 }}>CNPJ</label>
           <input defaultValue="00.000.000/0001-00" style={{ width: '100%', padding: '11px 13px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5, marginBottom: 16 }} />
           <label style={{ display: 'block', fontSize: 11.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 7 }}>Endereço</label>
@@ -87,6 +88,8 @@ export default function Configuracoes() {
           <button onClick={() => toast('Dados da imobiliária atualizados')} style={{ padding: '11px 18px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600 }}>Salvar alterações</button>
         </div>
       )}
+
+      {tab === 'atendimento' && <HorarioAtendimento />}
 
       {tab === 'uso' && (
         <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', padding: 24 }}>

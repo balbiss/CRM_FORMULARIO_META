@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
+import Logo from '../components/Logo';
 
 const fadeUp = (delayMs: number): React.CSSProperties => ({
   opacity: 0,
@@ -37,20 +38,25 @@ export default function Login() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1.05fr 1fr' }}>
-      <div style={{ background: 'var(--side)', color: 'var(--sideInk)', padding: '56px 52px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '100vh', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, ...fadeUp(0) }}>
-          <div style={{ width: 14, height: 14, background: 'var(--terra)', transform: 'rotate(45deg)', animation: 'pulse 2.6s ease-in-out infinite' }} />
-          <span style={{ fontFamily: 'Newsreader,serif', fontSize: 24, letterSpacing: '.18em', textTransform: 'uppercase' }}>Hinode Imóveis</span>
+    <div className="login-grid" style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1.05fr 1fr' }}>
+      <div className="login-hero" style={{ background: 'var(--side)', color: 'var(--sideInk)', padding: '56px 52px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '100vh', overflow: 'hidden' }}>
+        <div style={{ ...fadeUp(0) }}>
+          <Logo markSize={58} wordSize={22} />
         </div>
         <div style={{ maxWidth: 460 }}>
-          <p style={{ fontFamily: 'Newsreader,serif', fontSize: 46, lineHeight: 1.1, margin: '0 0 20px', fontWeight: 400, ...fadeUp(120) }}>Nenhum lead esquecido. Nenhum corretor sobrecarregado.</p>
-          <p style={{ color: 'var(--sideMuted)', fontSize: 15, lineHeight: 1.7, margin: 0, ...fadeUp(260) }}>Sistema interno da Hinode Imóveis: do primeiro "oi" no WhatsApp até a venda fechada, com roleta de atendimento, follow-up automático e análise de crédito no mesmo fluxo.</p>
+          <p style={{ fontFamily: 'Newsreader,serif', fontSize: 46, lineHeight: 1.12, margin: '0 0 18px', fontWeight: 400, ...fadeUp(120) }}>Do primeiro contato ao negócio fechado.</p>
+          <p style={{ color: 'var(--sideInk)', fontSize: 16, lineHeight: 1.6, margin: '0 0 16px', ...fadeUp(220) }}>Tenha controle total dos seus leads, visitas, atendimentos e vendas em uma única plataforma.</p>
+          <p style={{ color: 'var(--sideMuted)', fontSize: 15, lineHeight: 1.7, margin: 0, ...fadeUp(300) }}>O CRM da sua imobiliária: do primeiro "oi" no WhatsApp até a venda fechada, com roleta de atendimento, follow-up automático e análise de crédito no mesmo fluxo.</p>
         </div>
-        <p style={{ color: 'var(--sideMuted)', fontSize: 12, letterSpacing: '.14em', textTransform: 'uppercase', margin: 0, ...fadeUp(380) }}>Hinode Imóveis</p>
+        <div style={{ opacity: 0.55, ...fadeUp(380) }}>
+          <Logo markSize={18} wordSize={10} showCrm={false} gap={8} />
+        </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 32px' }}>
+      <div className="login-form-col" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 32px', minHeight: '100vh' }}>
         <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 352, ...fadeUp(180) }}>
+          <div className="login-mobile-logo" style={{ display: 'none', marginBottom: 30 }}>
+            <Logo markSize={40} wordSize={18} />
+          </div>
           <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 34, margin: '0 0 6px' }}>Acessar a plataforma</h1>
           <p style={{ color: 'var(--muted)', fontSize: 14, margin: '0 0 32px' }}>Bem-vindo de volta.</p>
           <label style={{ display: 'block', fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>E-mail</label>

@@ -100,6 +100,11 @@ async function main() {
         nome: l.nome,
         telefone: '(11) 9' + (8000 + i * 37) + '-' + (1000 + i * 13),
         email: l.nome.toLowerCase().replace(/ /g, '.') + '@email.com',
+        // Alguns leads com foto de perfil (simula o avatar do WhatsApp vindo da captação);
+        // os demais ficam sem, pra validar o placeholder listrado.
+        fotoUrl: i % 3 === 0
+          ? 'https://randomuser.me/api/portraits/' + (i % 2 ? 'women/' : 'men/') + (10 + i * 7) + '.jpg'
+          : null,
         imovelTitulo: im[0],
         imovelSub: im[1],
         valor: String(im[2]),

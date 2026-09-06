@@ -4,11 +4,12 @@ import {
   type Role, type ColId, type Lead, type ChatMsg, type AnexoTipo,
 } from '../lib/data';
 import { apiFetch, type ApiError } from '../lib/api';
-import { isBusinessHoursOpen, horarioAtendimentoLabel } from '../lib/schedule';
+import { isBusinessHoursOpen, HORARIO_ATENDIMENTO_PADRAO, type DiaAtendimento } from '../lib/schedule';
 import { connectSocket, disconnectSocket } from '../lib/socket';
 import { mapRemoteLead, slugToColunaId, type RemoteColuna, type RemotePerfil, type RemoteLead } from '../lib/remoteLeads';
 
 interface RemoteFilaRow { corretorId: string; posicao: number; nome: string; emPlantao: boolean; bloqueado: boolean }
+export interface RemoteTag { id: string; nome: string; cor: string; ordem: number }
 export interface RemoteTemplate { id: string; titulo: string; texto: string; anexoUrl: string | null }
 export type SituacaoImovel = 'Pronto para morar' | 'Em obras' | 'Lançamento';
 export interface RemoteImovel {
@@ -61,7 +62,7 @@ export const roleLabel: Record<AuthUser['role'], Role> = { dono: 'Dono', gerente
 
 export type LeadTab = 'detalhes' | 'chat' | 'followup' | 'historico';
 export type BolsaoTab = 'novos' | 'rebatidas' | 'descartados' | 'descadastrar' | 'roletalog';
-export type AlertKind = 'lead' | 'visita' | 'credito' | 'plantao' | 'tarefa' | null;
+export type AlertKind = 'lead' | 'visita' | 'credito' | 'plantao' | 'tarefa' | 'fora-horario' | null;
 
 export interface FollowupStep { delay: string; texto: string }
 export interface ConfirmState { titulo: string; texto: string; ok: string; fn: () => void }
@@ -85,10 +86,15 @@ interface AppState {
   theme: 'light' | 'dark';
   sidebarOpen: boolean;
   menuOpen: boolean;
+  mobileNavOpen: boolean;
 
   colunasRemotas: RemoteColuna[];
   perfisRemotos: RemotePerfil[];
   kanbanLoading: boolean;
+
+  tags: RemoteTag[];
+  kbTag: string | null;
+  horarioAtendimento: DiaAtendimento[];
 
   leads: Lead[];
   leadId: string | null;
@@ -120,6 +126,7 @@ interface AppState {
   conn: Record<string, boolean>;
   qrFor: string | null;
   importOpen: boolean;
+  newLeadOpen: boolean;
   templates: RemoteTemplate[];
   imoveis: RemoteImovel[];
   linksUteis: RemoteLinkUtil[];
@@ -142,11 +149,21 @@ interface AppState {
   toggleTheme: () => void;
   toggleSidebar: () => void;
   toggleMenu: () => void;
+  setMobileNav: (open: boolean) => void;
 
   toast: (msg: string) => void;
   ask: (titulo: string, texto: string, ok: string, fn: () => void) => void;
   closeConfirm: () => void;
   confirmOk: () => void;
+
+  fetchHorario: () => Promise<void>;
+  salvarHorario: (dias: DiaAtendimento[]) => Promise<boolean>;
+  setKbTag: (tagId: string | null) => void;
+  fetchTags: () => Promise<void>;
+  createTag: (nome: string, cor?: string) => Promise<RemoteTag | null>;
+  renameTag: (id: string, patch: { nome?: string; cor?: string }) => Promise<void>;
+  deleteTag: (id: string) => Promise<void>;
+  toggleLeadTag: (leadId: string, tagId: string) => Promise<void>;
 
   move: (id: string, col: ColId) => void;
   openLead: (id: string, tab?: LeadTab) => void;
@@ -167,6 +184,7 @@ interface AppState {
 
   setKbCorretor: (v: string) => void;
   toggleFila: (index: number, canToggle: boolean) => Promise<boolean>;
+  toggleMeuPlantao: () => Promise<void>;
   enforceHorarioComercial: (meNome: string) => void;
   connectRealtime: () => void;
   fetchKanbanData: () => Promise<void>;
@@ -255,6 +273,8 @@ interface AppState {
   exportCsv: () => void;
   addColumn: () => void;
   newLead: () => void;
+  setNewLeadOpen: (v: boolean) => void;
+  criarLeadManual: (input: { nome: string; telefone: string; email?: string; canal: string; corretorId?: string }) => Promise<boolean>;
   advance: (id: string) => void;
   askDiscard: (id: string, nome: string) => void;
   goDay: (n: number) => void;
@@ -285,6 +305,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   theme: 'light',
   sidebarOpen: true,
   menuOpen: false,
+  mobileNavOpen: false,
+  tags: [],
+  kbTag: null,
+  horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO,
 
   colunasRemotas: [],
   perfisRemotos: [],
@@ -301,7 +325,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Ninguém entra "No Plantão" sozinho — igual ao CRM original, cada um liga manualmente ao começar a trabalhar.
   fila: [],
   steps: [
-    { delay: 'logo após inscrição', texto: 'Olá {nome}! Aqui é o {corretor} da Hinode. Recebi seu interesse no {imovel} — posso te mandar a tabela de valores?' },
+    { delay: 'logo após inscrição', texto: 'Olá {nome}! Aqui é o {corretor}. Recebi seu interesse no {imovel} — posso te mandar a tabela de valores?' },
     { delay: '+1 dia', texto: '{nome}, separei duas plantas que combinam com o que você buscava. Quer receber por aqui?' },
     { delay: '+3 dias', texto: 'Estamos com condição especial de entrada nesta semana. Vale uma conversa rápida, {nome}?' },
     { delay: '+7 dias', texto: 'Se preferir, deixo sua ficha guardada e te chamo no próximo lançamento. Tudo bem, {nome}?' },
@@ -312,7 +336,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     {
       id: 'flow-1', corretor: 'Diego Antunes', nome: 'Primeira vez', gatilho: 'Lead atribuído (novo)', ativo: true,
       blocos: [
-        { id: 'b1', tipo: 'texto', texto: 'Olá {nome}! Aqui é o Diego da Hinode Imóveis 👋 Vi que você se interessou pelo {imovel} — posso te contar mais?' },
+        { id: 'b1', tipo: 'texto', texto: 'Olá {nome}! Aqui é o {corretor} 👋 Vi que você se interessou pelo {imovel} — posso te contar mais?' },
         { id: 'b2', tipo: 'espera', delay: '+10 min' },
         { id: 'b3', tipo: 'audio', arquivo: 'audio-boas-vindas.ogg' },
         { id: 'b4', tipo: 'espera', delay: '+1 dia' },
@@ -347,7 +371,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   cadencia: {}, discardOpen: false, discardWarn: null, seqState: {},
 
   conn: { 'Camila Rocha': true, 'Diego Antunes': true, 'Fernanda Lopes': false, 'Marcelo Braga': false, 'Priscila Nunes': true, 'Rafael Teixeira': false },
-  qrFor: null, importOpen: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [],
+  qrFor: null, importOpen: false, newLeadOpen: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [],
 
   alert: null, alertCount: 20, alertMenu: false, faqOpen: 'kanban', confirm: null, toasts: [], notificacoes: [], notifOpen: false, day: 17,
 
@@ -377,7 +401,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('nova_token');
     disconnectSocket();
-    set({ token: null, me: null, leads: [], colunasRemotas: [], perfisRemotos: [], templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [] });
+    set({ token: null, me: null, leads: [], colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [] });
   },
   hydrateAuth: () => {
     const token = localStorage.getItem('nova_token');
@@ -394,6 +418,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         get().fetchTreinamentos();
       get().fetchNotificacoes();
       get().fetchConversas();
+      get().fetchHorario();
       })
       .catch(() => { localStorage.removeItem('nova_token'); set({ token: null, me: null, authLoading: false }); });
   },
@@ -404,14 +429,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     const upsert = (raw: RemoteLead) => {
       const { colunasRemotas, perfisRemotos } = get();
       if (!colunasRemotas.length) return; // ainda carregando colunas/perfis — o fetch inicial já vai trazer esse lead
-      const mapped = mapRemoteLead(raw, colunasRemotas, perfisRemotos);
       set(s => {
-        const exists = s.leads.some(l => l.id === mapped.id);
-        return { leads: exists ? s.leads.map(l => (l.id === mapped.id ? mapped : l)) : [...s.leads, mapped] };
+        const anterior = s.leads.find(l => l.id === raw.id);
+        // o payload do socket não traz etiquetas — preserva as que já estão em memória
+        const mapped = { ...mapRemoteLead(raw, colunasRemotas, perfisRemotos), tags: raw.tagIds ?? anterior?.tags ?? [] };
+        return { leads: anterior ? s.leads.map(l => (l.id === mapped.id ? mapped : l)) : [...s.leads, mapped] };
       });
     };
     socket.off('lead:created').on('lead:created', upsert);
     socket.off('lead:updated').on('lead:updated', upsert);
+    socket.off('lead:tags').on('lead:tags', (msg: { leadId: string; tagIds: string[] }) => {
+      set(s => ({ leads: s.leads.map(l => (l.id === msg.leadId ? { ...l, tags: msg.tagIds } : l)) }));
+    });
+    socket.off('tag:changed').on('tag:changed', () => { get().fetchTags(); });
     socket.off('fila:atualizada').on('fila:atualizada', (msg: { corretorId: string; emPlantao: boolean }) => {
       set(s => ({ fila: s.fila.map(f => (f.corretorId === msg.corretorId ? { ...f, ativo: msg.emPlantao } : f)) }));
     });
@@ -447,23 +477,83 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return;
     set({ kanbanLoading: true });
     try {
-      const [colunas, perfis, leadsRaw, filaRaw] = await Promise.all([
+      const [colunas, perfis, leadsRaw, filaRaw, tagsRaw] = await Promise.all([
         apiFetch<RemoteColuna[]>('/api/colunas', token),
         apiFetch<RemotePerfil[]>('/api/perfis', token),
         apiFetch<RemoteLead[]>('/api/leads', token),
         apiFetch<RemoteFilaRow[]>('/api/filas', token),
+        apiFetch<RemoteTag[]>('/api/tags', token),
       ]);
       const leads = leadsRaw.map(r => mapRemoteLead(r, colunas, perfis));
       const fila = filaRaw.map(f => ({ corretorId: f.corretorId, nome: f.nome, ativo: f.emPlantao }));
-      set({ colunasRemotas: colunas, perfisRemotos: perfis, leads, fila, kanbanLoading: false });
+      set({ colunasRemotas: colunas, perfisRemotos: perfis, leads, fila, tags: tagsRaw, kanbanLoading: false });
     } catch (e) {
       get().toast('Não foi possível carregar os leads do servidor');
       set({ kanbanLoading: false });
     }
   },
+
+  setKbTag: tagId => set(s => ({ kbTag: s.kbTag === tagId ? null : tagId })),
+  fetchTags: async () => {
+    const token = get().token;
+    if (!token) return;
+    try { set({ tags: await apiFetch<RemoteTag[]>('/api/tags', token) }); } catch { /* ignore */ }
+  },
+  createTag: async (nome, cor) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const row = await apiFetch<RemoteTag>('/api/tags', token, { method: 'POST', body: JSON.stringify({ nome, ...(cor ? { cor } : {}) }) });
+      set(s => ({ tags: [...s.tags, row] }));
+      return row;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível criar a etiqueta');
+      return null;
+    }
+  },
+  renameTag: async (id, patch) => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const row = await apiFetch<RemoteTag>('/api/tags/' + id, token, { method: 'PATCH', body: JSON.stringify(patch) });
+      set(s => ({ tags: s.tags.map(t => (t.id === id ? row : t)) }));
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível editar a etiqueta'); }
+  },
+  deleteTag: async id => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      await apiFetch('/api/tags/' + id, token, { method: 'DELETE' });
+      set(s => ({
+        tags: s.tags.filter(t => t.id !== id),
+        kbTag: s.kbTag === id ? null : s.kbTag,
+        leads: s.leads.map(l => (l.tags.includes(id) ? { ...l, tags: l.tags.filter(x => x !== id) } : l)),
+      }));
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível excluir a etiqueta'); }
+  },
+  toggleLeadTag: async (leadId, tagId) => {
+    const token = get().token;
+    if (!token) return;
+    const lead = get().leads.find(l => l.id === leadId);
+    if (!lead) return;
+    const tinha = lead.tags.includes(tagId);
+    // otimista
+    set(s => ({ leads: s.leads.map(l => (l.id === leadId ? { ...l, tags: tinha ? l.tags.filter(x => x !== tagId) : [...l.tags, tagId] } : l)) }));
+    try {
+      const url = '/api/tags/' + tagId + '/lead/' + leadId;
+      const { tagIds } = await apiFetch<{ tagIds: string[] }>(url, token, { method: tinha ? 'DELETE' : 'POST' });
+      set(s => ({ leads: s.leads.map(l => (l.id === leadId ? { ...l, tags: tagIds } : l)) }));
+    } catch (e) {
+      // reverte
+      set(s => ({ leads: s.leads.map(l => (l.id === leadId ? { ...l, tags: lead.tags } : l)) }));
+      get().toast((e as ApiError).message || 'Não foi possível atualizar a etiqueta');
+    }
+  },
+
   toggleTheme: () => set(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
   toggleSidebar: () => set(s => ({ sidebarOpen: !s.sidebarOpen })),
   toggleMenu: () => set(s => ({ menuOpen: !s.menuOpen })),
+  setMobileNav: (open: boolean) => set({ mobileNavOpen: open }),
 
   toast: msg => {
     const id = Date.now() + Math.random();
@@ -565,7 +655,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Checagem otimista local (feedback instantâneo) — o backend valida de novo e manda de verdade.
     const bloqueado = get().perfisRemotos.find(p => p.id === f.corretorId)?.bloqueado ?? false;
     if (bloqueado) { get().toast(f.nome + ' está com acesso bloqueado — não pode entrar na roleta'); return false; }
-    if (!f.ativo && !isBusinessHoursOpen()) { get().toast(horarioAtendimentoLabel()); return false; }
+    if (!f.ativo && !isBusinessHoursOpen(get().horarioAtendimento)) { get().fireAlert('fora-horario'); return false; }
 
     const token = get().token;
     if (!token) return false;
@@ -583,13 +673,66 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  // Liga/desliga o MEU plantão — funciona pra qualquer papel. Dono/gerente não estão na fila
+  // por padrão; o backend cria a posição deles ao ligar (aí passam a receber leads da roleta).
+  toggleMeuPlantao: async () => {
+    const { token, me } = get();
+    if (!token || !me) return;
+    const naFila = get().fila.find(f => f.corretorId === me.id);
+    const ativoAgora = naFila ? naFila.ativo : !!me.emPlantao;
+    if (!ativoAgora && !isBusinessHoursOpen(get().horarioAtendimento)) { get().fireAlert('fora-horario'); return; }
+    try {
+      const res = await apiFetch<{ corretorId: string; emPlantao: boolean }>('/api/filas/disponibilidade', token, {
+        method: 'PATCH',
+        body: JSON.stringify({ corretorId: me.id }),
+      });
+      set(s => ({
+        me: s.me ? { ...s.me, emPlantao: res.emPlantao } : s.me,
+        fila: s.fila.some(f => f.corretorId === me.id)
+          ? s.fila.map(f => (f.corretorId === me.id ? { ...f, ativo: res.emPlantao } : f))
+          : s.fila,
+      }));
+      if (res.emPlantao && !get().fila.some(f => f.corretorId === me.id)) {
+        // o backend acabou de criar a posição na fila — recarrega pra refletir
+        apiFetch<RemoteFilaRow[]>('/api/filas', token)
+          .then(rows => set({ fila: rows.map(r => ({ corretorId: r.corretorId, nome: r.nome, ativo: r.emPlantao })) }))
+          .catch(() => {});
+      }
+      if (res.emPlantao) get().fireAlert('plantao');
+      else get().toast('Você saiu do plantão');
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível alterar seu plantão');
+    }
+  },
+
   // Espelha o cron `auto-offline-fim-de-expediente` do CRM original: fora do horário, todo
   // mundo que estava "No Plantão" é desligado automaticamente (sem religamento sozinho de manhã).
   // O backend só recusa LIGAR fora do horário — desligar sempre é permitido — então aqui é seguro
   // desligar "eu mesmo" de verdade no servidor; os outros corretores são atualizados via realtime
   // quando o próprio cliente deles rodar essa mesma checagem.
+  fetchHorario: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const dias = await apiFetch<DiaAtendimento[]>('/api/config/horario', token);
+      if (Array.isArray(dias) && dias.length === 7) set({ horarioAtendimento: dias });
+    } catch { /* mantém o padrão */ }
+  },
+  salvarHorario: async dias => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const salvo = await apiFetch<DiaAtendimento[]>('/api/config/horario', token, { method: 'PUT', body: JSON.stringify(dias) });
+      set({ horarioAtendimento: salvo });
+      get().toast('Horário de atendimento atualizado');
+      return true;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível salvar o horário');
+      return false;
+    }
+  },
   enforceHorarioComercial: meNome => {
-    if (isBusinessHoursOpen()) return;
+    if (isBusinessHoursOpen(get().horarioAtendimento)) return;
     const me = get().fila.find(f => f.nome === meNome);
     const algumOnline = get().fila.some(f => f.ativo);
     if (!algumOnline) return;
@@ -721,7 +864,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!token) return;
     apiFetch<RemoteTemplate>('/api/templates', token, {
       method: 'POST',
-      body: JSON.stringify({ titulo: 'Novo template', texto: 'Ola {nome}, aqui e {corretor} da Hinode sobre o {imovel}.' }),
+      body: JSON.stringify({ titulo: 'Novo template', texto: 'Ola {nome}, aqui e {corretor} sobre o {imovel}.' }),
     })
       .then(row => { set(s => ({ templates: [...s.templates, row] })); get().toast('Template criado'); })
       .catch(e => get().toast((e as ApiError).message || 'Nao foi possivel criar o template'));
@@ -1019,7 +1162,33 @@ export const useAppStore = create<AppState>((set, get) => ({
   invite: () => get().toast('Convite enviado por e-mail'),
   exportCsv: () => get().toast('Relatório exportado — relatorio-nova-set-2026.csv'),
   addColumn: () => get().toast('Nova coluna criada — arraste para posicionar'),
-  newLead: () => get().toast('Lead manual criado em "Lead Novo"'),
+  newLead: () => set({ newLeadOpen: true }),
+  setNewLeadOpen: v => set({ newLeadOpen: v }),
+  criarLeadManual: async input => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const colunaId = slugToColunaId('novo', get().colunasRemotas);
+      const raw = await apiFetch<RemoteLead>('/api/leads', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          nome: input.nome.trim(),
+          telefone: input.telefone.trim(),
+          ...(input.email?.trim() ? { email: input.email.trim() } : {}),
+          canal: input.canal,
+          ...(colunaId ? { colunaId } : {}),
+          ...(input.corretorId ? { corretorId: input.corretorId } : {}),
+        }),
+      });
+      const mapped = mapRemoteLead(raw, get().colunasRemotas, get().perfisRemotos);
+      set(s => ({ leads: s.leads.some(l => l.id === mapped.id) ? s.leads : [...s.leads, mapped], newLeadOpen: false }));
+      get().toast(input.nome.trim() + ' adicionado em "Lead Novo"');
+      return true;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível criar o lead');
+      return false;
+    }
+  },
   advance: id => { const l = get().leads.find(x => x.id === id); if (!l) return; const i = COLS.findIndex(c => c.id === l.col); get().move(id, COLS[Math.min(i + 1, 5)].id); },
   askDiscard: (id, nome) => get().ask(
     'Descartar ' + nome + '?',

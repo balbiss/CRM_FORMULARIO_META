@@ -6,8 +6,8 @@ export function ConfirmDialog() {
   const confirmOk = useAppStore(s => s.confirmOk);
   if (!confirm) return null;
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(28,27,26,.42)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28 }}>
-      <div style={{ width: '100%', maxWidth: 420, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 26, animation: 'fadeUp .14s ease' }}>
+    <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(8,17,31,.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28 }}>
+      <div className="modal-card" style={{ width: '100%', maxWidth: 420, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 26, animation: 'fadeUp .14s ease' }}>
         <h3 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: '0 0 10px' }}>{confirm.titulo}</h3>
         <p style={{ fontSize: 13.5, lineHeight: 1.65, color: 'var(--muted)', margin: '0 0 24px' }}>{confirm.texto}</p>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

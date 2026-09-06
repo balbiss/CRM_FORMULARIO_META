@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, integer, numeric, timestamp, pgEnum, jsonb, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, boolean, integer, numeric, timestamp, pgEnum, jsonb, index, primaryKey } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 export const roleEnum = pgEnum('role', ['dono', 'gerente', 'corretor']);
@@ -8,9 +8,25 @@ export const mensagemCanalEnum = pgEnum('mensagem_canal', ['corretor', 'followup
 export const aoEsgotarEnum = pgEnum('ao_esgotar', ['nada', 'descartar']);
 export const execucaoStatusEnum = pgEnum('execucao_status', ['ativa', 'pausada', 'encerrada']);
 
+/** Janela de atendimento de um dia da semana (minutos desde a meia-noite, fuso São Paulo).
+ *  Índice 0 = domingo … 6 = sábado. Controla quando o corretor pode ficar "No Plantão". */
+export interface DiaAtendimento { ativo: boolean; abreMin: number; fechaMin: number }
+
+export const HORARIO_ATENDIMENTO_PADRAO: DiaAtendimento[] = [
+  { ativo: false, abreMin: 8 * 60, fechaMin: 18 * 60 },       // Dom
+  { ativo: true, abreMin: 8 * 60, fechaMin: 18 * 60 + 20 },   // Seg
+  { ativo: true, abreMin: 8 * 60, fechaMin: 18 * 60 + 20 },   // Ter
+  { ativo: true, abreMin: 8 * 60, fechaMin: 18 * 60 + 20 },   // Qua
+  { ativo: true, abreMin: 8 * 60, fechaMin: 19 * 60 + 20 },   // Qui
+  { ativo: true, abreMin: 8 * 60, fechaMin: 18 * 60 + 20 },   // Sex
+  { ativo: true, abreMin: 8 * 60, fechaMin: 15 * 60 + 20 },   // Sáb
+];
+
 export const imobiliarias = pgTable('imobiliarias', {
   id: uuid('id').primaryKey().defaultRandom(),
   nome: text('nome').notNull(),
+  // Configurável pelo Dono/Gerente no painel — antes era hardcoded em lib/schedule.
+  horarioAtendimento: jsonb('horario_atendimento').$type<DiaAtendimento[]>().notNull().default(HORARIO_ATENDIMENTO_PADRAO),
   criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -35,6 +51,9 @@ export const colunasKanban = pgTable('colunas_kanban', {
   titulo: text('titulo').notNull(),
   ordem: integer('ordem').notNull().default(0),
   cor: text('cor'),
+  // Colunas "de sistema" têm slug (novo, credito, venda, rebatida...) — outras telas (Dashboard,
+  // Análise de Crédito, Bolsão, roleta) dependem dele. Colunas criadas pelo usuário têm slug null.
+  slug: text('slug'),
   criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
 }, table => ({
   imobiliariaIdx: index('colunas_kanban_imobiliaria_id_idx').on(table.imobiliariaId),
@@ -46,6 +65,8 @@ export const leads = pgTable('leads', {
   nome: text('nome').notNull(),
   telefone: text('telefone').notNull(),
   email: text('email'),
+  // Foto de perfil do WhatsApp (URL) — preenchida pela automação de captação quando disponível.
+  fotoUrl: text('foto_url'),
   imovelTitulo: text('imovel_titulo'),
   imovelSub: text('imovel_sub'),
   valor: numeric('valor', { precision: 14, scale: 2 }).default('0'),
@@ -65,6 +86,27 @@ export const leads = pgTable('leads', {
   imobiliariaIdx: index('leads_imobiliaria_id_idx').on(table.imobiliariaId),
   corretorIdx: index('leads_corretor_id_idx').on(table.corretorId),
   colunaIdx: index('leads_coluna_id_idx').on(table.colunaId),
+}));
+
+// Etiquetas coloridas por imobiliária (multi-tenant) — atribuídas a leads via lead_tags.
+export const tags = pgTable('tags', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  imobiliariaId: uuid('imobiliaria_id').notNull().references(() => imobiliarias.id, { onDelete: 'cascade' }),
+  nome: text('nome').notNull(),
+  cor: text('cor').notNull().default('#123C87'),
+  ordem: integer('ordem').notNull().default(0),
+  criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+}, table => ({
+  imobiliariaIdx: index('tags_imobiliaria_id_idx').on(table.imobiliariaId),
+}));
+
+export const leadTags = pgTable('lead_tags', {
+  leadId: uuid('lead_id').notNull().references(() => leads.id, { onDelete: 'cascade' }),
+  tagId: uuid('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
+}, table => ({
+  pk: primaryKey({ columns: [table.leadId, table.tagId] }),
+  leadIdx: index('lead_tags_lead_id_idx').on(table.leadId),
+  tagIdx: index('lead_tags_tag_id_idx').on(table.tagId),
 }));
 
 // A disponibilidade em si mora em perfis.emPlantao — esta tabela guarda só a ordem da fila.

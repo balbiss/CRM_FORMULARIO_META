@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { leads } from '../db/schema.js';
+import { leads, leadTags } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { Server as SocketServer } from 'socket.io';
 
@@ -17,13 +17,23 @@ export function leadsRouter(io: SocketServer) {
       ? and(eq(leads.imobiliariaId, imobiliariaId), eq(leads.corretorId, sub))
       : eq(leads.imobiliariaId, imobiliariaId);
     const rows = await db.select().from(leads).where(scoped);
-    res.json(rows);
+    // etiquetas de cada lead (mesmo escopo — join por lead_id)
+    const vinculos = await db.select({ leadId: leadTags.leadId, tagId: leadTags.tagId })
+      .from(leadTags).innerJoin(leads, eq(leadTags.leadId, leads.id)).where(scoped);
+    const porLead = new Map<string, string[]>();
+    for (const v of vinculos) {
+      const arr = porLead.get(v.leadId) ?? [];
+      arr.push(v.tagId);
+      porLead.set(v.leadId, arr);
+    }
+    res.json(rows.map(r => ({ ...r, tagIds: porLead.get(r.id) ?? [] })));
   });
 
   const createSchema = z.object({
     nome: z.string().min(1),
     telefone: z.string().min(8),
     email: z.string().email().optional(),
+    fotoUrl: z.string().url().optional(),
     imovelTitulo: z.string().optional(),
     imovelSub: z.string().optional(),
     valor: z.number().optional(),

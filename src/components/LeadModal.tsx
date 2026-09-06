@@ -80,8 +80,8 @@ export function LeadModal() {
   ];
 
   return (
-    <div onClick={closeLead} style={{ position: 'fixed', inset: 0, background: 'rgba(28,27,26,.42)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 760, maxHeight: '88vh', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeUp .16s ease' }}>
+    <div onClick={closeLead} className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(8,17,31,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28 }}>
+      <div onClick={e => e.stopPropagation()} className="modal-card modal-card-full" style={{ width: '100%', maxWidth: 760, maxHeight: '88vh', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeUp .16s ease' }}>
         <div style={{ padding: '22px 24px 0', display: 'flex', alignItems: 'flex-start', gap: 16 }}>
           <span style={css(thumb(3, 46))} />
           <span style={{ flex: 1, minWidth: 0 }}>
@@ -107,7 +107,7 @@ export function LeadModal() {
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
           {leadTab === 'detalhes' && (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 22 }}>
+              <div data-modal-grid style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 22 }}>
                 {fields.map(f => (
                   <div key={f.label}>
                     <label style={{ display: 'block', fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 7 }}>{f.label}</label>
@@ -126,7 +126,7 @@ export function LeadModal() {
                   <span style={{ fontFamily: 'Newsreader,serif', fontSize: 22 }}>{BRL(L.valor)}</span>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+              <div data-modal-grid style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 7 }}>Cadência de chamada</label>
                   <select value={cad} onChange={e => setCadencia(L.id, e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5 }}>

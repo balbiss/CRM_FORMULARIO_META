@@ -7,6 +7,7 @@ export interface RemoteLead {
   nome: string;
   telefone: string;
   email: string | null;
+  fotoUrl: string | null;
   imovelTitulo: string | null;
   imovelSub: string | null;
   valor: string | null;
@@ -19,6 +20,7 @@ export interface RemoteLead {
   rendaDeclarada: string | null;
   entrouNaColunaEm: string;
   criadoEm: string;
+  tagIds?: string[];
 }
 
 const CANAL_LABEL: Record<string, string> = { Indicacao: 'Indicação' };
@@ -42,6 +44,7 @@ export function mapRemoteLead(r: RemoteLead, colunas: RemoteColuna[], perfis: Re
     nome: r.nome,
     tel: r.telefone,
     email: r.email ?? '',
+    foto: r.fotoUrl ?? '',
     imovel: r.imovelTitulo ?? '',
     imovelSub: r.imovelSub ?? '',
     valor: r.valor ? Number(r.valor) : 0,
@@ -54,5 +57,6 @@ export function mapRemoteLead(r: RemoteLead, colunas: RemoteColuna[], perfis: Re
     motivo: r.motivoDescarte ?? '',
     renda: r.rendaDeclarada ? Number(r.rendaDeclarada) : 0,
     entrouNaColunaEm: r.entrouNaColunaEm,
+    tags: r.tagIds ?? [],
   };
 }

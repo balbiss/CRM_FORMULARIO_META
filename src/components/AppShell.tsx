@@ -2,12 +2,13 @@ import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
-import { MobileTabs } from './MobileTabs';
+import { MobileNav } from './MobileNav';
 import { LeadModal } from './LeadModal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { AlertModal } from './AlertModal';
 import { QrModal } from './QrModal';
 import { ImportModal } from './ImportModal';
+import { NewLeadModal } from './NewLeadModal';
 import { AlertTester } from './AlertTester';
 import { Toasts } from './Toasts';
 import { useAppStore } from '../store/appStore';
@@ -49,7 +50,6 @@ export function AppShell() {
         <div className="content-col" style={{ marginLeft: sidebarOpen ? 248 : 68, minWidth: 0, display: 'flex', flexDirection: 'column', transition: 'margin-left .18s ease' }}>
           <div style={{ position: 'sticky', top: 0, zIndex: 30 }}>
             <Topbar />
-            <MobileTabs />
           </div>
           <main className="app-main" style={{ flex: 1, padding: '22px 34px 48px', minWidth: 0 }}>
             <Outlet />
@@ -57,11 +57,13 @@ export function AppShell() {
         </div>
       </div>
 
+      <MobileNav />
       <LeadModal />
       <ConfirmDialog />
       <AlertModal />
       <QrModal />
       <ImportModal />
+      <NewLeadModal />
       <AlertTester />
       <Toasts />
     </div>

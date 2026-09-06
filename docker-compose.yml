@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: nova_dev_local
       POSTGRES_DB: nova_app
     ports:
-      - "55432:5432"
+      - "55433:5432"
     volumes:
       - nova_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -27,8 +27,8 @@ services:
       MINIO_ROOT_USER: nova_minio
       MINIO_ROOT_PASSWORD: nova_dev_local_minio
     ports:
-      - "59000:9000"
-      - "59001:9001"
+      - "9100:9000"
+      - "9101:9001"
     volumes:
       - nova_miniodata:/data
     healthcheck:

@@ -1,0 +1,1 @@
+ALTER TABLE "colunas_kanban" ADD COLUMN "slug" text;

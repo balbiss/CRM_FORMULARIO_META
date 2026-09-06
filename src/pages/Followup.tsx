@@ -8,7 +8,7 @@ import { MessageSquare, Mic, Image as ImageIcon, FileText, Clock, Zap, Trash2 } 
 import { useAppStore, GATILHOS_FLOW, type FlowBloco, type BlocoTipo, type FlowDef } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
 
-const DND_MIME = 'application/x-crm-hinode-bloco';
+const DND_MIME = 'application/x-crm-visitaia-bloco';
 
 const TIPO_META: Record<BlocoTipo, { label: string; Icon: typeof MessageSquare }> = {
   texto: { label: 'Texto', Icon: MessageSquare },
@@ -255,10 +255,10 @@ export default function Followup() {
         <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '6px 0 0' }}>Cada corretor monta o próprio fluxo de blocos — dispara quando um lead é atribuído a ele. Arraste um bloco da lista pro fluxo, ou clique pra adicionar no fim. Envio real via WAHA entra numa próxima etapa; por enquanto é só o construtor visual.</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '230px 1fr', gap: 14, alignItems: 'start' }}>
+      <div className="split-pane" style={{ display: 'grid', gridTemplateColumns: '230px 1fr', gap: 14, alignItems: 'start' }}>
         {/* coluna esquerda: corretor + fluxos + paleta de blocos — fixa ao rolar a página, com
             rolagem própria caso o conteúdo (fluxos + blocos) seja mais alto que a tela. */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 78, maxHeight: 'calc(100vh - 98px)', overflowY: 'auto' }}>
+        <div className="split-aside" style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 78, maxHeight: 'calc(100vh - 98px)', overflowY: 'auto' }}>
           <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', padding: 16 }}>
             {isManager && (
               <>
@@ -333,14 +333,14 @@ export default function Followup() {
                 </button>
               </div>
 
-              <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
+              <div className="fu-canvas-row" style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
                 <ReactFlowProvider>
                   <FlowCanvas key={flow.id} flow={flow} addBloco={addBloco} setBlocoIdSel={setBlocoIdSel} />
                 </ReactFlowProvider>
 
                 {/* painel do bloco selecionado — só aparece durante a edição, pra dar mais espaço ao canvas o resto do tempo */}
                 {bloco && (
-                  <div style={{ width: 320, flex: 'none', height: canvasHeight, overflowY: 'auto' }}>
+                  <div className="fu-editor" style={{ width: 320, flex: 'none', height: canvasHeight, overflowY: 'auto' }}>
                     <div style={cardBase}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                         {(() => { const M = TIPO_META[bloco.tipo].Icon; return <M size={15} color="var(--terra)" />; })()}

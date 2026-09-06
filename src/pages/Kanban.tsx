@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { LayoutGrid, List as ListIcon, X } from 'lucide-react';
+import { LayoutGrid, List as ListIcon, X, FileText } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
 import { COLS, CORRETORES, type ColId } from '../lib/data';
-import { canalPill, thumb } from '../lib/format';
+import { canalPill } from '../lib/format';
 import { css } from '../lib/css';
+import { CardTagBar } from '../components/CardTagBar';
+import { LeadAvatar } from '../components/LeadAvatar';
 
 type ViewMode = 'kanban' | 'lista';
 
@@ -15,6 +17,9 @@ export default function Kanban() {
   const openLead = useAppStore(s => s.openLead);
   const kbCorretor = useAppStore(s => s.kbCorretor);
   const setKbCorretor = useAppStore(s => s.setKbCorretor);
+  const allTags = useAppStore(s => s.tags);
+  const kbTag = useAppStore(s => s.kbTag);
+  const setKbTag = useAppStore(s => s.setKbTag);
   const addColumn = useAppStore(s => s.addColumn);
   const newLead = useAppStore(s => s.newLead);
   const setImportOpen = useAppStore(s => s.setImportOpen);
@@ -46,10 +51,11 @@ export default function Kanban() {
       ? (kbCorretor !== 'Todos os corretores' ? allLeads.filter(l => l.corretor === kbCorretor) : allLeads)
       : allLeads.filter(l => l.corretor === meNome);
     if (filterCanal) base = base.filter(l => l.canal === filterCanal);
+    if (kbTag) base = base.filter(l => l.tags.includes(kbTag));
     const q = query.trim().toLowerCase();
     if (q) base = base.filter(l => l.nome.toLowerCase().includes(q) || l.tel.includes(q));
     return base;
-  }, [allLeads, isManager, kbCorretor, meNome, filterCanal, query]);
+  }, [allLeads, isManager, kbCorretor, meNome, filterCanal, kbTag, query]);
 
   const active = leads.filter(l => l.col !== 'rebatida');
   const counts = COLS.map(c => leads.filter(l => l.col === c.id).length);
@@ -76,14 +82,15 @@ export default function Kanban() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
+      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
         <div>
           <p style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 4px' }}>Pipeline</p>
           <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Kanban de Leads</h1>
+          <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '5px 0 0' }}>{active.length} leads ativos</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{active.length} leads ativos</span>
+        <div className="kb-toolbar" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <input
+            className="kb-search"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Buscar por nome ou telefone…"
@@ -97,24 +104,38 @@ export default function Kanban() {
               Canal: {filterCanal} <X size={12} strokeWidth={2.5} />
             </button>
           )}
-          {isManager && (
-            <select value={kbCorretor} onChange={e => setKbCorretor(e.target.value)} style={{ padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13 }}>
-              <option>Todos os corretores</option>{CORRETORES.map(c => <option key={c.nome}>{c.nome}</option>)}
-            </select>
-          )}
-          <div style={{ display: 'flex', gap: 4 }}>
-            {toggleBtn('kanban', LayoutGrid, 'Kanban')}
-            {toggleBtn('lista', ListIcon, 'Lista')}
+          <div className="kb-toolbar-row" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {isManager && (
+              <select className="kb-corretor" value={kbCorretor} onChange={e => setKbCorretor(e.target.value)} style={{ padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13 }}>
+                <option>Todos os corretores</option>{CORRETORES.map(c => <option key={c.nome}>{c.nome}</option>)}
+              </select>
+            )}
+            {allTags.length > 0 && (
+              <select
+                value={kbTag ?? ''}
+                onChange={e => setKbTag(e.target.value || null)}
+                style={{ padding: '9px 12px', border: '1px solid ' + (kbTag ? 'var(--terra)' : 'var(--line)'), borderRadius: 8, background: kbTag ? 'var(--terraSoft)' : 'var(--card)', color: kbTag ? 'var(--terra)' : 'var(--ink)', fontSize: 13, fontWeight: kbTag ? 600 : 400 }}
+              >
+                <option value="">Todas as etiquetas</option>
+                {allTags.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+              </select>
+            )}
+            <div style={{ display: 'flex', gap: 4 }}>
+              {toggleBtn('kanban', LayoutGrid, 'Kanban')}
+              {toggleBtn('lista', ListIcon, 'Lista')}
+            </div>
           </div>
-          <button onClick={addColumn} style={{ padding: '9px 14px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13, fontWeight: 600 }}>+ Coluna</button>
-          <button onClick={() => setImportOpen(true)} style={{ padding: '9px 14px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13, fontWeight: 600 }}>Importar planilha</button>
-          <button onClick={newLead} style={{ padding: '9px 16px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600 }}>Novo lead</button>
+          <div className="kb-toolbar-row" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button onClick={addColumn} style={{ padding: '9px 14px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13, fontWeight: 600 }}>+ Coluna</button>
+            <button onClick={() => setImportOpen(true)} style={{ padding: '9px 14px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13, fontWeight: 600 }}>Importar planilha</button>
+            <button onClick={newLead} style={{ padding: '9px 16px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600 }}>Novo lead</button>
+          </div>
         </div>
       </div>
 
       {view === 'lista' ? (
         <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', gap: 14, padding: '13px 20px', borderBottom: '1px solid var(--line)', fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+          <div className="data-table-head" style={{ display: 'flex', gap: 14, padding: '13px 20px', borderBottom: '1px solid var(--line)', fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>
             <span style={{ flex: 1.6 }}>Lead / imóvel</span>
             <span style={{ width: 110 }}>Canal</span>
             {isManager && <span style={{ flex: 1 }}>Corretor</span>}
@@ -122,9 +143,9 @@ export default function Kanban() {
             <span style={{ width: 90 }}>Tempo</span>
           </div>
           {leads.map((l, i) => (
-            <div key={l.id} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '13px 20px', borderBottom: '1px solid var(--line)' }}>
+            <div key={l.id} className="data-row" style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '13px 20px', borderBottom: '1px solid var(--line)' }}>
               <button onClick={() => openLead(l.id)} style={{ flex: 1.6, minWidth: 0, display: 'flex', gap: 11, alignItems: 'center', background: 'none', border: 'none', textAlign: 'left', padding: 0 }}>
-                <span style={css(thumb(i, 32))} />
+                <LeadAvatar foto={l.foto} seedIndex={i} size={32} />
                 <span style={{ minWidth: 0 }}>
                   <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.nome}</span>
                   <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.imovel}</span>
@@ -196,26 +217,19 @@ export default function Kanban() {
                         onDragEnd={e => { e.currentTarget.style.opacity = '1'; }}
                         onClick={() => openLead(l.id)}
                         className="hoverable"
-                        style={{ background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 10, padding: 13, cursor: 'grab' }}
+                        style={{ background: 'var(--card-2)', border: '1px solid var(--line)', borderRadius: 10, padding: 11, cursor: 'grab' }}
                       >
-                        <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start' }}>
-                          <span style={css(thumb(i, 34))} />
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                          <LeadAvatar foto={l.foto} seedIndex={i} size={34} />
                           <span style={{ flex: 1, minWidth: 0 }}>
-                            <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.nome}</span>
-                            <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{l.imovel}</span>
-                            {l.campanha && <span style={{ display: 'block', fontSize: 10.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }} title={l.campanha}>📢 {l.campanha}</span>}
+                            <span style={{ display: 'block', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.nome}</span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--muted)', marginTop: 2, minWidth: 0 }}>
+                              <FileText size={11} strokeWidth={2} style={{ flex: 'none' }} />
+                              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.corretor || 'Sem corretor'}</span>
+                            </span>
                           </span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 11 }}>
-                          <span style={css(canalPill(l.canal))}>{l.canal}</span>
-                          {l.segundo && <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', padding: '3px 7px', border: '1px solid var(--terra)', color: 'var(--terra)', borderRadius: 20 }}>2º cadastro</span>}
-                          {l.corretor && <span style={{ fontSize: 11, color: 'var(--terra)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.corretor}</span>}
-                        </div>
-                        <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 6 }}>
-                          {l.entrouNaColunaEm
-                            ? new Date(l.entrouNaColunaEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
-                            : (l.dias === 0 ? 'hoje' : l.dias + 'd na coluna')}
-                        </div>
+                        <CardTagBar lead={l} />
                       </div>
                     ))}
                     {colLeads.length === 0 && (

@@ -1,9 +1,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..600&family=Manrope:wght@400;500;600;700&display=swap');
 
 :root {
-  --bg: #F7F4EF; --card: #FFFDFA; --ink: #1C1B1A; --muted: #6F6862; --line: #E4DDD2;
-  --terra: #B5652F; --terraSoft: #F1E3D7; --olive: #5E6B3F; --oliveSoft: #E6E9DC;
-  --side: #201F1D; --sideInk: #EFE9E0; --sideMuted: #918A81; --skel: #EAE4DA;
+  /* Paleta alinhada à logomarca Visita IA: azul (cyan → royal), fundo quase-preto, texto prata. */
+  --bg: #F2F5FA; --card: #FFFFFF; --card-2: #E4EAF3; --ink: #0F1722; --muted: #5F6E82; --line: #E2E8F1;
+  --terra: #123C87; --terraSoft: #E1E9F6; --olive: #0E7C66; --oliveSoft: #D7F0EA;
+  --side: #0A0F1A; --sideInk: #EAF1FB; --sideMuted: #7A879E; --skel: #E7EDF5;
+  /* acento sobre a sidebar escura — azul mais claro que --terra pra manter legibilidade no preto */
+  --side-accent: #4C8DF0;
+  --brand-grad: linear-gradient(135deg, #1E77E2 0%, #123C87 60%, #0C2E6B 100%);
 
   /* React Flow (construtor de fluxos do Follow-up) lê essas variáveis próprias com fallback —
      setar aqui evita a guerra de especificidade/ordem de import contra o CSS padrão da lib
@@ -16,9 +20,10 @@
   --xy-controls-box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
 }
 [data-theme='dark'] {
-  --bg: #161513; --card: #1F1E1B; --ink: #F2EEE7; --muted: #A39B91; --line: #332F2A;
-  --terra: #C97C46; --terraSoft: #33251C; --olive: #8A9A62; --oliveSoft: #242A1C;
-  --side: #111110; --sideInk: #EFE9E0; --sideMuted: #8B847B; --skel: #272521;
+  --bg: #0B0F17; --card: #151B26; --card-2: #1C2430; --ink: #EAF1FB; --muted: #93A1B5; --line: #262F3D;
+  --terra: #2E63C4; --terraSoft: #16233B; --olive: #2CC6AC; --oliveSoft: #10241F;
+  --side: #070B12; --sideInk: #EAF1FB; --sideMuted: #6E7C92; --skel: #1B2430;
+  --side-accent: #4C8DF0;
 }
 
 * { box-sizing: border-box; }
@@ -40,6 +45,8 @@ a:hover { color: var(--ink); }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes dots { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
+@keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes slideUpSheet { from { transform: translateY(100%); } to { transform: none; } }
 
 ::-webkit-scrollbar { height: 10px; width: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
@@ -58,23 +65,99 @@ a:hover { color: var(--ink); }
 @media (max-width: 1150px) {
   .grid2 { grid-template-columns: 1fr !important; }
 }
+
+/* --- Login responsivo --- */
+@media (max-width: 820px) {
+  .login-grid { grid-template-columns: 1fr !important; }
+  .login-hero { display: none !important; }
+  .login-form-col { padding: 32px 22px calc(32px + env(safe-area-inset-bottom)) !important; align-items: flex-start !important; }
+  .login-mobile-logo { display: block !important; }
+}
 @media (max-width: 900px) {
   .app-sidebar { display: none !important; }
   .content-col { margin-left: 0 !important; }
-  .mobile-tabs { display: flex !important; }
-  .alert-tester { left: 22px !important; }
-  .app-main { padding: 22px 16px 56px !important; }
-  .app-main h1 { font-size: 29px !important; }
+  .app-main { padding: 18px 15px 56px !important; padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important; }
+  .app-main h1 { font-size: 27px !important; }
+  /* toolbars de página empilham e ocupam a largura toda no celular */
+  .kb-toolbar { width: 100%; flex-direction: column !important; align-items: stretch !important; }
+  .kb-toolbar .kb-search { width: 100% !important; }
+  .kb-toolbar-row { width: 100%; }
+  .kb-toolbar-row > * { flex: 1 1 auto; }
+  .kb-toolbar-row .kb-corretor { flex: 1 1 100%; }
+  .kb-toolbar-row button { justify-content: center; }
+
   .kb-tabs { display: flex !important; }
   .kb-cols { display: block !important; }
   .kb-cols > div { width: auto !important; border: none !important; background: transparent !important; padding: 0 !important; }
   .kb-cols > div[data-active='0'] { display: none !important; }
   .kb-cols > div > div:first-child { display: none !important; }
   .top-search { display: none !important; }
+
+  /* header mobile: mostra hambúrguer + marca, some com o que não cabe */
+  .topbar-hamburger { display: flex !important; }
+  .topbar-logo { display: inline-flex !important; }
+  .topbar-role-pill { display: none !important; }
+  .topbar-theme { display: none !important; }
+  .topbar-profile-text { display: none !important; }
+
+  .alert-tester { display: none !important; }
+
+  /* dropdowns do header (notificações, perfil) — largura da tela, não estouram a borda */
+  .topbar-dropdown {
+    position: fixed !important; left: 8px !important; right: 8px !important;
+    top: calc(56px + env(safe-area-inset-top)) !important;
+    width: auto !important; min-width: 0 !important; max-width: none !important;
+  }
 }
 @media (max-width: 560px) {
-  .app-main h1 { font-size: 25px !important; }
+  .app-main h1 { font-size: 24px !important; }
   #kpis { grid-template-columns: 1fr !important; }
+}
+
+/* --- Mobile: tabelas viram cards, painéis duplos empilham --- */
+@media (max-width: 700px) {
+  .data-table-head { display: none !important; }
+  .data-row { flex-direction: column !important; align-items: stretch !important; gap: 7px !important; padding: 14px 15px !important; }
+  .data-row > * { width: auto !important; flex: 0 0 auto !important; min-width: 0 !important; }
+  .data-row select { width: 100% !important; }
+  .data-row .row-actions { width: 100%; }
+  .data-row .row-actions > * { flex: 1 1 auto; }
+
+  .split-pane { display: block !important; grid-template-columns: 1fr !important; }
+  .split-pane > * { width: auto !important; max-width: none !important; }
+  .split-aside { width: auto !important; margin: 0 0 14px !important; position: static !important; max-height: none !important; overflow: visible !important; }
+
+  .page-head { gap: 12px !important; }
+  .page-toolbar { width: 100%; flex-direction: column !important; align-items: stretch !important; }
+  .page-toolbar > * { width: 100% !important; }
+
+  /* rede de segurança: nada rola na horizontal no celular */
+  .app-main { overflow-x: hidden; }
+  .app-main > * { max-width: 100%; }
+
+  /* Follow-up: canvas e editor do bloco empilham */
+  .fu-canvas-row { flex-direction: column !important; }
+  .fu-editor { width: 100% !important; height: auto !important; max-height: 60vh; }
+}
+
+/* --- Modais: viram bottom-sheet no celular --- */
+@media (max-width: 700px) {
+  .modal-overlay { padding: 0 !important; align-items: flex-end !important; justify-content: stretch !important; }
+  .modal-card {
+    max-width: none !important; width: 100% !important; min-width: 0 !important;
+    border-radius: 18px 18px 0 0 !important;
+    max-height: 92vh !important; overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(22px + env(safe-area-inset-bottom)) !important;
+    animation: slideUpSheet .2s ease !important;
+  }
+  /* modais grandes (ex.: ficha do lead) ocupam a tela toda e mantêm o scroll interno próprio */
+  .modal-card.modal-card-full {
+    border-radius: 0 !important; max-height: 100dvh !important; height: 100dvh !important;
+    overflow: hidden !important;
+  }
+  /* grades de 2 colunas dentro de modal empilham */
+  .modal-card .grid2, .modal-card [data-modal-grid] { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 1250px) {
   .conv-grid { grid-template-columns: 1fr !important; }

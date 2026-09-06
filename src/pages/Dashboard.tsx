@@ -125,7 +125,7 @@ export default function Dashboard() {
                 style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, height: '100%', justifyContent: 'flex-end', border: 'none', background: 'none', padding: 0, cursor: 'pointer' }}
               >
                 <span style={{ fontFamily: 'Newsreader,serif', fontSize: 19 }}>{o.n}</span>
-                <div style={{ width: '100%', borderRadius: '5px 5px 0 0', height: o.h, background: i % 2 ? 'var(--terra)' : 'var(--ink)' }} />
+                <div style={{ width: '100%', borderRadius: '5px 5px 0 0', height: o.h, background: 'var(--terra)', opacity: i % 2 ? 1 : 0.5 }} />
               </button>
             ))}
           </div>

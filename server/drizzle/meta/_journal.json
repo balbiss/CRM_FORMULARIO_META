@@ -43,6 +43,34 @@
       "when": 1788697662020,
       "tag": "0005_petite_green_goblin",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788705099468,
+      "tag": "0006_tiny_living_tribunal",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788706489492,
+      "tag": "0007_chilly_thor",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788707765611,
+      "tag": "0008_opposite_kree",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788708195699,
+      "tag": "0009_white_texas_twister",
+      "breakpoints": true
     }
   ]
 }

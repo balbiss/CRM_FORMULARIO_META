@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Menu, Bell } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useRoleInfo, scopeLeads } from '../lib/selectors';
 import { ini, canalPill } from '../lib/format';
 import { css } from '../lib/css';
+import { LogoMark } from './Logo';
 
 export function Topbar() {
   const theme = useAppStore(s => s.theme);
@@ -15,6 +17,7 @@ export function Topbar() {
   const marcarTodasNotifsLidas = useAppStore(s => s.marcarTodasNotifsLidas);
   const menuOpen = useAppStore(s => s.menuOpen);
   const toggleMenu = useAppStore(s => s.toggleMenu);
+  const setMobileNav = useAppStore(s => s.setMobileNav);
   const logout = useAppStore(s => s.logout);
   const allLeads = useAppStore(s => s.leads);
   const openLead = useAppStore(s => s.openLead);
@@ -31,7 +34,16 @@ export function Topbar() {
   const naoLidas = notificacoes.filter(n => !n.lida).length;
 
   return (
-    <header style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 28px', borderBottom: '1px solid var(--line)', background: 'var(--card)' }}>
+    <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--line)', background: 'var(--card)', paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
+      <button
+        className="topbar-hamburger"
+        onClick={() => setMobileNav(true)}
+        aria-label="Abrir menu"
+        style={{ display: 'none', width: 38, height: 38, flex: 'none', border: '1px solid var(--line)', borderRadius: 9, background: 'var(--card)', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)' }}
+      >
+        <Menu size={19} strokeWidth={2} />
+      </button>
+      <span className="topbar-logo" style={{ display: 'none', color: 'var(--ink)' }}><LogoMark size={26} /></span>
       <div className="top-search" style={{ flex: 1, maxWidth: 420, position: 'relative' }}>
         <input
           value={query}
@@ -64,22 +76,22 @@ export function Topbar() {
       </div>
       <div style={{ flex: 1 }} />
       {!isDono && (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', border: '1px solid var(--terra)', borderRadius: 20, fontSize: 11.5, fontWeight: 700, letterSpacing: '.04em', color: 'var(--terra)', whiteSpace: 'nowrap' }}>
+        <span className="topbar-role-pill" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', border: '1px solid var(--terra)', borderRadius: 20, fontSize: 11.5, fontWeight: 700, letterSpacing: '.04em', color: 'var(--terra)', whiteSpace: 'nowrap' }}>
           <span style={{ width: 6, height: 6, background: 'var(--terra)', transform: 'rotate(45deg)' }} />Visualizando como: {role}
         </span>
       )}
-      <button onClick={toggleTheme} title="Alternar tema" style={{ width: 34, height: 34, border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <button className="topbar-theme" onClick={toggleTheme} title="Alternar tema" style={{ width: 34, height: 34, border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
         <span style={{ width: 12, height: 12, borderRadius: '50%', background: theme === 'dark' ? 'var(--sideInk)' : 'var(--ink)', boxShadow: 'inset 4px 0 0 ' + (theme === 'dark' ? 'var(--card)' : 'transparent') }} />
       </button>
       <div style={{ position: 'relative' }}>
-        <button onClick={toggleNotifMenu} title="Notificações" style={{ position: 'relative', width: 34, height: 34, border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ width: 12, height: 12, border: '1.4px solid var(--ink)', borderRadius: '4px 4px 2px 2px' }} />
+        <button onClick={toggleNotifMenu} title="Notificações" aria-label="Notificações" style={{ position: 'relative', width: 34, height: 34, border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)' }}>
+          <Bell size={17} strokeWidth={2} />
           {naoLidas > 0 && (
             <span style={{ position: 'absolute', top: -6, right: -6, minWidth: 17, height: 17, padding: '0 4px', background: 'var(--terra)', color: '#fff', borderRadius: 9, fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{naoLidas}</span>
           )}
         </button>
         {notifOpen && (
-          <div style={{ position: 'absolute', right: 0, top: 42, width: 320, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 12px 28px rgba(28,27,26,.14)', zIndex: 40, animation: 'fadeUp .12s ease', overflow: 'hidden' }}>
+          <div className="topbar-dropdown" style={{ position: 'absolute', right: 0, top: 42, width: 320, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 12px 28px rgba(8,17,31,.16)', zIndex: 40, animation: 'fadeUp .12s ease', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid var(--line)' }}>
               <span style={{ fontSize: 12.5, fontWeight: 700 }}>Notificações</span>
               {naoLidas > 0 && <button onClick={marcarTodasNotifsLidas} style={{ border: 'none', background: 'none', fontSize: 11.5, color: 'var(--terra)', fontWeight: 600 }}>Marcar todas como lidas</button>}
@@ -105,15 +117,15 @@ export function Topbar() {
         )}
       </div>
       <div style={{ position: 'relative' }}>
-        <button onClick={toggleMenu} style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--line)', background: 'var(--card)', borderRadius: 8, padding: '5px 10px 5px 5px' }}>
-          <span style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--terraSoft)', color: 'var(--terra)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 700 }}>{ini(meNome)}</span>
-          <span style={{ textAlign: 'left', lineHeight: 1.25 }}>
+        <button onClick={toggleMenu} style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--line)', background: 'var(--card)', borderRadius: 8, padding: '5px 10px 5px 5px', flex: 'none' }}>
+          <span style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--terraSoft)', color: 'var(--terra)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 700, flex: 'none' }}>{ini(meNome)}</span>
+          <span className="topbar-profile-text" style={{ textAlign: 'left', lineHeight: 1.25 }}>
             <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600 }}>{meNome}</span>
             <span style={{ display: 'block', fontSize: 10.5, color: 'var(--muted)', letterSpacing: '.08em', textTransform: 'uppercase' }}>{role}</span>
           </span>
         </button>
         {menuOpen && (
-          <div style={{ position: 'absolute', right: 0, top: 46, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, minWidth: 184, padding: 6, boxShadow: '0 12px 28px rgba(28,27,26,.10)', animation: 'fadeUp .14s ease' }}>
+          <div className="topbar-dropdown" style={{ position: 'absolute', right: 0, top: 46, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, minWidth: 184, padding: 6, boxShadow: '0 12px 28px rgba(8,17,31,.12)', animation: 'fadeUp .14s ease' }}>
             <button onClick={() => { toggleMenu(); nav('/configuracoes'); }} style={{ width: '100%', textAlign: 'left', padding: '9px 10px', border: 'none', background: 'none', borderRadius: 6, fontSize: 13.5 }}>Ajustes</button>
             <button onClick={() => { toggleMenu(); nav('/manual'); }} style={{ width: '100%', textAlign: 'left', padding: '9px 10px', border: 'none', background: 'none', borderRadius: 6, fontSize: 13.5 }}>Manual</button>
             <div style={{ height: 1, background: 'var(--line)', margin: '5px 0' }} />

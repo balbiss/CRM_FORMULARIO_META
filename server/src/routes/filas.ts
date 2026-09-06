@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { filasAtendimento, perfis } from '../db/schema.js';
+import { filasAtendimento, perfis, imobiliarias } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 import { isBusinessHoursOpen, horarioAtendimentoLabel } from '../lib/schedule.js';
 import type { Server as SocketServer } from 'socket.io';
@@ -47,7 +47,19 @@ export function filasRouter(io: SocketServer) {
     const vaiLigar = !alvo.emPlantao;
     if (vaiLigar) {
       if (alvo.bloqueado) return res.status(403).json({ error: alvo.nome + ' está com acesso bloqueado — não pode entrar na roleta' });
-      if (!isBusinessHoursOpen()) return res.status(403).json({ error: horarioAtendimentoLabel() });
+      const [imob] = await db.select({ h: imobiliarias.horarioAtendimento }).from(imobiliarias).where(eq(imobiliarias.id, imobiliariaId)).limit(1);
+      if (!isBusinessHoursOpen(imob?.h)) return res.status(403).json({ error: horarioAtendimentoLabel(imob?.h) });
+
+      // Dono/gerente não entram na roleta por padrão — mas se optarem por ficar "No Plantão",
+      // criamos a posição deles na fila (no fim) pra receberem leads como qualquer corretor.
+      const [jaTem] = await db.select({ id: filasAtendimento.id }).from(filasAtendimento)
+        .where(eq(filasAtendimento.corretorId, parsed.data.corretorId)).limit(1);
+      if (!jaTem) {
+        const existentes = await db.select({ posicao: filasAtendimento.posicao }).from(filasAtendimento)
+          .where(eq(filasAtendimento.imobiliariaId, imobiliariaId));
+        const proxima = existentes.reduce((m, r) => Math.max(m, r.posicao), -1) + 1;
+        await db.insert(filasAtendimento).values({ imobiliariaId, corretorId: parsed.data.corretorId, posicao: proxima });
+      }
     }
 
     const [row] = await db.update(perfis)

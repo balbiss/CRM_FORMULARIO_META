@@ -1,15 +1,24 @@
-// Mesma regra do CRM original (espelha src/lib/schedule.ts do front-end): roleta nunca distribui
-// aos domingos, e encerra o expediente às 18:20 na maioria dos dias, 19:20 na quinta, 15:20 no
-// sábado. Sem religamento automático de manhã. Validado aqui pro caso de alguém chamar a API
-// diretamente (curl/Postman) pulando a checagem do front.
-export function isBusinessHoursOpen(d = new Date()): boolean {
-  const day = d.getDay();
-  if (day === 0) return false;
+import { HORARIO_ATENDIMENTO_PADRAO, type DiaAtendimento } from '../db/schema.js';
+
+const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+
+const fmt = (min: number) => String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0');
+
+/** O corretor só pode ficar "No Plantão" dentro da janela de atendimento do dia — janela
+ * configurada pelo Dono/Gerente (imobiliarias.horario_atendimento), sempre no fuso de São Paulo. */
+export function isBusinessHoursOpen(dias: DiaAtendimento[] | null | undefined, agora = new Date()): boolean {
+  const cfg = (dias && dias.length === 7 ? dias : HORARIO_ATENDIMENTO_PADRAO);
+  const d = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const hoje = cfg[d.getDay()];
+  if (!hoje || !hoje.ativo) return false;
   const minutes = d.getHours() * 60 + d.getMinutes();
-  const cutoff = day === 4 ? 19 * 60 + 20 : day === 6 ? 15 * 60 + 20 : 18 * 60 + 20;
-  return minutes < cutoff;
+  return minutes >= hoje.abreMin && minutes < hoje.fechaMin;
 }
 
-export function horarioAtendimentoLabel(): string {
-  return 'Fora do horário de atendimento (seg-qua e sex até 18:20, qui até 19:20, sáb até 15:20, domingo fechado)';
+export function horarioAtendimentoLabel(dias?: DiaAtendimento[] | null): string {
+  const cfg = (dias && dias.length === 7 ? dias : HORARIO_ATENDIMENTO_PADRAO);
+  const partes = cfg
+    .map((c, i) => (c.ativo ? DIAS[i] + ' ' + fmt(c.abreMin) + '–' + fmt(c.fechaMin) : null))
+    .filter(Boolean);
+  return 'Fora do horário de atendimento. Janela da equipe: ' + (partes.length ? partes.join('; ') : 'nenhum dia liberado') + '.';
 }

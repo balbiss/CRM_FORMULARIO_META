@@ -39,11 +39,11 @@ export default function Credito() {
         </div>
       )}
       <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', gap: 14, padding: '13px 20px', borderBottom: '1px solid var(--line)', fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+        <div className="data-table-head" style={{ display: 'flex', gap: 14, padding: '13px 20px', borderBottom: '1px solid var(--line)', fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>
           <span style={{ flex: 1.4 }}>Lead / imóvel</span>{isManager && <span style={{ flex: 1 }}>Corretor</span>}<span style={{ width: 120 }}>Renda declarada</span><span style={{ width: 150 }}>Status da pasta</span><span style={{ width: 80 }} />
         </div>
         {rows.map(({ l, status }) => (
-          <div key={l.id} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '15px 20px', borderBottom: '1px solid var(--line)' }}>
+          <div key={l.id} className="data-row" style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '15px 20px', borderBottom: '1px solid var(--line)' }}>
             <span style={{ flex: 1.4, minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600 }}>{l.nome}</span>
               <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{l.imovel}</span>
