@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Paperclip } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
-import { CORRETORES, mapMsgs, type Lead } from '../lib/data';
+import { mapMsgs, type Lead } from '../lib/data';
 import { ini, canalPill, dayLabel } from '../lib/format';
 import { css } from '../lib/css';
 import { uploadArquivo, tipoDeArquivo } from '../lib/upload';
@@ -14,6 +14,7 @@ export default function Conversas() {
   const allLeads = useAppStore(s => s.leads);
   const chats = useAppStore(s => s.chats);
   const conversas = useAppStore(s => s.conversas);
+  const perfis = useAppStore(s => s.perfisRemotos);
   const token = useAppStore(s => s.token);
   const enviarMensagem = useAppStore(s => s.enviarMensagem);
   const toast = useAppStore(s => s.toast);
@@ -71,7 +72,8 @@ export default function Conversas() {
             <input value={convQuery} onChange={e => setConvQuery(e.target.value)} placeholder="Buscar por nome ou telefone…" style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13 }} />
             {isManager && (
               <select value={convCorretor} onChange={e => setConvCorretor(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13 }}>
-                <option>Todos os corretores</option>{CORRETORES.map(c => <option key={c.nome}>{c.nome}</option>)}
+                <option>Todos os corretores</option>
+                {perfis.map(p => <option key={p.id}>{p.nome}</option>)}
               </select>
             )}
           </div>

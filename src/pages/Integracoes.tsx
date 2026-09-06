@@ -8,8 +8,8 @@ const label: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight:
 const input: React.CSSProperties = { width: '100%', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5, marginBottom: 14, boxSizing: 'border-box' };
 
 const MODOS: { id: ModoWhatsapp; nome: string; desc: string }[] = [
-  { id: 'central', nome: 'Número central da imobiliária', desc: 'Um número só. Todo corretor atende os leads dele pelo CRM e as mensagens saem por esse número. Dono e Gerente veem todas as conversas e o histórico fica na imobiliária.' },
-  { id: 'corretor', nome: 'WhatsApp de cada corretor', desc: 'Cada corretor usa o próprio número (o que o cliente já conhece). Menos fricção, mas por padrão o Dono não vê a conversa.' },
+  { id: 'central', nome: 'Número central da imobiliária', desc: 'Um número só. Todo corretor atende os leads dele por dentro do CRM e as mensagens saem por esse número. O histórico fica todo na imobiliária.' },
+  { id: 'corretor', nome: 'WhatsApp de cada corretor', desc: 'Cada corretor usa o próprio número (o que o cliente já conhece). Menos fricção pro corretor; o CRM espelha as conversas de cada número.' },
 ];
 
 export default function Integracoes() {
@@ -73,9 +73,16 @@ export default function Integracoes() {
             );
           })}
         </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 12, padding: '11px 13px', border: '1px solid var(--line)', borderRadius: 9, background: 'var(--bg)' }}>
+          <span style={{ color: 'var(--olive)', fontWeight: 700, flex: 'none' }}>✓</span>
+          <p style={{ fontSize: 12.5, color: 'var(--ink)', margin: 0, lineHeight: 1.6 }}>
+            <strong>Nos dois modos</strong>, Dono e Gerente veem todas as conversas em <strong>Conversas</strong>,
+            com filtro por corretor. A diferença é só por onde a mensagem sai.
+          </p>
+        </div>
         {!isManager && <p style={{ fontSize: 12, color: 'var(--muted)', margin: '10px 2px 0' }}>Só Dono ou Gerente altera o modo de atendimento.</p>}
         <p style={{ fontSize: 12, color: 'var(--muted)', margin: '10px 2px 0' }}>
-          A conexão do número em si (QR code) entra numa próxima etapa, quando o motor de WhatsApp for plugado.
+          A conexão dos números (QR code) e o espelhamento entram numa próxima etapa, quando o motor de WhatsApp for plugado.
         </p>
       </section>
 
