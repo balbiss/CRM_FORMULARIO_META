@@ -23,24 +23,29 @@ async function waha<T = unknown>(path: string, opts: WahaOpts = {}): Promise<T> 
   return json as T;
 }
 
-// message.any cobre recebidas E enviadas (inclusive as que saem pelo celular do corretor);
+// 'message' = recebidas; 'message.any' = recebidas + enviadas; alguns engines (WEBJS) só
+// disparam de forma confiável com 'message' — mandamos os dois e o webhook deduplica por id.
 // session.status mantém o status/numero em dia sem polling.
-const EVENTOS = ['message.any', 'session.status'];
+const EVENTOS = ['message', 'message.any', 'session.status'];
 
-/** Cria (ou recria) a sessão no WAHA já com o webhook apontando pro nosso backend. */
+function webhookConfig() {
+  const url = publicUrl() ? `${publicUrl()}/api/whatsapp/webhook?secret=${encodeURIComponent(webhookSecret())}` : undefined;
+  return url ? { webhooks: [{ url, events: EVENTOS }] } : {};
+}
+
+/** Cria (ou recria) a sessão no WAHA já com o webhook apontando pro nosso backend.
+ *  Se a sessão já existe, ATUALIZA a config do webhook (corrige webhook quebrado) e reinicia. */
 export async function criarSessao(sessionName: string) {
-  const webhookUrl = publicUrl() ? `${publicUrl()}/api/whatsapp/webhook?secret=${encodeURIComponent(webhookSecret())}` : undefined;
+  const config = webhookConfig();
   await waha('/api/sessions', {
     method: 'POST',
-    body: {
-      name: sessionName,
-      start: true,
-      config: webhookUrl ? { webhooks: [{ url: webhookUrl, events: EVENTOS }] } : {},
-    },
+    body: { name: sessionName, start: true, config },
   }).catch(async e => {
-    // já existe -> só (re)inicia
-    if (String(e).includes('422') || String(e).includes('already')) {
-      await waha(`/api/sessions/${sessionName}/start`, { method: 'POST' }).catch(() => {});
+    if (String(e).includes('422') || String(e).includes('already') || String(e).includes('exist')) {
+      // já existe -> reescreve a config do webhook e reinicia pra aplicar
+      await waha(`/api/sessions/${sessionName}`, { method: 'PUT', body: { config } }).catch(() => {});
+      await waha(`/api/sessions/${sessionName}/restart`, { method: 'POST' })
+        .catch(() => waha(`/api/sessions/${sessionName}/start`, { method: 'POST' }).catch(() => {}));
     } else { throw e; }
   });
 }
