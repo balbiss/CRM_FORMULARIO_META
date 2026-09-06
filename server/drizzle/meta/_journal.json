@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1788602355653,
+      "tag": "0000_lucky_chronomancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788623897447,
+      "tag": "0001_lame_the_captain",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788624831795,
+      "tag": "0002_safe_changeling",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788626265391,
+      "tag": "0003_steady_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788647902709,
+      "tag": "0004_gorgeous_turbo",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788697662020,
+      "tag": "0005_petite_green_goblin",
+      "breakpoints": true
+    }
+  ]
+}

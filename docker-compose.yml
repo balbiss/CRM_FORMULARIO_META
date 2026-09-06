@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nova
+      POSTGRES_PASSWORD: nova_dev_local
+      POSTGRES_DB: nova_app
+    ports:
+      - "55432:5432"
+    volumes:
+      - nova_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nova -d nova_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Armazenamento de imagens/vídeo dos imóveis (e futuros anexos) — S3-compatible, mesma
+  # tecnologia usada em produção nos outros projetos (storage.inoovaweb.com.br). Local aqui é só
+  # pra dev; ao deployar de verdade, é só trocar as variáveis MINIO_* pra apontar pro MinIO real.
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: nova_minio
+      MINIO_ROOT_PASSWORD: nova_dev_local_minio
+    ports:
+      - "59000:9000"
+      - "59001:9001"
+    volumes:
+      - nova_miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  nova_pgdata:
+  nova_miniodata:

@@ -1,0 +1,309 @@
+import { useRef, useState } from 'react';
+import { Paperclip } from 'lucide-react';
+import { useAppStore } from '../store/appStore';
+import { COLS, CADENCIAS, MOTIVOS_DESCARTE, APROVACAO, mapMsgs } from '../lib/data';
+import { BRL, canalPill, thumb } from '../lib/format';
+import { css } from '../lib/css';
+import { uploadArquivo, tipoDeArquivo } from '../lib/upload';
+import { AnexoMensagem } from './AnexoMensagem';
+import { AudioRecordButton } from './AudioRecordButton';
+import { EmojiPicker } from './EmojiPicker';
+
+const TABS: Array<[string, string]> = [
+  ['detalhes', 'Detalhes'], ['chat', 'Chat WhatsApp'], ['followup', 'Follow-up'], ['historico', 'Histórico'],
+];
+
+export function LeadModal() {
+  const leadId = useAppStore(s => s.leadId);
+  const leads = useAppStore(s => s.leads);
+  const leadTab = useAppStore(s => s.leadTab);
+  const setLeadTab = useAppStore(s => s.setLeadTab);
+  const closeLead = useAppStore(s => s.closeLead);
+  const chats = useAppStore(s => s.chats);
+  const typing = useAppStore(s => s.typing);
+  const draft = useAppStore(s => s.draft);
+  const setDraft = useAppStore(s => s.setDraft);
+  const sendMsg = useAppStore(s => s.sendMsg);
+  const enviarMensagem = useAppStore(s => s.enviarMensagem);
+  const token = useAppStore(s => s.token);
+  const toast = useAppStore(s => s.toast);
+  const [enviandoAnexo, setEnviandoAnexo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cadencia = useAppStore(s => s.cadencia);
+  const setCadencia = useAppStore(s => s.setCadencia);
+  const setColByTitle = useAppStore(s => s.setColByTitle);
+  const advance = useAppStore(s => s.advance);
+  const discardOpen = useAppStore(s => s.discardOpen);
+  const discardWarn = useAppStore(s => s.discardWarn);
+  const openDiscard = useAppStore(s => s.openDiscard);
+  const closeDiscard = useAppStore(s => s.closeDiscard);
+  const pickMotivoDescarte = useAppStore(s => s.pickMotivoDescarte);
+  const requestApproval = useAppStore(s => s.requestApproval);
+  const steps = useAppStore(s => s.steps);
+  const seqState = useAppStore(s => s.seqState);
+  const pauseSeq = useAppStore(s => s.pauseSeq);
+  const resumeSeq = useAppStore(s => s.resumeSeq);
+  const endSeq = useAppStore(s => s.endSeq);
+
+  const L = leads.find(l => l.id === leadId);
+  if (!L) return null;
+
+  const col = COLS.find(c => c.id === L.col)!;
+  const cad = cadencia[L.id] || 'Chamada 1';
+  const seqSt = seqState[L.id] || 'ativa';
+  const chatMsgs = mapMsgs(chats[L.id] || []);
+
+  const fields = [
+    { label: 'Nome completo', value: L.nome }, { label: 'Telefone', value: L.tel },
+    { label: 'E-mail', value: L.email }, { label: 'Corretor responsável', value: L.corretor },
+    { label: 'Campanha', value: L.campanha }, { label: 'Renda declarada', value: BRL(L.renda) },
+  ];
+
+  const historico = [
+    { titulo: 'Movido para ' + col.title, sub: 'por Camila Rocha', quando: 'há 2 h' },
+    { titulo: 'Mensagem recebida no WhatsApp', sub: '"Quinta funciona. Me confirma o endereço."', quando: 'há 5 h' },
+    { titulo: 'Follow-up automático enviado', sub: 'Passo 2 — "+1 dia"', quando: 'ontem' },
+    { titulo: 'Visita agendada', sub: '17 set, 09:00 · Edifício Aurora', quando: 'ontem' },
+    { titulo: 'Lead distribuído pela roleta', sub: 'Camila Rocha aceitou em 4 min', quando: 'há 3 dias' },
+    { titulo: 'Lead criado', sub: 'Origem: Instagram · Aurora — Lançamento', quando: 'há 3 dias' },
+  ];
+
+  const seqSteps = steps.map((st, i) => {
+    const done = i < 2, now = i === 2;
+    return { ...st, tag: done ? 'Enviado' : now ? 'Agendado' : 'Na fila', done, now };
+  });
+
+  const quickTemplates = [
+    { label: 'Enviar tabela de valores', texto: 'Acabei de te enviar a tabela de valores atualizada. Qualquer dúvida, me chama.' },
+    { label: 'Confirmar visita', texto: 'Passando para confirmar nossa visita — consegue no horário combinado?' },
+    { label: 'Pedir documentos', texto: 'Para adiantar a análise, me envia RG, CPF e comprovante de renda?' },
+  ];
+
+  return (
+    <div onClick={closeLead} style={{ position: 'fixed', inset: 0, background: 'rgba(28,27,26,.42)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 760, maxHeight: '88vh', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeUp .16s ease' }}>
+        <div style={{ padding: '22px 24px 0', display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+          <span style={css(thumb(3, 46))} />
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: 'Newsreader,serif', fontSize: 26, lineHeight: 1.15 }}>{L.nome}</span>
+            <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>{L.tel} · {L.corretor} · {col.title}</span>
+          </span>
+          <span style={css(canalPill(L.canal) + ';align-self:center')}>{L.canal}</span>
+          <button onClick={closeLead} style={{ border: '1px solid var(--line)', background: 'none', width: 30, height: 30, borderRadius: 8, flex: 'none' }}>×</button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 22, padding: '20px 24px 0', borderBottom: '1px solid var(--line)' }}>
+          {TABS.map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setLeadTab(id as any)}
+              style={{ padding: '0 0 13px', border: 'none', background: 'none', fontSize: 13.5, fontWeight: leadTab === id ? 700 : 500, color: leadTab === id ? 'var(--ink)' : 'var(--muted)', borderBottom: '2px solid ' + (leadTab === id ? 'var(--terra)' : 'transparent'), marginBottom: -1 }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {leadTab === 'detalhes' && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 22 }}>
+                {fields.map(f => (
+                  <div key={f.label}>
+                    <label style={{ display: 'block', fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 7 }}>{f.label}</label>
+                    <input defaultValue={f.value} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5 }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 16, background: 'var(--bg)', marginBottom: 20 }}>
+                <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 10px' }}>Imóvel de interesse</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <span style={css(thumb(5, 56))} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 14.5, fontWeight: 700 }}>{L.imovel}</span>
+                    <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>{L.imovelSub}</span>
+                  </span>
+                  <span style={{ fontFamily: 'Newsreader,serif', fontSize: 22 }}>{BRL(L.valor)}</span>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 7 }}>Cadência de chamada</label>
+                  <select value={cad} onChange={e => setCadencia(L.id, e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5 }}>
+                    {CADENCIAS.map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 7 }}>Coluna do Kanban</label>
+                  <select value={col.title} onChange={e => setColByTitle(L.id, e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5 }}>
+                    {COLS.map(c => <option key={c.id}>{c.title}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <button onClick={closeLead} style={{ padding: '11px 18px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600 }}>Salvar alterações</button>
+                <button onClick={() => advance(L.id)} style={{ padding: '11px 16px', border: '1px solid var(--line)', borderRadius: 8, background: 'none', fontSize: 13, fontWeight: 600 }}>Avançar etapa</button>
+                <span style={{ flex: 1 }} />
+                <div style={{ position: 'relative' }}>
+                  <button onClick={openDiscard} style={{ padding: '11px 16px', border: '1px solid var(--line)', borderRadius: 8, background: 'none', fontSize: 13, color: 'var(--terra)' }}>Descartar lead ▾</button>
+                  {discardOpen && (
+                    <div style={{ position: 'absolute', right: 0, bottom: 52, width: 262, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, padding: 6, boxShadow: '0 14px 30px rgba(28,27,26,.16)', zIndex: 5 }}>
+                      <p style={{ fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)', margin: '6px 10px 8px' }}>Motivo do descarte</p>
+                      {MOTIVOS_DESCARTE.map(m => (
+                        <button
+                          key={m}
+                          onClick={() => pickMotivoDescarte(m)}
+                          style={{ width: '100%', textAlign: 'left', padding: '9px 11px', border: 'none', background: 'none', borderRadius: 6, fontSize: 13, color: APROVACAO.includes(m) ? 'var(--terra)' : 'var(--ink)' }}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                      {discardWarn && (
+                        <div style={{ borderTop: '1px solid var(--line)', marginTop: 6, padding: '12px 10px 8px' }}>
+                          <p style={{ fontSize: 12.5, lineHeight: 1.55, margin: '0 0 10px', color: 'var(--terra)', fontWeight: 600 }}>"{discardWarn}" requer aprovação do gerente.</p>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button onClick={requestApproval} style={{ flex: 1, padding: 8, border: 'none', borderRadius: 7, background: 'var(--terra)', color: '#fff', fontSize: 12.5, fontWeight: 600 }}>Solicitar aprovação</button>
+                            <button onClick={closeDiscard} style={{ padding: '8px 11px', border: '1px solid var(--line)', borderRadius: 7, background: 'none', fontSize: 12.5 }}>Cancelar</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {leadTab === 'chat' && (
+            <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                {chatMsgs.map(m => (
+                  <div key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {m.sep && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0' }}>
+                        <span style={{ flex: 1, height: 1, background: 'var(--line)' }} />
+                        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>{m.sepLabel}</span>
+                        <span style={{ flex: 1, height: 1, background: 'var(--line)' }} />
+                      </div>
+                    )}
+                    <div style={css(m.rowStyle)}>
+                      <span style={css(m.bubbleStyle)}>
+                        {m.bot && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'rgba(255,255,255,.18)', padding: '3px 8px', borderRadius: 20, marginBottom: 7 }}>🤖 Follow-up automático</span>}
+                        {m.anexoUrl && <AnexoMensagem url={m.anexoUrl} tipo={m.anexoTipo} />}
+                        {m.texto && <span style={{ display: 'block' }}>{m.texto}</span>}
+                        <span style={{ display: 'block', fontSize: 10.5, opacity: 0.65, marginTop: 5, textAlign: 'right' }}>{m.stamp}</span>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {typing && (
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '8px 0' }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--muted)', animation: 'dots 1s infinite' }} />
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--muted)', animation: 'dots 1s .15s infinite' }} />
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--muted)', animation: 'dots 1s .3s infinite' }} />
+                    <span style={{ fontSize: 11.5, color: 'var(--muted)', marginLeft: 6 }}>{L.nome.split(' ')[0]} está digitando…</span>
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                {quickTemplates.map(q => (
+                  <button key={q.label} onClick={() => setDraft(q.texto)} style={{ padding: '6px 11px', border: '1px solid var(--line)', borderRadius: 20, background: 'none', fontSize: 12 }}>{q.label}</button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*,application/pdf"
+                  style={{ display: 'none' }}
+                  onChange={async e => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file || !token) return;
+                    setEnviandoAnexo(true);
+                    try {
+                      const { url } = await uploadArquivo(file, token);
+                      await enviarMensagem(L.id, { anexoUrl: url, anexoTipo: tipoDeArquivo(file.type) });
+                    } catch (err) {
+                      toast((err as Error).message || 'Não foi possível enviar o anexo');
+                    } finally {
+                      setEnviandoAnexo(false);
+                    }
+                  }}
+                />
+                <button title="Anexar arquivo" onClick={() => fileInputRef.current?.click()} disabled={enviandoAnexo} style={{ width: 44, padding: '12px 14px', border: '1px solid var(--line)', borderRadius: 8, background: 'none', color: 'var(--muted)', flex: 'none', opacity: enviandoAnexo ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Paperclip size={16} />
+                </button>
+                <EmojiPicker onPick={emoji => setDraft(draft + emoji)} />
+                <AudioRecordButton
+                  disabled={enviandoAnexo}
+                  onError={msg => toast(msg)}
+                  onRecorded={async file => {
+                    if (!token) return;
+                    setEnviandoAnexo(true);
+                    try {
+                      const { url } = await uploadArquivo(file, token);
+                      await enviarMensagem(L.id, { anexoUrl: url, anexoTipo: 'audio' });
+                    } catch (err) {
+                      toast((err as Error).message || 'Não foi possível enviar o áudio');
+                    } finally {
+                      setEnviandoAnexo(false);
+                    }
+                  }}
+                />
+                <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMsg()} placeholder="Escreva uma mensagem…" style={{ flex: 1, padding: '12px 14px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5 }} />
+                <button onClick={sendMsg} style={{ padding: '12px 20px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600 }}>Enviar</button>
+              </div>
+            </>
+          )}
+
+          {leadTab === 'followup' && (
+            <>
+              <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 18, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', flex: 'none', background: seqSt === 'ativa' ? 'var(--olive)' : seqSt === 'pausada' ? 'var(--terra)' : 'var(--muted)' }} />
+                <span style={{ flex: 1, minWidth: 190 }}>
+                  <span style={{ display: 'block', fontSize: 14, fontWeight: 700 }}>{seqSt === 'ativa' ? 'Sequência ativa' : seqSt === 'pausada' ? 'Sequência pausada' : 'Sequência encerrada'} — "Lead novo — Aurora"</span>
+                  <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>Próximo envio: amanhã, 09:00 · passo 3 de 5</span>
+                </span>
+                {seqSt === 'ativa' && <button onClick={() => pauseSeq(L.id)} style={{ padding: '8px 14px', border: '1px solid var(--line)', borderRadius: 7, background: 'none', fontSize: 12.5, fontWeight: 600 }}>Pausar</button>}
+                {seqSt === 'pausada' && <button onClick={() => resumeSeq(L.id)} style={{ padding: '8px 14px', border: '1px solid var(--olive)', borderRadius: 7, background: 'none', color: 'var(--olive)', fontSize: 12.5, fontWeight: 600 }}>Retomar</button>}
+                {seqSt === 'encerrada' && <button onClick={() => resumeSeq(L.id)} style={{ padding: '8px 14px', border: '1px solid var(--line)', borderRadius: 7, background: 'none', fontSize: 12.5, fontWeight: 600 }}>Reinscrever</button>}
+                <button onClick={() => endSeq(L.id)} style={{ padding: '8px 14px', border: '1px solid var(--line)', borderRadius: 7, background: 'none', fontSize: 12.5, color: 'var(--terra)' }}>Encerrar</button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {seqSteps.map((s, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 14, padding: '14px 0', borderBottom: '1px solid var(--line)' }}>
+                    <span style={{ width: 9, height: 9, borderRadius: '50%', marginTop: 5, flex: 'none', background: s.done ? 'var(--olive)' : s.now ? 'var(--terra)' : 'var(--line)' }} />
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600 }}>{s.delay}</span>
+                      <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 3, lineHeight: 1.5 }}>{s.texto}</span>
+                    </span>
+                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', padding: '4px 8px', borderRadius: 20, alignSelf: 'center', ...(s.done ? { background: 'var(--oliveSoft)', color: 'var(--olive)' } : s.now ? { background: 'var(--terraSoft)', color: 'var(--terra)' } : { border: '1px solid var(--line)', color: 'var(--muted)' }) }}>{s.tag}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {leadTab === 'historico' && (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {historico.map((h, i) => (
+                <div key={i} style={{ display: 'flex', gap: 16 }}>
+                  <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 'none' }}>
+                    <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--terra)', marginTop: 5 }} />
+                    {i < historico.length - 1 && <span style={{ width: 1, flex: 1, background: 'var(--line)' }} />}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, paddingBottom: 22 }}>
+                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600 }}>{h.titulo}</span>
+                    <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>{h.sub}</span>
+                  </span>
+                  <span style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{h.quando}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
