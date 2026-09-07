@@ -27,7 +27,12 @@ import { ensureBucket } from './lib/storage.js';
 import { bootstrapAdminPlataforma, varrerInadimplencia } from './lib/bootstrapPlataforma.js';
 
 const app = express();
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }));
+// O webhook do formulário de site é público (token na URL) e a página fica em domínio de
+// terceiro (Lovable etc.) — CORS liberado nesse caminho; restrito no resto.
+const corsPublico = cors({ origin: '*', methods: ['POST', 'OPTIONS'], allowedHeaders: ['Content-Type'] });
+const corsRestrito = cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' });
+app.use((req, res, next) =>
+  (req.path.startsWith('/api/captacao/site') ? corsPublico : corsRestrito)(req, res, next));
 app.use(express.json());
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
