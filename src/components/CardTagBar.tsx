@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileText, CalendarClock, MessageCircle, History, Flag, Plus, Check } from 'lucide-react';
+import { FileText, CalendarClock, MessageCircle, History, Flag, Plus, Check, Pencil, Trash2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
 import type { Lead } from '../lib/data';
@@ -15,11 +15,17 @@ export function CardTagBar({ lead }: { lead: Lead }) {
   const tags = useAppStore(s => s.tags);
   const toggleLeadTag = useAppStore(s => s.toggleLeadTag);
   const createTag = useAppStore(s => s.createTag);
+  const renameTag = useAppStore(s => s.renameTag);
+  const deleteTag = useAppStore(s => s.deleteTag);
+  const askConfirm = useAppStore(s => s.ask);
   const { isManager } = useRoleInfo();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const [novo, setNovo] = useState('');
   const [novaCor, setNovaCor] = useState(CORES[0]);
+  const [gerenciar, setGerenciar] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editNome, setEditNome] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLButtonElement>(null);
 
@@ -77,6 +83,19 @@ export function CardTagBar({ lead }: { lead: Lead }) {
     if (t) toggleLeadTag(lead.id, t.id);
   };
 
+  const salvarEdicao = async (id: string) => {
+    const nome = editNome.trim();
+    if (nome) await renameTag(id, { nome });
+    setEditId(null);
+  };
+
+  const pedirExcluir = (id: string, nome: string) => {
+    askConfirm('Excluir a etiqueta "' + nome + '"?', 'Ela some de todos os leads que a tinham. Não dá pra desfazer.', 'Excluir', () => {
+      deleteTag(id);
+      if (editId === id) setEditId(null);
+    });
+  };
+
   return (
     <div
       style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--line)' }}
@@ -119,11 +138,54 @@ export function CardTagBar({ lead }: { lead: Lead }) {
               borderRadius: 10, boxShadow: '0 12px 30px rgba(8,17,31,.22)', zIndex: 200, padding: 6, animation: 'fadeUp .12s ease',
             }}
           >
-            <p style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', margin: '4px 6px 6px' }}>Etiquetas</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 6px 6px' }}>
+              <p style={{ flex: 1, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', margin: 0 }}>Etiquetas</p>
+              {isManager && tags.length > 0 && (
+                <button type="button" onClick={stop(() => { setGerenciar(v => !v); setEditId(null); })} aria-label="Gerenciar etiquetas"
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'none', fontSize: 11, fontWeight: 600, color: gerenciar ? 'var(--terra)' : 'var(--muted)', cursor: 'pointer' }}>
+                  <Pencil size={12} strokeWidth={2.2} />{gerenciar ? 'Concluir' : 'Gerenciar'}
+                </button>
+              )}
+            </div>
             <div style={{ maxHeight: 190, overflowY: 'auto' }}>
               {tags.length === 0 && <p style={{ fontSize: 12, color: 'var(--muted)', margin: '2px 6px 8px' }}>Nenhuma etiqueta ainda.</p>}
               {tags.map(t => {
                 const on = lead.tags.includes(t.id);
+                if (gerenciar && isManager) {
+                  const emEdicao = editId === t.id;
+                  return (
+                    <div key={t.id} style={{ padding: '6px', borderRadius: 6, background: emEdicao ? 'var(--bg)' : 'none' }} onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 3, background: t.cor, flex: 'none' }} />
+                        {emEdicao ? (
+                          <input
+                            value={editNome}
+                            autoFocus
+                            onChange={e => setEditNome(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); salvarEdicao(t.id); } if (e.key === 'Escape') setEditId(null); }}
+                            style={{ flex: 1, minWidth: 0, padding: '5px 7px', border: '1px solid var(--line)', borderRadius: 5, background: 'var(--card)', fontSize: 12 }}
+                          />
+                        ) : (
+                          <span style={{ flex: 1, fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.nome}</span>
+                        )}
+                        {emEdicao ? (
+                          <button type="button" onClick={() => salvarEdicao(t.id)} aria-label="Salvar" style={{ border: 'none', background: 'none', color: 'var(--terra)', display: 'flex', cursor: 'pointer' }}><Check size={15} strokeWidth={2.5} /></button>
+                        ) : (
+                          <button type="button" onClick={() => { setEditId(t.id); setEditNome(t.nome); }} aria-label="Renomear" style={{ border: 'none', background: 'none', color: 'var(--muted)', display: 'flex', cursor: 'pointer' }}><Pencil size={13} strokeWidth={2} /></button>
+                        )}
+                        <button type="button" onClick={() => pedirExcluir(t.id, t.nome)} aria-label="Excluir etiqueta" style={{ border: 'none', background: 'none', color: 'var(--muted)', display: 'flex', cursor: 'pointer' }}><Trash2 size={13} strokeWidth={2} /></button>
+                      </div>
+                      {emEdicao && (
+                        <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                          {CORES.map(c => (
+                            <button key={c} type="button" onClick={() => renameTag(t.id, { cor: c })} aria-label={'cor ' + c}
+                              style={{ width: 16, height: 16, borderRadius: 4, background: c, flex: 'none', border: '2px solid ' + (t.cor === c ? 'var(--ink)' : 'transparent'), cursor: 'pointer' }} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
                 return (
                   <button
                     key={t.id}
@@ -138,7 +200,7 @@ export function CardTagBar({ lead }: { lead: Lead }) {
                 );
               })}
             </div>
-            {isManager && (
+            {isManager && !gerenciar && (
               <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--line)' }}>
                 <div style={{ display: 'flex', gap: 5, marginBottom: 6, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                   {CORES.map(c => (

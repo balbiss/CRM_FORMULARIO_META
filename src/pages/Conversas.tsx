@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Paperclip } from 'lucide-react';
+import { Paperclip, Flag } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
 import { mapMsgs, type Lead } from '../lib/data';
@@ -17,6 +17,7 @@ export default function Conversas() {
   const chats = useAppStore(s => s.chats);
   const conversas = useAppStore(s => s.conversas);
   const perfis = useAppStore(s => s.perfisRemotos);
+  const tags = useAppStore(s => s.tags);
   const token = useAppStore(s => s.token);
   const enviarMensagem = useAppStore(s => s.enviarMensagem);
   const toast = useAppStore(s => s.toast);
@@ -43,12 +44,14 @@ export default function Conversas() {
   const conversaPorLead = useMemo(() => new Map(conversas.map(c => [c.leadId, c])), [conversas]);
 
   const q = (convQuery || '').trim().toLowerCase();
+  const [convTag, setConvTag] = useState<string | null>(null);
   const convBase = useMemo(() => allLeads
     .filter(l => conversaPorLead.has(l.id))
     .filter(l => (isManager ? (convCorretor === 'Todos os corretores' || l.corretor === convCorretor) : l.corretor === meNome))
+    .filter(l => !convTag || l.tags.includes(convTag))
     .filter(l => !q || l.nome.toLowerCase().includes(q) || (q.replace(/\D/g, '') !== '' && l.tel.replace(/\D/g, '').includes(q.replace(/\D/g, ''))))
     .sort((a, b) => new Date(conversaPorLead.get(b.id)!.enviadoEm).getTime() - new Date(conversaPorLead.get(a.id)!.enviadoEm).getTime()),
-    [allLeads, conversaPorLead, isManager, convCorretor, meNome, q]);
+    [allLeads, conversaPorLead, isManager, convCorretor, meNome, q, convTag]);
 
   const CL = convBase.find(l => l.id === convId);
   const convThread = mapMsgs(CL ? thread(CL) : []);
@@ -83,6 +86,24 @@ export default function Conversas() {
                 {perfis.map(p => <option key={p.id}>{p.nome}</option>)}
               </select>
             )}
+            {tags.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {tags.map(t => {
+                  const on = convTag === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setConvTag(on ? null : t.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 20, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', border: '1px solid ' + (on ? t.cor : 'var(--line)'), background: on ? t.cor : 'var(--bg)', color: on ? '#fff' : 'var(--muted)' }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: on ? '#fff' : t.cor, flex: 'none' }} />
+                      {t.nome}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             {convBase.map(l => {
@@ -102,10 +123,14 @@ export default function Conversas() {
                   <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.nome}</span>
+                      {(() => {
+                        const minhas = tags.filter(t => l.tags.includes(t.id));
+                        return minhas.slice(0, 3).map(t => <Flag key={t.id} size={12} strokeWidth={0} fill={t.cor} color={t.cor} style={{ flex: 'none' }} />);
+                      })()}
                       <span style={{ fontSize: 10.5, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{diasMsg === 0 ? horaMsg : dayLabel(diasMsg) + ' ' + horaMsg}</span>
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                      <span style={{ width: 7, height: 7, borderRadius: '50%', flex: 'none', background: l.canal === 'WhatsApp' ? 'var(--olive)' : (l.canal === 'Instagram' || l.canal === 'Facebook') ? 'var(--terra)' : 'var(--muted)' }} />
+                      <span style={{ flex: 'none', fontSize: 9.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', padding: '1px 5px', borderRadius: 4, color: l.canal === 'WhatsApp' ? 'var(--olive)' : (l.canal === 'Instagram' || l.canal === 'Facebook') ? 'var(--terra)' : 'var(--muted)', background: l.canal === 'WhatsApp' ? 'var(--oliveSoft)' : (l.canal === 'Instagram' || l.canal === 'Facebook') ? 'var(--terraSoft)' : 'var(--line)' }}>{l.canal}</span>
                       <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: (resumo?.naoLidas ?? 0) > 0 ? 'var(--ink)' : 'var(--muted)', fontWeight: (resumo?.naoLidas ?? 0) > 0 ? 600 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(resumo?.direcao === 'out' ? 'Você: ' : '') + legendaAnexo}</span>
                       {(resumo?.naoLidas ?? 0) > 0 && (
                         <span style={{ flex: 'none', minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: 'var(--olive)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{resumo!.naoLidas! > 99 ? '99+' : resumo!.naoLidas}</span>
