@@ -43,7 +43,7 @@ export function leadsRouter(io: SocketServer) {
     imovelSub: z.string().optional(),
     campanha: z.string().optional(),
     valor: z.number().optional(),
-    canal: z.enum(['WhatsApp', 'Instagram', 'Facebook', 'Indicacao', 'Manual']).default('Manual'),
+    canal: z.enum(['WhatsApp', 'Instagram', 'Facebook', 'Indicacao', 'Manual', 'Site']).default('Manual'),
     finalidade: z.enum(['venda', 'locacao']).optional(),
     colunaId: z.string().uuid().optional(),
     corretorId: z.string().uuid().optional(),
