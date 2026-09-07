@@ -200,8 +200,9 @@ export function CardTagBar({ lead }: { lead: Lead }) {
                 );
               })}
             </div>
-            {isManager && !gerenciar && (
+            {isManager && (
               <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--line)' }}>
+                <p style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 6px 2px' }}>Nova etiqueta</p>
                 <div style={{ display: 'flex', gap: 5, marginBottom: 6, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                   {CORES.map(c => (
                     <button key={c} type="button" onClick={() => setNovaCor(c)} aria-label={'cor ' + c}
