@@ -1,251 +1,277 @@
-# CRM Hinode — Documentação
+# CRM Formulário Meta — Documentação
 
-> Apelido interno do projeto: **CRM Hinode**. Rebuild v2, independente, do CRM em produção da imobiliária "Hinode Imóveis" (o sistema original em produção é outro projeto, chamado internamente de "CRM OKA" — este aqui **não compartilha banco, código nem infraestrutura** com ele).
+> Apelido interno: **CRM Formulário Meta**. É um fork **multi-tenant** do CRM Hinode
+> (`github.com/balbiss/CRM_HINODE_IM-VEIS`, single-tenant, em produção separada). Este repo **não
+> compartilha banco nem infraestrutura** com o Hinode. Contexto e escopo de captação Facebook em
+> [`../VISAO_MULTI_TENANT.md`](../VISAO_MULTI_TENANT.md).
 
-Repositório: [`github.com/balbiss/CRM_HINODE_IM-VEIS`](https://github.com/balbiss/CRM_HINODE_IM-VEIS) — toda atualização de código deste projeto é commitada e enviada pra lá.
+Repositório: [`github.com/balbiss/CRM_FORMULARIO_META`](https://github.com/balbiss/CRM_FORMULARIO_META)
 
-**🟢 EM PRODUÇÃO desde 2026-09-06**: [`https://hinode.inoovaweb.com.br`](https://hinode.inoovaweb.com.br), com **10.048 leads reais + 12 perfis reais** importados do CRM OKA (produção).
+**Em produção:** frontend `https://visitaia.com.br` · backend `https://api.visitaia.com.br` (Coolify do
+Guilherme). Instalação: [`INSTALACAO.md`](INSTALACAO.md).
 
-Última atualização: 2026-09-06 (Conversas real + áudio/emoji no chat; 10.043 leads reais e 12 perfis reais importados do CRM OKA de produção pro banco local; endpoint de captação (`/api/captacao/facebook`) + workflow n8n de captação via Facebook Graph API, criado e pronto porém inativo até o backend ser deployado publicamente).
+Última atualização: 2026-09-07.
 
-## O que é
+---
 
-Um CRM imobiliário sob medida para a Hinode Imóveis: kanban de leads com roleta de distribuição automática entre corretores, follow-up de WhatsApp, análise de crédito, gestão de equipe, tudo com controle de acesso por papel (Dono / Gerente / Corretor).
+## 1. O que é
 
-Este projeto começou como um protótipo visual (Lovable, puramente front-end e desconectado) e evoluiu para uma aplicação real: front-end React + TypeScript e back-end Node/Express com Postgres próprio.
+CRM imobiliário para **várias imobiliárias no mesmo sistema**, com dados 100% isolados por
+`imobiliaria_id`. Cada imobiliária tem seus corretores, leads, imóveis, roletas, follow-ups e um site
+público próprio. Acima de tudo há um **painel Plataforma** (`/plataforma`) para o dono do SaaS
+gerenciar as imobiliárias clientes (criar, suspender, cobrança/inadimplência).
 
-## Stack
+Papéis dentro de uma imobiliária: **Dono**, **Gerente**, **Corretor** (enum `perfis.role`).
 
-**Front-end** (`/` — raiz do repo):
-- Vite + React 19 + TypeScript
-- React Router v6/v7
-- Zustand (estado global, sem Redux)
-- Sem Tailwind — estilos inline via objetos JS, gerados a partir de strings CSS literais (`src/lib/css.ts`) para reaproveitar 1:1 o CSS do protótipo original
+## 2. Stack
+
+**Frontend** (`/` — raiz):
+- Vite + React 19 + TypeScript, React Router
+- Zustand (estado global único: `src/store/appStore.ts`)
 - Socket.io-client (realtime)
-- PWA via `vite-plugin-pwa`
-- Fontes: Newsreader (serifada, títulos) + Manrope (sans, corpo)
-- Paleta: carvão/terracota (`--terra: #B5652F`, fundo lateral escuro `#201F1D`; verde/oliva reservado só para indicar status positivo, nunca decorativo)
+- PWA via `vite-plugin-pwa` (`registerType: 'autoUpdate'`)
+- Sem Tailwind — estilos inline via objeto JS gerado de string CSS (`src/lib/css.ts`)
+- Build servido por nginx (`Dockerfile` na raiz + `nginx.conf`)
 
-**Back-end** (`server/`):
-- Node + Express + TypeScript (`tsx` em dev)
-- Drizzle ORM + driver `postgres` (postgres-js)
-- Socket.io (realtime, rooms por imobiliária)
-- JWT (`jsonwebtoken`) + `bcryptjs` para senha
-- Validação de payload com `zod`
-- Postgres 16 local via Docker Compose (`docker-compose.yml` na raiz), porta **55432** (não 5432, para não colidir com outro projeto local que já usa a porta padrão)
+**Backend** (`server/`):
+- Node 22 + Express + TypeScript (`tsx` em dev, `tsc` build → `dist/`)
+- Drizzle ORM + driver `postgres` (postgres-js) + PostgreSQL 16
+- Socket.io (rooms por imobiliária, handshake por JWT)
+- JWT (`jsonwebtoken`) + `bcryptjs`; validação com `zod`
+- MinIO (S3-compatible) para imagens/vídeo/áudio/PDF — Postgres guarda só a URL
+- `ffmpeg` no container (converte áudio do navegador webm/opus → ogg/opus pro WhatsApp)
 
-**Por que não Supabase:** decisão explícita do dono — backend próprio, banco próprio, sem depender de BaaS de terceiro.
+**WhatsApp:** [WAHA](https://waha.devlike.pro/) (`devlikeapro/waha`, engine **GOWS**). Opcional.
 
-## Estrutura de pastas
+## 3. Estrutura de pastas
 
 ```
-nova-crm/
-├── src/                    # front-end
-│   ├── pages/              # uma página por rota (ver tabela de rotas abaixo)
-│   ├── components/         # Sidebar, Topbar, AppShell, MobileTabs, RequireAuth, etc.
-│   ├── store/appStore.ts   # Zustand — estado global único
-│   └── lib/                # css.ts, format.ts, data.ts (mocks restantes), selectors.ts,
-│                            # nav.ts, schedule.ts, api.ts, socket.ts, remoteLeads.ts
-├── server/                 # back-end
-│   └── src/
-│       ├── db/             # schema.ts (Drizzle), client.ts, seed.ts, migrate.ts
-│       ├── routes/         # auth, leads, colunas, filas, perfis
-│       └── middleware/     # auth.ts (requireAuth, requireRole)
-├── docker-compose.yml       # Postgres local
-└── docs/DOCUMENTACAO_CRM.md # este arquivo
+crm-formulario-meta/
+├── src/                       # frontend
+│   ├── pages/                 # uma página por rota (+ pages/site/SitePublico.tsx = site público)
+│   ├── components/            # Sidebar, Topbar, AppShell, LeadModal, AlertModal, CardTagBar, ...
+│   ├── store/appStore.ts      # Zustand — TODO o estado + todas as chamadas de API
+│   └── lib/                   # api.ts, socket.ts, css.ts, format.ts, nav.ts, schedule.ts,
+│                              # data.ts (tipos + mocks restantes), remoteLeads.ts, selectors.ts
+├── server/
+│   ├── src/
+│   │   ├── db/                # schema.ts (Drizzle), client.ts, migrate.ts, seed.ts
+│   │   ├── routes/            # um router por recurso (ver tabela §6)
+│   │   ├── lib/               # roleta.ts, followup.ts, schedule.ts, waha.ts, bootstrapPlataforma.ts, ...
+│   │   └── middleware/auth.ts # requireAuth, requireRole
+│   ├── drizzle/               # migrações SQL geradas (0000 … 0023)
+│   └── Dockerfile             # roda `npm run db:migrate && node dist/index.js`
+├── docker-compose.yml         # Postgres (55433) + MinIO (9100/9101) para dev
+├── Dockerfile                 # build do frontend → nginx
+└── docs/
 ```
 
-## Como rodar localmente
+## 4. Multi-tenancy — como o isolamento funciona
 
-```bash
-# 1. Subir o Postgres
-docker compose up -d
+- **Toda tabela tem `imobiliaria_id`.** Toda query nas rotas é escopada por
+  `req.auth!.imobiliariaId`, que vem do JWT — nunca de um parâmetro do cliente.
+- **JWT de tenant:** `{ sub, imobiliariaId, role, nome }`, assinado por `signToken`. Middleware
+  `requireAuth` (`server/src/middleware/auth.ts`) valida o token **e** o status da imobiliária
+  (imobiliária suspensa → 403). `requireRole('dono','gerente')` restringe rotas administrativas.
+- **JWT da plataforma** é separado (`/api/plataforma/*`), para o admin do SaaS.
+- **Realtime:** cada socket entra na room `imobiliaria:<id>`; eventos só chegam a quem é do mesmo tenant.
+- **Colunas do Kanban:** o backend usa `colunaId` (UUID por imobiliária); o frontend usa um slug fixo
+  de 7 valores. `src/lib/remoteLeads.ts` faz a ponte casando pelo **título** da coluna
+  (`colIdToSlug` / `slugToColunaId`). O seed cria as colunas com os títulos que o front espera.
 
-# 2. Backend
-cd server
-cp .env.example .env   # ajustar se preciso
-npm install
-npm run db:migrate
-npm run db:seed        # cria imobiliária, perfis de teste e 10 leads de demonstração
-npm run dev            # http://localhost:3001
+## 5. Papéis e controle de acesso
 
-# 3. Frontend (outro terminal, na raiz)
-npm install
-npm run dev             # http://localhost:5173
-```
+| Recurso | Dono | Gerente | Corretor |
+|---|---|---|---|
+| Ver leads | todos | todos | só os seus |
+| Criar/mover lead | ✅ | ✅ | ✅ (os seus) |
+| **Excluir lead** | ✅ | ✅ | ❌ |
+| Atribuir lead a corretor (`PATCH /leads/:id {corretorId}`) | ✅ | ✅ | ❌ |
+| Equipe (CRUD de perfis) | ✅ (cria gerente/corretor) | ✅ (só corretor) | ❌ |
+| Roletas (criar/editar/membros) | ✅ | ✅ | ❌ |
+| Imóveis / Links Úteis / Treinamentos | CRUD | CRUD | só leitura |
+| Templates de mensagem | próprios | próprios | próprios (ninguém vê os do outro) |
+| Config (horário, limite de rebatidas) | ✅ | ✅ | ❌ |
+| Site público (editar) | ✅ | ✅ | ❌ |
+| Follow-up | cria os próprios fluxos | idem | cria os próprios fluxos |
+| Menu `mgrOnly` (Equipe, Ajustes, Site, Roleta…) | visível | visível | escondido |
 
-Variáveis de ambiente do backend (`server/.env`):
-```
-DATABASE_URL=postgres://nova:nova_dev_local@localhost:55432/nova_app
-JWT_SECRET=troque-este-segredo-em-producao
-JWT_EXPIRES_IN=8h
-PORT=3001
-CORS_ORIGIN=http://localhost:5173
-```
+## 6. Rotas do backend (`server/src/index.ts`)
 
-Front-end lê `VITE_API_URL` (default `http://localhost:3001`) via `src/lib/api.ts`.
-
-## Contas de teste (criadas pelo seed)
-
-| Papel | Email | Senha |
+| Prefixo | Arquivo | Resumo |
 |---|---|---|
-| Dono | `hinodeimoveis.crm@gmail.com` | `280896Ab@` |
-| Gerente | (ver `server/src/db/seed.ts`) | `123456` |
-| Corretor (ex: Diego) | (ver `server/src/db/seed.ts`) | `123456` |
+| `/api/auth` | `auth.ts` | login, logout, hidratação de sessão |
+| `/api/leads` | `leads.ts` | CRUD + mover no funil, aceitar/recusar, rebatidas (puxar), descarte |
+| `/api/colunas` | `colunas.ts` | colunas do Kanban da imobiliária |
+| `/api/filas` | `filas.ts` | disponibilidade (plantão), distribuir, embaralhar, log da roleta |
+| `/api/roletas` | `roletas.ts` | CRUD de roletas + membros + canais/finalidade/número |
+| `/api/perfis` | `perfis.ts` | equipe: convidar, editar, bloquear, excluir, roletas do corretor |
+| `/api/mensagens` | `mensagens.ts` | histórico e envio de mensagens de um lead |
+| `/api/whatsapp` | `whatsapp.ts` | sessões WAHA (conectar/QR/rótulo), webhook de mensagens, despacho |
+| `/api/tarefas` | `tarefas.ts` | tarefas/agenda; varredura de vencidas a cada 60s |
+| `/api/followup` | `followup.ts` | fluxos de follow-up, passos, execuções ("Em andamento") |
+| `/api/sites` | `sites.ts` | site público: `GET /publico/:slug`, `POST /publico/:slug/contato`, editor |
+| `/api/captacao` | `captacao.ts` | `POST /facebook` e `POST /site` — entrada de lead sem JWT (segredo compartilhado) |
+| `/api/integracoes` | `integracoes.ts` | conexões Facebook por imobiliária (token cifrado); `GET /facebook/ativas` p/ automação |
+| `/api/imoveis` | `imoveis.ts` | catálogo (CRUD) |
+| `/api/tags` | `tags.ts` | etiquetas (nome + cor) |
+| `/api/templates` | `templates.ts` | templates de mensagem pessoais |
+| `/api/links-uteis` · `/api/treinamentos` | idem | bibliotecas da imobiliária |
+| `/api/notificacoes` | `notificacoes.ts` | notificações pessoais |
+| `/api/config` | `config.ts` | horário de atendimento, `limiteRebatidasDia` |
+| `/api/uploads` | `uploads.ts` | `POST` multipart → `{ url, nome }` (MinIO) |
+| `/api/push` | `push.ts` | Web Push (VAPID) |
+| `/api/plataforma` | `plataforma.ts` | painel do dono do SaaS (imobiliárias, cobrança) |
+| `/health` | — | `{ "ok": true }` |
 
-O Dono tem hash de senha próprio e diferente dos demais contas (todas as outras usam `123456` para facilitar demonstração).
+## 7. Regras de negócio
 
-## Regras de negócio (copiadas do CRM em produção)
+### 7.1 Roleta / distribuição (`server/src/lib/roleta.ts`)
 
-### Roleta / horário comercial (`src/lib/schedule.ts` + `server/src/lib/schedule.ts`)
-- **Domingo:** roleta nunca distribui leads, corretor não consegue entrar "No Plantão".
-- **Corte de expediente:** 18:20 na maioria dos dias, **19:20 na quinta**, **15:20 no sábado**.
-- **Sem religamento automático de manhã** — cada corretor precisa ligar "No Plantão" manualmente todo dia; ninguém começa o dia já disponível (nem após login).
-- Ao tentar ligar "No Plantão" fora do horário ou estando bloqueado, o toggle é recusado com um toast — não liga silenciosamente.
-- `AppShell` roda essa checagem a cada 60s (`enforceHorarioComercial`), desligando automaticamente quem estava online quando o expediente encerra (e agora também desliga de verdade no servidor, não só na tela).
-- **A regra é validada nos dois lados agora**: o front recusa na hora (UX instantânea) e o backend recusa de novo em `PATCH /api/filas/disponibilidade` (403 se fora do horário ou bloqueado) — importante porque sem essa checagem no servidor dava pra ligar o plantão fora do horário chamando a API direto, ignorando o front.
+- **Múltiplas roletas por imobiliária.** Cada roleta tem: `ativa`, `ordem`, `padrao` (fallback),
+  `canais` (`[]` = todos), `finalidade` (`venda` / `locacao` / `ambos`), `sessaoWhatsappId` (número).
+- **`escolherRoleta(imobId, { canal, finalidade, sessaoWhatsappId })`**: entre as roletas ativas,
+  filtra por número (tem que bater), canal e finalidade; pontua a especificidade (número 4 / canal 2 /
+  finalidade 1); a de maior pontuação vence, empate pela `ordem`. Nada casa → roleta `padrao`.
+- **`distribuirLead`**: escolhe a roleta, pega o próximo membro **daquela roleta** que está
+  `emPlantao=true`, grava em `distribuicao_log` (origem `roleta` + `roletaId`).
+- **`POST /api/leads` NÃO distribui automaticamente** — por decisão: o gerente decide. Distribuição
+  automática só ocorre via `POST /api/filas/distribuir` (leads pendentes) ou quando um corretor entra
+  em plantão. `PATCH /api/leads/:id {corretorId}` é atribuição manual (permitida a dono/gerente).
+- **Venda × locação** é detectado pelo número de WhatsApp que recebeu + campo do formulário
+  (`normalizarFinalidade`: `alug|loca|rent`→locação, `compr|venda|sale|buy`→venda).
 
-### Controle de acesso por papel
-- Três papéis: `dono`, `gerente`, `corretor` (enum no Postgres, `perfis.role`).
-- Dono e Gerente enxergam todos os leads da imobiliária; Corretor só os seus.
-- Itens de menu com `mgrOnly: true` (Equipe, Ajustes) ficam escondidos para Corretor.
-- Bolsão de Leads: só Dono/Gerente veem as abas "Leads Novos", "Rebatidas Geral", "Leads Descartados" e "Lead Descadastrar"; Corretor só vê "Rebatidas" e "Histórico da Roleta".
-- Isolamento testado manualmente: login como Dono/Gerente mostra os 10 leads seed; login como corretor (ex: Diego) mostra só os leads atribuídos a ele.
+### 7.2 Plantão / horário comercial (`src/lib/schedule.ts` + `server/src/lib/schedule.ts`)
 
-## Rotas do front-end (`src/lib/nav.ts`)
+- Cada corretor liga "No Plantão" manualmente todo dia — ninguém começa o dia disponível.
+- Janela definida pela imobiliária (dias + horário). Fora da janela ou bloqueado, o toggle é recusado
+  no front (toast) **e** no backend (`PATCH /api/filas/disponibilidade` → 403).
+- O `AppShell` reavalia a cada 60s e desliga quem estava online quando o expediente encerra.
+- Cor do botão de plantão: **verde** (`--plantao`). O resto do CRM é **azul** (`--olive`, casa com a
+  logo). Verde só aparece no toggle de plantão.
 
-**Menu:** Dashboard, Conversas, Leads (Kanban), Clientes, Imóveis, Tarefas, Roleta, Rebatidas (Bolsão), Análise de Crédito.
-**Ferramentas:** Equipe*, Relatórios, Templates, Follow-ups, Integrações, Links Úteis, Treinamentos, Manual do CRM, Ajustes*.
-(* = só Dono/Gerente)
+### 7.3 Fila de leads pendentes (aceite/recusa)
 
-## O que já fala com o backend real (Postgres) vs. o que ainda é mock
+Quando um lead cai para um corretor (socket `lead:updated` em que o lead passou a ser dele), ele entra
+numa **fila** (`leadsPendentes[]` no `appStore`). O `AlertModal` mostra **um lead por vez** com
+contador regressivo e "+N na fila"; aceitar abre o chat, recusar (ou estourar o tempo) devolve o lead
+para a roleta (`POST /api/leads/:id/recusar`). Isso substituiu o modelo antigo de um alerta só, que se
+perdia quando vários leads chegavam juntos.
 
-| Módulo | Status |
-|---|---|
-| Autenticação (login/logout/hidratação de sessão) | ✅ Real |
-| Leads / Kanban (listar, criar, mover entre colunas) | ✅ Real, com realtime via Socket.io |
-| Colunas do kanban | ✅ Real (lidas do banco) |
-| Perfis / corretores (nome, papel, disponibilidade) | ✅ Real (leitura) |
-| Fila de atendimento / disponibilidade | ✅ Real (ativar/desativar, embaralhar ordem, validação de horário/bloqueio no servidor) |
-| Busca global (Topbar) e busca do Kanban | ✅ Real (filtra os leads já carregados do backend) |
-| Equipe (CRUD de corretor/gerente) | ✅ Real (convidar, editar, bloquear/desbloquear, excluir) |
-| Chat/Conversas (mensagens WhatsApp) | ✅ Real (persistência + anexos + áudio — envio ainda só dentro do CRM, ver nota abaixo) |
-| Follow-up (construtor visual de blocos) | ❌ Mock (visual completo, sem persistência nem envio real — ver seção própria abaixo) |
-| Templates de mensagem | ✅ Real (CRUD completo, pessoal por corretor) |
-| Imóveis (catálogo) | ✅ Real (CRUD completo — criar/editar/excluir só Dono/Gerente, todos veem) |
-| Links Úteis | ✅ Real (CRUD completo — criar/editar/excluir só Dono/Gerente, todos veem) |
-| Treinamentos | ✅ Real (CRUD completo + vídeo real via upload ou link do YouTube) |
-| Notificações | ✅ Real (pessoal por usuário — listar, marcar uma/todas como lidas) |
-| Webhook WAHA (WhatsApp real) | ❌ Não existe ainda |
-| "Remover Acesso (Seguro)" da Equipe | ❌ Ainda só toast — ver nota abaixo |
+### 7.4 Bolsão / rebatidas (`server/src/routes/leads.ts` + `config.ts`)
 
-### Como o mapeamento de coluna funciona
-O backend guarda `colunaId` como UUID dinâmico; o front-end inteiro (herdado do protótipo) espera um slug fixo de 7 valores (`ColId`). Em vez de reescrever todo o front, `src/lib/remoteLeads.ts` faz a ponte casando pelo **título** da coluna (o seed cria colunas com os mesmos títulos que `COLS` no front já usava) — `colIdToSlug` / `slugToColunaId`.
+- Lead descartado vai para a coluna **Rebatida** com `corretorId: null` e o **motivo** gravado
+  (`PATCH /api/leads/:id {motivoDescarte}`).
+- **"Puxar rebatida":** o corretor puxa uma rebatida (a mais antiga) para a carteira. Bloqueado (409)
+  se ele tem **qualquer tarefa atrasada** ou já atingiu o **limite diário** (`limiteRebatidasDia`,
+  configurável por dono/gerente em Ajustes, default 5). Registrado em `distribuicao_log` origem
+  `rebatida-puxada`.
 
-## Equipe (gestão de corretores/gerentes)
+### 7.5 Follow-up de WhatsApp (`server/src/lib/followup.ts` + `routes/followup.ts`)
 
-Rotas em `server/src/routes/perfis.ts` (`perfisRouter(io)`):
-- `POST /api/perfis` — convida um membro novo (nome/email/telefone/cargo). Senha padrão `123456`. Só o Dono pode criar outro Gerente; Gerente só cria Corretor. Corretor criado já entra automaticamente na fila da roleta.
-- `PATCH /api/perfis/:id` — edita nome/telefone (Gerente só edita linhas de Corretor; Dono edita qualquer um).
-- `PATCH /api/perfis/:id/bloquear` — bloqueia/desbloqueia (reaproveita a coluna `perfis.bloqueado`, que já impede login desde antes). Bloquear tira automaticamente da roleta.
-- `DELETE /api/perfis/:id` — exclui de verdade (só Dono, não pode excluir a si mesmo). Leads do corretor excluído ficam sem corretor atribuído (FK `set null`), a entrada na fila da roleta some junto (FK `cascade`).
-- Todas emitem eventos de socket (`perfil:criado`/`perfil:atualizado`/`perfil:removido`) para sincronizar outras sessões logadas em tempo real.
+- Cada corretor cria **um ou mais fluxos** (réguas). Cada passo tem: `tipo` (texto/áudio/imagem/pdf),
+  conteúdo/anexo, **atraso livre** (número + minutos/horas/dias — não são presets), e um
+  `cadenciaLabel` opcional que atualiza `leads.cadencia`.
+- **Janela de envio:** horário permitido (`janelaInicioMin`/`janelaFimMin`) + dias da semana em que
+  **não** pode enviar (`janelaDias`). Fuso São Paulo (Brasil sem horário de verão, offset fixo −3).
+- Um fluxo pode ter `disparaEmLeadNovo` (só um por corretor) — dispara quando o lead é atribuído.
+- Antes da 1ª mensagem automática, checa se o número existe no WhatsApp
+  (`GET /api/contacts/check-exists` no WAHA). Número inválido interrompe a execução.
+- **Pausa quando o lead responde** (`pausarPorResposta`, chamado pelo webhook em `!fromMe`).
+- `varrerFollowups(io)` roda a cada 60s no `index.ts` (junto com a varredura de tarefas vencidas).
+- A página Follow-up tem duas abas: **Meus fluxos** (editor linear de passos, com upload de anexo) e
+  **Em andamento** (execuções ativas — não é coluna do Kanban).
+- Ativar/desativar o follow-up de um lead é feito no card/ficha do lead.
 
-Na tela (`src/pages/Equipe.tsx`), tem alternância **Cards / Lista** (mesmo padrão visual do toggle Kanban/Lista da página de Leads). "Leads" mostrado no card é contagem real; "Conversão"/"Resposta" mostram "—" porque essas métricas ainda não existem no schema — propositalmente não fabricamos número falso para uma conta real.
+### 7.6 Imóvel de interesse
 
-**Gap conhecido:** o botão "Remover Acesso (Seguro)" continua só mock (toast, sem chamar o backend). O schema só tem um campo `bloqueado`, e criar um segundo estado ("revogado") redundante com o bloqueio pareceu forçado sem confirmar a semântica exata que a produção usa para essa ação — fica pendente até essa decisão ser tomada.
+Quando um lead escolhe um imóvel no site público **ou** vem de uma campanha com `imovelId`, o backend
+**denormaliza** título, valor e foto do imóvel para o lead (`leads.imovelInteresseId` +
+`imovelTitulo`/`valor`/`imovelSub`/`fotoUrl`). A ficha do lead e a página Clientes mostram os dados
+reais do imóvel (antes aparecia "R$ 0").
 
-## Templates de Mensagem
+## 8. Site público por imobiliária (`server/src/routes/sites.ts` + `src/pages/site/SitePublico.tsx`)
 
-CRUD real e simples (`server/src/routes/templates.ts`, tabela `templates_mensagem` já existia no schema desde o início — só faltava a rota). Cada template pertence a um corretor (`criadoPor`) e só ele o vê/edita/exclui — nem Dono nem Gerente enxergam os templates dos outros, igual à produção. Sem realtime (não precisa — dado pessoal, sem necessidade de sincronizar entre sessões).
+- Cada imobiliária tem um `slug` e um `config` (jsonb): nome de exibição, logo, cor primária, hero,
+  seção "sobre", destaques, depoimentos, textos de contato, rodapé.
+- Rota pública: `visitaia.com.br/s/:slug`. Lista os imóveis com `publicarNoSite = true`.
+- Formulário de contato → `POST /api/sites/publico/:slug/contato` → cria lead canal `Site`, com
+  `finalidade` (Comprar/Alugar) e `imovelId` quando o visitante clicou num imóvel.
+- **CORS:** `index.ts` roteia `/api/captacao/site` e `/api/sites/publico` para `corsPublico`
+  (origin `*`, métodos GET/POST/OPTIONS); o resto usa `corsRestrito`.
+- Responsivo mobile via detecção JS (`window.innerWidth` + listener), não só media query — o cache do
+  PWA servia CSS velho.
 
-## Imóveis (catálogo)
+## 9. WhatsApp / WAHA (`server/src/routes/whatsapp.ts` + `lib/waha.ts`)
 
-CRUD real (`server/src/routes/imoveis.ts`, tabela `imoveis` já existia no schema desde o início). Todos os autenticados veem o catálogo (corretor precisa consultar pra falar com lead); **criar/editar/excluir é restrito a Dono/Gerente** (mesma régua da Equipe). Seed cria as 6 propriedades de demonstração, cada uma já com fotos de exemplo.
+- **Vários números por imobiliária.** `POST /api/whatsapp/sessoes` cria uma sessão nova
+  (`imob-<id>` para a 1ª, `imob-<id>-<base36>` para as demais) com um `rotulo`; passar `{id}` reconecta.
+  `PATCH /sessoes/:id {rotulo}` renomeia.
+- Webhook: `@lid` → número real em `payload._data.Info.SenderAlt`. O webhook carimba
+  `lead.sessaoWhatsappId` na criação e faz backfill.
+- Mensagens podem ser filtradas por número no CRM.
+- Sem `WAHA_URL`/`WAHA_API_KEY` configurados, o modo "número central" fica só visual.
 
-**Campos do anúncio:** tipo, finalidade (Venda/Aluguel), título, endereço/cidade/UF, preço, área, quartos/suítes/banheiros/vagas, amenidades, descrição, fotos/vídeo (ver seção de upload), e mais:
-- **Situação**: "Pronto para morar" / "Em obras" / "Lançamento" — as duas últimas ganham um campo de **previsão de entrega** (texto livre, ex: "Dezembro/2027"), que só aparece no formulário quando a situação não é "Pronto".
-- **Aceita financiamento** (sim/não).
-- **Condomínio** (R$/mês) e **IPTU** (R$/ano), opcionais.
+## 10. Captação de leads
 
-## Links Úteis e Treinamentos
+- **Site:** `POST /api/captacao/site` (segredo `CAPTACAO_SECRET`).
+- **Facebook:** `POST /api/captacao/facebook` — aceita `imobiliariaId` no corpo (multi-tenant) +
+  `imovelId`, `mensagem`, `interesse`, `finalidade`. `criarLead` é compartilhada e faz a denormalização
+  do imóvel.
+- **Integrações Facebook:** cada imobiliária cola na tela de Integrações o token do Graph API + page id
+  + form id; fica cifrado em repouso (AES-256-GCM, `INTEGRACOES_ENC_KEY`). A automação n8n lê
+  `GET /api/integracoes/facebook/ativas` (segredo `INTEGRACOES_SECRET`) e faz o polling de todas as
+  imobiliárias num workflow só. Detalhe e pendências em [`../VISAO_MULTI_TENANT.md`](../VISAO_MULTI_TENANT.md).
 
-CRUD real (`server/src/routes/linksUteis.ts` e `server/src/routes/treinamentos.ts`) — mesma régua de sempre: todos veem, só Dono/Gerente cadastram/editam/excluem. Links agrupados por categoria na tela. Treinamentos tem player de vídeo próprio (ver seção de upload abaixo) com estado "sem vídeo ainda" quando não há nada cadastrado.
+## 11. Upload de arquivos (MinIO)
 
-## Notificações
+- Binário nunca vai pro Postgres — só a URL. `POST /api/uploads` (multipart, campo `file`, imagem/
+  vídeo/áudio/PDF) → `{ url, nome }`. Bucket criado no boot (`ensureBucket`).
+- Em produção é só apontar as variáveis `MINIO_*` para o MinIO real — nenhum código muda.
 
-Pessoais por usuário (`server/src/routes/notificacoes.ts`, tabela `notificacoes` já existia no schema) — cada um só vê e marca como lida as próprias, nem o Dono vê as dos outros. O sino do Topbar mostra um dropdown real (não decorativo): lista as notificações, badge só aparece com contagem de não-lidas de verdade, clicar marca como lida, tem "Marcar todas como lidas". **Ainda não existe nada no sistema que dispare notificação automaticamente** (ex: avisar quando um lead é atribuído) — hoje só existe o que o seed cria; a rota de criar fica pra quando algum evento real for cabeado a isso.
+## 12. Realtime (Socket.io)
 
-## Conversas (chat WhatsApp)
+Room por imobiliária. Eventos principais: `lead:created`, `lead:updated`, `roletas:mudou`,
+`config:rebatidas`, `tarefa:mudou`, `tarefa:venceu`, `followup:mudou`, `mensagem:created`,
+`perfil:criado`/`atualizado`/`removido`. O front faz upsert local sem recarregar.
 
-Persistência real (`server/src/routes/mensagens.ts`, tabela `mensagens_whatsapp` — já existia no schema desde o início): `GET /api/mensagens/:leadId` (histórico do lead, checando que quem pede pode ver aquele lead — mesma régua de `leads.ts`: corretor só os próprios) e `POST /api/mensagens/:leadId` (grava e emite `mensagem:created` via Socket.io pra sincronizar outras sessões logadas em tempo real).
+## 13. Painel Plataforma (`/plataforma`)
 
-- **Não existe envio real pro WhatsApp ainda** — a mensagem só fica salva no Postgres do CRM Hinode. Integrar de verdade com o WAHA (`waha-oka.inoovaweb.cloud`, mesma instância de produção do CRM OKA) é trabalho futuro deliberadamente adiado: exige uma sessão pareada por QR code com um número real (ação manual) e cuidado extra por ser a mesma instância que atende corretores reais hoje.
-- **Envio otimista + reconciliação por id**: a bolha aparece na hora com um id temporário; quando o POST responde, troca pelo id real — a menos que o evento de socket já tenha entregue a mesma mensagem primeiro (evita duplicata).
-- **Anexos reaproveitam o mesmo pipeline de upload do MinIO** (ver seção abaixo): imagem, vídeo, documento e **áudio** (`src/components/AnexoMensagem.tsx` escolhe o elemento certo — `<img>`, `<video controls>`, link de download, ou `<audio controls>` — conforme `anexoTipo`).
-- **Gravação de áudio em tempo real** (`src/components/AudioRecordButton.tsx`, via `MediaRecorder`/`getUserMedia`, com indicador pulsante + timer) e **seletor de emoji** (`src/components/EmojiPicker.tsx`, popover simples sem lib externa) na barra de composição, tanto em `Conversas.tsx` quanto na aba de chat do `LeadModal.tsx`.
-- **Não existe sinal de "entregue"/"lido" (check marks do WhatsApp)** — decisão explícita do dono de não fabricar esse dado até a integração real com WAHA existir (aí sim dá pra usar o webhook de ACK do WAHA pra ter esse status de verdade).
+Para o dono do SaaS. `bootstrapAdminPlataforma()` cria o admin inicial no boot a partir de
+`PLATFORM_ADMIN_EMAIL` / `PLATFORM_ADMIN_PASSWORD` se a tabela estiver vazia. `varrerInadimplencia()`
+roda no boot e de hora em hora (suspende imobiliárias em atraso → login delas passa a dar 403).
 
-## Upload de arquivos (MinIO)
+## 14. Migrações (Drizzle)
 
-**Decisão de arquitetura:** imagens e vídeos ficam no MinIO (S3-compatible), o Postgres só guarda a URL — nunca o binário. Mesmo padrão usado em outros projetos do dono em produção.
+- Alterou `server/src/db/schema.ts` → `cd server && npm run db:generate` gera o SQL em
+  `server/drizzle/` → `npm run db:migrate` aplica.
+- Em produção o `CMD` do container roda `npm run db:migrate` **antes** de subir o servidor.
+- Migração hand-editada: `0021_zippy_dakota_north.sql` tem INSERT/UPDATE de dados (cria a roleta
+  "Geral" para imobiliárias existentes e liga os membros) antes do índice único.
+- Migrações relevantes recentes: 0019 (reforma do follow-up), 0020 (`sites` + `imoveis.publicarNoSite`),
+  0021 (roletas + finalidade), 0022 (`leads.imovelInteresseId`), 0023 (`imobiliarias.limiteRebatidasDia`).
 
-- **Local (dev)**: serviço `minio` no `docker-compose.yml` da raiz, portas `59000` (API) / `59001` (console) — fora do padrão 9000/9001 pra não colidir com outro projeto local. Bucket `hinode-imoveis`, criado automaticamente com leitura pública no boot do backend.
-- **Endpoint genérico**: `POST /api/uploads` (multipart, campo `file`, até 30MB, imagem/vídeo/áudio/PDF) devolve `{url, nome}`. Qualquer usuário autenticado pode subir (não é uma ação de gestão).
-- **Componente de front**: `src/components/FileUpload.tsx` — usado no anexo de Templates, nas fotos/vídeo de Imóveis (`imagens: string[]` + `videoUrl`) e no vídeo de Treinamentos. Nas Conversas, o upload é acionado direto pelo botão de anexo/gravação de áudio da barra de composição (`src/lib/upload.ts`), sem passar por esse componente.
-- **Treinamentos aceita vídeo de dois jeitos**: upload real (vira URL do MinIO) **ou** colar um link do YouTube — o player (`src/pages/Treinamentos.tsx`) detecta o padrão da URL e decide entre `<iframe>` de embed do YouTube ou `<video>` nativo pro arquivo.
-- **Em produção**: só trocar as variáveis `MINIO_*` do backend pra apontar pro MinIO real (ex: `storage.inoovaweb.com.br`) — nenhum código muda.
+## 15. Dados de demonstração (seed) e conta vitrine
 
-## Follow-up (construtor visual de blocos)
+- `npm run db:seed` é **destrutivo** (limpa as tabelas). Cria a imobiliária "Hinode Imóveis", 7 perfis
+  (dono `hinodeimoveis.crm@gmail.com` / `280896Ab@`; demais `123456`), 7 colunas, roleta "Geral",
+  10 leads, 6 imóveis, links úteis. **Nunca rodar em produção com dado real.**
+- **Conta vitrine em produção:** imobiliária "Realiza Vale" (`inoovawebpro@gmail.com`) — usada para
+  demonstrar o sistema para outras imobiliárias, populada via API com imóveis, corretores, leads,
+  tarefas, conversas, roletas, follow-ups, descartes, templates, links úteis e treinamentos.
 
-A aba Follow-up (`src/pages/Followup.tsx`) é um construtor visual estilo **ManyChat/Typebot**: canvas livre com nós conectados por linha (biblioteca [`@xyflow/react`](https://reactflow.dev/), a mesma categoria de motor usada no Flow Builder do projeto Zaplo). Cada corretor monta os próprios fluxos; um fluxo dispara (conceitualmente, ainda não de verdade) quando um lead é atribuído a ele.
+## 16. Gotchas (para não repetir)
 
-- **Blocos disponíveis:** Texto, Áudio, Imagem, PDF, Espera — **sem vídeo** (decisão explícita).
-- **Múltiplos fluxos por corretor**, cada um com um gatilho nomeado (`GATILHOS_FLOW`: "Lead atribuído (novo)", "Lead rebatido", "Pós-visita agendada", "Análise de crédito parada") e um interruptor ativo/inativo.
-- **Paleta de blocos na coluna esquerda** (abaixo da lista de fluxos), com drag-and-drop de verdade: arrastar um bloco solta ele exatamente onde o mouse largou dentro do canvas (`screenToFlowPosition` do hook `useReactFlow`); clique simples também funciona como atalho, adicionando no fim do fluxo.
-- **Efeito corrente ao arrastar (estilo Typebot):** mover um bloco desloca ele e todos os blocos seguintes na sequência pelo mesmo tanto. Linhas de conexão em curva suave (bezier animado), não em cotovelo reto.
-- Canvas ocupa a largura toda, altura generosa (`clamp(640px, calc(100vh-260px), 920px)`); o painel de edição do bloco selecionado só aparece como um drawer lateral quando há um bloco clicado, pra não roubar espaço do canvas o resto do tempo.
-- **Estado 100% mock em `appStore.ts`** (`flows: FlowDef[]` + ações `createFlow/addBloco/updateBloco/...`) — **propositalmente separado** do `steps`/`FollowupStep` antigo, que o `LeadModal` ainda usa pra mostrar a sequência ativa de follow-up de um lead específico (são conceitos diferentes: um é o construtor/template, o outro é a execução mockada por lead). Toda ação aplica **instantaneamente** no estado (sem botão "salvar"), mas é só memória do navegador — recarregar a página volta pro seed de demonstração.
-- **Nada aqui persiste ou envia mensagem de verdade.** Quando for a hora de tirar do mock: schema novo no Postgres pra fluxos/blocos, uma engine que dispare a execução (evento de atribuição de lead), e o envio real dos blocos reaproveitando a integração WAHA que já existe pro CRM OKA em produção.
+- **`npm run build` de verdade** pega erros que `tsc --noEmit` deixa passar (project references).
+- **PWA `autoUpdate`:** depois de um deploy, o usuário precisa dar hard-refresh para pegar o JS novo.
+  Preferir responsividade em JS a depender de media query (o cache serve CSS velho).
+- **Dev local:** processos `tsx watch` órfãos de sessões antigas continuam rodando as varreduras de
+  60s (follow-up/tarefas) e podem "roubar" execuções pendentes — matar todos antes de testar sweeps.
+- **`VITE_API_URL=""`** (path relativo) exige `??`, não `||` (string vazia é falsy).
+- **Nome de serviço Docker com `_`** quebra o SDK S3 do MinIO ("invalid hostname") — usar hífen.
+- **Índice em toda coluna de FK** desde a 1ª migração (Postgres não indexa FK sozinho).
 
-**Gotchas técnicos do React Flow (`@xyflow/react`), pra não recair nos mesmos bugs:**
-- Sempre implementar `onNodesChange` com `applyNodeChanges` de verdade sobre um array de nós em estado — só usar `onNodeDrag` isolado (sem isso) faz a lib considerar o nó "não inicializado" e o arrasto quebra/salta.
-- A prop booleana `fitView` só roda uma vez, no primeiríssimo render — não serve para canvas cujos nós são populados depois do mount (via efeito assíncrono). Nesse caso, chamar `useReactFlow().fitView()` manualmente num efeito que dispara quando os nós passam a existir.
-- `useReactFlow()` só funciona em um componente **descendente** de `<ReactFlowProvider>` — nunca no mesmo componente que renderiza o Provider (por isso o canvas é um componente `FlowCanvas` à parte).
-- O CSS padrão da lib (`@xyflow/react/dist/style.css`) é sempre claro. Sobrescrever `.react-flow__controls-button { background: ... }` direto **não é suficiente** — o React Flow v12 lê variáveis CSS próprias com fallback (`--xy-controls-button-background-color` e afins), e por ordem de import a regra da lib pode vencer um simples override de mesma especificidade. O jeito que funciona de verdade: setar essas variáveis `--xy-controls-*` no `:root` de `src/index.css`, apontando pras variáveis de tema do app.
-- A coluna esquerda do Follow-up (corretor/fluxos/paleta de blocos) é `position:'sticky'` com rolagem própria, pra continuar acessível mesmo com a página rolada.
+## 17. Convenção
 
-## Captação de leads via Facebook (n8n)
-
-Réplica do fluxo real de produção do CRM OKA ("FACEBOOK FORM - CAPTAÇÃO LEADS", n8n.inoovaweb.cloud) — **sem tocar no workflow original**, já que o Facebook só permite uma URL de callback por App/assinatura de evento (não dá pra apontar o mesmo webhook pra dois sistemas diferentes sem criar um segundo App).
-
-- **Endpoint novo no backend**: `POST /api/captacao/facebook` (`server/src/routes/captacao.ts`) — **não usa `requireAuth`** (uma automação não mantém sessão de usuário); protegido por um segredo compartilhado no header `x-captacao-secret`, comparado contra `CAPTACAO_SECRET` (env). Cria o lead direto na coluna "Lead Novo", canal `Facebook`.
-- **Workflow n8n dedicado** (`HINODE - FACEBOOK FORM - CAPTAÇÃO LEADS (CRM Hinode)`, mesma instância n8n.inoovaweb.cloud): em vez de depender do mesmo webhook da produção, esse workflow **busca leads novos periodicamente via Facebook Graph API** (Schedule Trigger a cada 5 min → lista formulários ativos da página → busca leads de cada formulário criados depois do último polling → monta o payload → `POST /api/captacao/facebook`). Reaproveita a mesma credencial Graph API já cadastrada (`CRM HINODE PERNAMENTE`) e a mesma página do Facebook — zero mudança na configuração da Meta, zero mudança no workflow de produção.
-- **Criado mas INATIVO de propósito**: o backend do CRM Hinode ainda só roda local, sem endereço público que o n8n (na nuvem) consiga alcançar. Antes de ativar: (1) deployar o backend publicamente (domínio já reservado: `hinode.inoovaweb.com.br`), (2) rodar "Test workflow" manualmente uma vez, (3) só então ativar o toggle no n8n.
-
-## Realtime
-
-Socket.io, uma room por imobiliária (`imobiliaria:<id>`), handshake autenticado por JWT. Eventos: `lead:created`, `lead:updated`. O front escuta e faz upsert local sem precisar recarregar a página.
-
-## Dados de demonstração (seed)
-
-10 leads espalhados nas etapas do funil (incluindo 2 já em "Venda Concluída"), atribuídos apenas aos corretores de verdade (Dono/Gerente não recebem lead, só gerenciam — igual à produção). Ver array `DEMO_LEADS` em `server/src/db/seed.ts`.
-
-⚠️ **O seed é destrutivo** — ele limpa as tabelas antes de inserir. Seguro em dev; **não pode ser rodado em produção depois que houver dado real**.
-
-**Dado real importado (além do seed, 2026-09-06):** os **10.043 leads reais** e os **12 perfis reais da equipe** do CRM OKA (produção) foram copiados pro Postgres local, pra validar o sistema com dado de verdade — ver detalhe completo do mapeamento de schema/status/corretor na memória do projeto. **Rodar `npm run db:seed` de novo APAGA esse dado importado** junto com o resto (o seed limpa a tabela `leads`/`perfis` inteira) — se precisar do dado real de novo depois de um `db:seed`, a importação precisa ser refeita (script não fica versionado no repo de propósito, por conter token de acesso).
-
-## Pendências conhecidas (não é bug, é trabalho ainda não feito)
-
-- Nenhum Dockerfile ainda (nem front nem back) — necessário antes de qualquer deploy.
-- Nenhuma stack do Portainer criada ainda.
-- `CORS_ORIGIN` e `VITE_API_URL` apontam para localhost — precisam de variável de ambiente por ambiente antes de ir para VPS.
-- Seed destrutivo (ver acima) precisa virar idempotente/seguro antes de produção.
-- Módulos ainda mock listados na tabela acima.
-- Semântica de "Remover Acesso (Seguro)" na Equipe ainda não definida (ver seção Equipe acima).
-- Conversas ainda não manda mensagem de verdade pro WhatsApp (só persiste no CRM) — integração real com WAHA adiada de propósito (ver seção Conversas acima). Consequência direta: também não existe check mark de entregue/lido nas mensagens enviadas.
-- Workflow n8n de captação de leads do Facebook está pronto mas **inativo** — falta deployar o backend publicamente antes de ativar (ver seção Captação de leads acima).
-
-## Convenção de documentação
-
-Este arquivo deve ser mantido atualizado a cada mudança relevante (feature nova, decisão de arquitetura, regra de negócio, bug corrigido) — não é opcional, é instrução permanente do dono do projeto.
+Manter este arquivo e [`INSTALACAO.md`](INSTALACAO.md) atualizados a cada mudança relevante (feature,
+decisão de arquitetura, regra de negócio, bug corrigido) — instrução permanente do dono.
