@@ -334,7 +334,7 @@ interface AppState {
   closeAlert: () => void;
   alertOk: () => void;
   alertAlt: () => void;
-  leadPendente: { id: string; nome: string; canal: string } | null;
+  leadsPendentes: Array<{ id: string; nome: string; canal: string }>;
   recusarLeadPendente: (porTempo: boolean) => Promise<void>;
 
   blockMember: (id: string) => void;
@@ -479,7 +479,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   conn: { 'Camila Rocha': true, 'Diego Antunes': true, 'Fernanda Lopes': false, 'Marcelo Braga': false, 'Priscila Nunes': true, 'Rafael Teixeira': false },
   qrFor: null, importOpen: false, newLeadOpen: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [],
 
-  alert: null, alertCount: 45, alertMenu: false, faqOpen: 'kanban', confirm: null, toasts: [], notificacoes: [], notifOpen: false, day: 17, leadPendente: null,
+  alert: null, alertCount: 45, alertMenu: false, faqOpen: 'kanban', confirm: null, toasts: [], notificacoes: [], notifOpen: false, day: 17, leadsPendentes: [],
   tarefas: [], eventosLead: {},
 
   login: async (email, senha) => {
@@ -511,7 +511,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('nova_token');
     disconnectSocket();
-    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [], tarefas: [], eventosLead: {}, fluxos: [], execucoesFollowup: [], site: null, roletas: [], rebatidasStatus: null });
+    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [], tarefas: [], eventosLead: {}, fluxos: [], execucoesFollowup: [], site: null, roletas: [], rebatidasStatus: null, leadsPendentes: [] });
   },
   hydrateAuth: () => {
     const token = localStorage.getItem('nova_token');
@@ -555,11 +555,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       // "caiu um lead pra mim agora" — antes não era meu (ou não existia), agora é.
       const eraMeuAntes = leadsCorretorIds[raw.id] === me?.id;
       const agoraEhMeu = !!me && raw.corretorId === me.id;
-      if (agoraEhMeu && !eraMeuAntes && me.role === 'corretor') {
+      if (agoraEhMeu && !eraMeuAntes && me.role === 'corretor' && !get().leadsPendentes.some(p => p.id === raw.id)) {
         toqueLeadNovo();
         notificarNavegador('Novo lead pra você', raw.nome + (raw.canal ? ' · ' + raw.canal : ''));
-        set({ leadPendente: { id: raw.id, nome: raw.nome, canal: raw.canal || 'WhatsApp' } });
-        get().fireAlert('lead');
+        set(s => ({ leadsPendentes: [...s.leadsPendentes, { id: raw.id, nome: raw.nome, canal: raw.canal || 'WhatsApp' }] }));
+        if (get().alert !== 'lead') get().fireAlert('lead');
       }
 
       set(s => {
@@ -1575,28 +1575,31 @@ export const useAppStore = create<AppState>((set, get) => ({
   closeAlert: () => { clearInterval(alertTimer); set({ alert: null, alertCount: 45 }); },
   alertOk: () => {
     const k = get().alert;
-    const lp = get().leadPendente;
-    get().closeAlert();
     if (k === 'lead') {
-      set({ leadPendente: null });
+      const lp = get().leadsPendentes[0];
+      set(s => ({ leadsPendentes: s.leadsPendentes.slice(1) }));
+      if (get().leadsPendentes.length > 0) get().fireAlert('lead'); else get().closeAlert();
       if (lp) { get().toast('Atendimento aceito — ' + lp.nome); get().openLead(lp.id, 'chat'); }
+      return;
     }
-    else if (k === 'visita') get().toast('Lembrete enviado no WhatsApp');
+    get().closeAlert();
+    if (k === 'visita') get().toast('Lembrete enviado no WhatsApp');
     else if (k === 'credito') get().toast('Fila de crédito aberta');
     else if (k === 'tarefa') get().toast('Agenda aberta');
   },
   alertAlt: () => {
     const k = get().alert;
+    if (k === 'lead') { get().recusarLeadPendente(false); return; }
     get().closeAlert();
-    if (k === 'lead') get().recusarLeadPendente(false);
-    else if (k === 'visita') get().toast('Visita marcada como confirmada');
+    if (k === 'visita') get().toast('Visita marcada como confirmada');
     else if (k === 'credito') get().toast('Lembrete adiado por 1 hora');
     else if (k === 'tarefa') get().toast('Lembrete adiado por 30 minutos');
   },
   recusarLeadPendente: async (porTempo: boolean) => {
-    const lp = get().leadPendente;
+    const lp = get().leadsPendentes[0];
     const token = get().token;
-    set({ leadPendente: null });
+    set(s => ({ leadsPendentes: s.leadsPendentes.slice(1) }));
+    if (get().leadsPendentes.length > 0) get().fireAlert('lead'); else get().closeAlert();
     if (!lp || !token) return;
     try {
       await apiFetch('/api/leads/' + lp.id + '/recusar', token, { method: 'POST' });

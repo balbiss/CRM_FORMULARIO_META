@@ -56,7 +56,10 @@ export default function Clientes() {
               <span style={{ width: 150 }}>
                 <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', padding: '4px 9px', borderRadius: 20, background: st.bg === 'border' ? 'none' : st.bg, border: st.bg === 'border' ? '1px solid var(--line)' : 'none', color: st.color }}>{st.label}</span>
               </span>
-              <span style={{ width: 120, fontFamily: 'Newsreader,serif', fontSize: 15 }}>{BRL(l.valor)}</span>
+              <span style={{ width: 120, minWidth: 0 }}>
+                <span style={{ display: 'block', fontFamily: 'Newsreader,serif', fontSize: 15 }}>{BRL(l.valor)}</span>
+                {l.imovel && <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.imovel}</span>}
+              </span>
               <button onClick={() => openLead(l.id)} style={{ width: 80, padding: '7px 0', border: '1px solid var(--line)', borderRadius: 7, background: 'none', fontSize: 12.5, fontWeight: 600 }}>Abrir</button>
             </div>
           );

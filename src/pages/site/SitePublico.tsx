@@ -28,6 +28,13 @@ export default function SitePublico() {
   const [form, setForm] = useState({ nome: '', telefone: '', email: '', mensagem: '', imovel: '', imovelId: '', interesse: '' });
   const [enviado, setEnviado] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [mobile, setMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 640 : false));
+
+  useEffect(() => {
+    const onResize = () => setMobile(window.innerWidth <= 640);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     fetch(API_URL + '/api/sites/publico/' + encodeURIComponent(slug))
@@ -104,16 +111,18 @@ export default function SitePublico() {
     <div style={S.wrap}>
       {/* header */}
       <header style={{ position: 'sticky', top: 0, zIndex: 20, background: 'rgba(255,255,255,.95)', backdropFilter: 'blur(8px)', borderBottom: '1px solid #eee' }}>
-        <div className="site-headrow" style={{ maxWidth: 1140, margin: '0 auto', padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ maxWidth: 1140, margin: '0 auto', padding: mobile ? '9px 14px' : '10px 18px', display: 'flex', alignItems: 'center', gap: mobile ? 10 : 14 }}>
           {c.logoUrl
-            ? <img className="site-logo" src={c.logoUrl} alt={c.nomeExibicao} style={{ height: 50, maxHeight: 50, width: 'auto', maxWidth: 200, objectFit: 'contain', display: 'block' }} />
-            : <span style={{ fontWeight: 800, fontSize: 19, color: brand, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.nomeExibicao || 'Imobiliária'}</span>}
+            ? <img src={c.logoUrl} alt={c.nomeExibicao} style={{ height: mobile ? 38 : 50, width: 'auto', maxWidth: mobile ? 130 : 200, objectFit: 'contain', display: 'block' }} />
+            : <span style={{ fontWeight: 800, fontSize: mobile ? 16 : 19, color: brand, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.nomeExibicao || 'Imobiliária'}</span>}
           <span style={{ flex: 1 }} />
-          <nav style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
-            <button className="site-navlink" onClick={() => scrollTo('imoveis')} style={{ border: 'none', background: 'none', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', color: '#333' }}>Imóveis</button>
-            {c.sobreTexto && <button className="site-navlink" onClick={() => scrollTo('sobre')} style={{ border: 'none', background: 'none', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', color: '#333' }}>Sobre</button>}
-            <button className="site-navlink" onClick={() => scrollTo('contato')} style={{ border: 'none', background: 'none', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', color: '#333' }}>Contato</button>
-            {whats && <a href={'https://wa.me/' + (whats.length <= 11 ? '55' + whats : whats)} target="_blank" rel="noreferrer" style={{ ...S.btn, padding: '9px 15px', fontSize: 13, whiteSpace: 'nowrap' }}>WhatsApp</a>}
+          <nav style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
+            {!mobile && <>
+              <button onClick={() => scrollTo('imoveis')} style={{ border: 'none', background: 'none', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', color: '#333' }}>Imóveis</button>
+              {c.sobreTexto && <button onClick={() => scrollTo('sobre')} style={{ border: 'none', background: 'none', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', color: '#333' }}>Sobre</button>}
+              <button onClick={() => scrollTo('contato')} style={{ border: 'none', background: 'none', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', color: '#333' }}>Contato</button>
+            </>}
+            {whats && <a href={'https://wa.me/' + (whats.length <= 11 ? '55' + whats : whats)} target="_blank" rel="noreferrer" style={{ ...S.btn, padding: mobile ? '8px 13px' : '9px 15px', fontSize: 13, whiteSpace: 'nowrap' }}>WhatsApp</a>}
           </nav>
         </div>
       </header>

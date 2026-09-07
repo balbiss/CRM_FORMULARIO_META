@@ -19,7 +19,9 @@ const ALERT_LIST_TAREFA = [
 export function AlertModal() {
   const alert = useAppStore(s => s.alert);
   const alertCount = useAppStore(s => s.alertCount);
-  const leadPendente = useAppStore(s => s.leadPendente);
+  const leadsPendentes = useAppStore(s => s.leadsPendentes);
+  const leadPendente = leadsPendentes[0] ?? null;
+  const naFila = leadsPendentes.length - 1;
   const alertOk = useAppStore(s => s.alertOk);
   const alertAlt = useAppStore(s => s.alertAlt);
   const horario = useAppStore(s => s.horarioAtendimento);
@@ -39,7 +41,7 @@ export function AlertModal() {
 
   const data = alert === 'lead'
     ? {
-        titulo: 'Novo lead pra você',
+        titulo: naFila > 0 ? 'Novo lead pra você (+' + naFila + ' na fila)' : 'Novo lead pra você',
         texto: (leadPendente?.nome || 'Um lead') + ' chegou pelo ' + (leadPendente?.canal || 'WhatsApp') + '. Aceite em ' + alertCount + 's ou ele volta para a roleta.',
         ok: 'Aceitar atendimento', alt: 'Recusar', showCount: true,
       }

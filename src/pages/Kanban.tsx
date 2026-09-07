@@ -335,7 +335,7 @@ export default function Kanban() {
                       </div>
                     )}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 9, minHeight: 60 }}>
+                  <div className="kb-col-body" style={{ display: 'flex', flexDirection: 'column', gap: 9, minHeight: 60, maxHeight: 'calc(100vh - 265px)', overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
                     {colLeads.map((l, i) => (
                       <div
                         key={l.id}

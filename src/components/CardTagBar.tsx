@@ -19,6 +19,7 @@ export function CardTagBar({ lead }: { lead: Lead }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const [novo, setNovo] = useState('');
+  const [novaCor, setNovaCor] = useState(CORES[0]);
   const ref = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLButtonElement>(null);
 
@@ -71,7 +72,7 @@ export function CardTagBar({ lead }: { lead: Lead }) {
   const criar = async () => {
     const nome = novo.trim();
     if (!nome) return;
-    const t = await createTag(nome);
+    const t = await createTag(nome, novaCor);
     setNovo('');
     if (t) toggleLeadTag(lead.id, t.id);
   };
@@ -138,18 +139,26 @@ export function CardTagBar({ lead }: { lead: Lead }) {
               })}
             </div>
             {isManager && (
-              <div style={{ display: 'flex', gap: 6, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--line)' }}>
-                <input
-                  value={novo}
-                  onChange={e => setNovo(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); criar(); } }}
-                  onClick={e => e.stopPropagation()}
-                  placeholder="Nova etiqueta"
-                  style={{ flex: 1, minWidth: 0, padding: '7px 8px', border: '1px solid var(--line)', borderRadius: 6, background: 'var(--bg)', fontSize: 12 }}
-                />
-                <button type="button" onClick={stop(criar)} aria-label="Criar etiqueta" style={{ width: 30, flex: 'none', border: '1px solid var(--line)', borderRadius: 6, background: 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Plus size={14} strokeWidth={2.2} />
-                </button>
+              <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--line)' }}>
+                <div style={{ display: 'flex', gap: 5, marginBottom: 6, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+                  {CORES.map(c => (
+                    <button key={c} type="button" onClick={() => setNovaCor(c)} aria-label={'cor ' + c}
+                      style={{ width: 18, height: 18, borderRadius: 5, background: c, flex: 'none', border: '2px solid ' + (novaCor === c ? 'var(--ink)' : 'transparent'), cursor: 'pointer' }} />
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    value={novo}
+                    onChange={e => setNovo(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); criar(); } }}
+                    onClick={e => e.stopPropagation()}
+                    placeholder="Nome da etiqueta"
+                    style={{ flex: 1, minWidth: 0, padding: '7px 8px', border: '1px solid var(--line)', borderRadius: 6, background: 'var(--bg)', fontSize: 12 }}
+                  />
+                  <button type="button" onClick={stop(criar)} aria-label="Criar etiqueta" style={{ width: 30, flex: 'none', border: '1px solid var(--line)', borderRadius: 6, background: 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Plus size={14} strokeWidth={2.2} />
+                  </button>
+                </div>
               </div>
             )}
           </div>

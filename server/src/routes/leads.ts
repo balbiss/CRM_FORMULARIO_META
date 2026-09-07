@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { and, asc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { leads, leadTags, mensagensWhatsapp, filasAtendimento, colunasKanban, eventosLead, perfis, tarefas, distribuicaoLog, imobiliarias, notificacoes } from '../db/schema.js';
+import { leads, leadTags, mensagensWhatsapp, filasAtendimento, colunasKanban, eventosLead, perfis, tarefas, distribuicaoLog, imobiliarias, notificacoes, imoveis } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { distribuirLead } from '../lib/roleta.js';
 import { registrarEvento } from '../lib/eventos.js';
@@ -53,7 +53,23 @@ export function leadsRouter(io: SocketServer) {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dados inválidos' });
     const { imobiliariaId, nome } = req.auth!;
-    const [row] = await db.insert(leads).values({ ...parsed.data, imobiliariaId, valor: parsed.data.valor?.toString() }).returning();
+
+    // Se veio ligado a um imóvel, puxa título/valor/subtítulo/finalidade reais dele.
+    const extra: Record<string, unknown> = {};
+    if (parsed.data.imovelInteresseId) {
+      const [im] = await db.select().from(imoveis)
+        .where(and(eq(imoveis.id, parsed.data.imovelInteresseId), eq(imoveis.imobiliariaId, imobiliariaId))).limit(1);
+      if (im) {
+        extra.imovelTitulo = im.titulo;
+        extra.valor = im.preco;
+        extra.imovelSub = [im.tipo, im.finalidade, [im.endereco, im.cidade].filter(Boolean).join(' · ')].filter(Boolean).join(' · ');
+        if (!parsed.data.finalidade) extra.finalidade = im.finalidade === 'Alugar' ? 'locacao' : im.finalidade === 'Comprar' ? 'venda' : null;
+      }
+    }
+    const [row] = await db.insert(leads).values({
+      ...parsed.data, ...extra, imobiliariaId,
+      valor: extra.valor != null ? String(extra.valor) : parsed.data.valor?.toString(),
+    }).returning();
     registrarEvento(imobiliariaId, row.id, 'criado', 'Lead cadastrado manualmente (canal ' + row.canal + ')', nome);
     io.to('imobiliaria:' + imobiliariaId).emit('lead:created', row);
     res.status(201).json(row);
