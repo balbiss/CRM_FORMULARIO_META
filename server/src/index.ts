@@ -24,6 +24,7 @@ import { plataformaRouter } from './routes/plataforma.js';
 import { pushRouter } from './routes/push.js';
 import { tarefasRouter } from './routes/tarefas.js';
 import { followupRouter } from './routes/followup.js';
+import { sitesRouter } from './routes/sites.js';
 import { verifyToken } from './lib/jwt.js';
 import { ensureBucket } from './lib/storage.js';
 import { bootstrapAdminPlataforma, varrerInadimplencia } from './lib/bootstrapPlataforma.js';
@@ -33,10 +34,10 @@ import { varrerFollowups } from './lib/followup.js';
 const app = express();
 // O webhook do formulário de site é público (token na URL) e a página fica em domínio de
 // terceiro (Lovable etc.) — CORS liberado nesse caminho; restrito no resto.
-const corsPublico = cors({ origin: '*', methods: ['POST', 'OPTIONS'], allowedHeaders: ['Content-Type'] });
+const corsPublico = cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Content-Type'] });
 const corsRestrito = cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' });
-app.use((req, res, next) =>
-  (req.path.startsWith('/api/captacao/site') ? corsPublico : corsRestrito)(req, res, next));
+const publico = (p: string) => p.startsWith('/api/captacao/site') || p.startsWith('/api/sites/publico');
+app.use((req, res, next) => (publico(req.path) ? corsPublico : corsRestrito)(req, res, next));
 app.use(express.json());
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
@@ -81,6 +82,7 @@ app.use('/api/tags', tagsRouter(io));
 app.use('/api/whatsapp', whatsappRouter(io));
 app.use('/api/tarefas', tarefasRouter(io));
 app.use('/api/followup', followupRouter(io));
+app.use('/api/sites', sitesRouter(io));
 
 const port = Number(process.env.PORT) || 3001;
 

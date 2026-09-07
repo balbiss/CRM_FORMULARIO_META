@@ -24,8 +24,20 @@ export interface RemoteImovel {
   preco: string; area: string | null; quartos: number | null; suites: number | null; banheiros: number | null; vagas: number | null;
   amenidades: string[]; descricao: string | null; imagens: string[]; videoUrl: string | null;
   situacao: SituacaoImovel; previsaoEntrega: string | null; aceitaFinanciamento: boolean;
-  valorCondominio: string | null; valorIptu: string | null;
+  valorCondominio: string | null; valorIptu: string | null; publicarNoSite?: boolean;
 }
+
+export interface SiteConfig {
+  nomeExibicao: string; logoUrl: string; corPrimaria: string;
+  heroTitulo: string; heroSubtitulo: string; heroImagemUrl: string;
+  sobreTitulo: string; sobreTexto: string; sobreImagemUrl: string;
+  telefone: string; whatsapp: string; email: string; endereco: string;
+  instagram: string; facebook: string;
+  destaques: { titulo: string; texto: string }[];
+  depoimentos: { nome: string; texto: string; cargo: string }[];
+  rodapeTexto: string;
+}
+export interface SiteState { slug: string; publicado: boolean; config: SiteConfig }
 export interface ImovelInput {
   tipo: string; finalidade: string; titulo: string;
   endereco?: string | null; cidade?: string | null; estado?: string | null;
@@ -126,6 +138,11 @@ interface AppState {
   integracoesFacebook: IntegracaoFacebook[];
   siteWebhook: { url: string | null; token: string | null };
   regenerarSiteWebhook: () => Promise<void>;
+  site: SiteState | null;
+  fetchSite: () => Promise<void>;
+  salvarSite: (config: SiteConfig, publicado?: boolean) => Promise<boolean>;
+  mudarSlugSite: (slug: string) => Promise<boolean>;
+  toggleImovelNoSite: (id: string, publicar: boolean) => Promise<void>;
   sessoesWhatsapp: SessaoWhatsapp[];
   wahaConfigurado: boolean;
 
@@ -405,6 +422,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   modoWhatsapp: 'corretor',
   integracoesFacebook: [],
   siteWebhook: { url: null, token: null },
+  site: null,
   sessoesWhatsapp: [],
   wahaConfigurado: false,
 
@@ -468,7 +486,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('nova_token');
     disconnectSocket();
-    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [], tarefas: [], eventosLead: {}, fluxos: [], execucoesFollowup: [] });
+    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [], tarefas: [], eventosLead: {}, fluxos: [], execucoesFollowup: [], site: null });
   },
   hydrateAuth: () => {
     const token = localStorage.getItem('nova_token');
@@ -918,6 +936,47 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) {
       get().toast((e as ApiError).message || 'Não foi possível gerar o link');
     }
+  },
+  fetchSite: async () => {
+    const token = get().token;
+    if (!token) return;
+    try { set({ site: await apiFetch<SiteState>('/api/sites', token) }); } catch { /* corretor sem permissão */ }
+  },
+  salvarSite: async (config, publicado) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const s = await apiFetch<SiteState>('/api/sites', token, {
+        method: 'PUT', body: JSON.stringify({ config, ...(publicado !== undefined ? { publicado } : {}) }),
+      });
+      set({ site: s });
+      get().toast(publicado === true ? 'Site publicado' : publicado === false ? 'Site despublicado' : 'Site salvo');
+      return true;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível salvar o site');
+      return false;
+    }
+  },
+  mudarSlugSite: async slug => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const r = await apiFetch<{ slug: string }>('/api/sites/slug', token, { method: 'POST', body: JSON.stringify({ slug }) });
+      set(s => (s.site ? { site: { ...s.site, slug: r.slug } } : s));
+      get().toast('Endereço do site atualizado');
+      return true;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível mudar o endereço');
+      return false;
+    }
+  },
+  toggleImovelNoSite: async (id, publicar) => {
+    const token = get().token;
+    if (!token) return;
+    set(s => ({ imoveis: s.imoveis.map(im => (im.id === id ? { ...im, publicarNoSite: publicar } : im)) }));
+    try {
+      await apiFetch('/api/sites/imoveis/' + id, token, { method: 'PATCH', body: JSON.stringify({ publicarNoSite: publicar }) });
+    } catch { get().fetchImoveis(); }
   },
   setModoWhatsapp: async modo => {
     const token = get().token;

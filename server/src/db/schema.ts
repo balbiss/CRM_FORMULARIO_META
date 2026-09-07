@@ -362,7 +362,20 @@ export const imoveis = pgTable('imoveis', {
   // URLs — os arquivos em si moram no MinIO (S3-compatible), o Postgres só guarda a referência.
   imagens: jsonb('imagens').$type<string[]>().default([]),
   videoUrl: text('video_url'),
+  // Aparece no site público da imobiliária?
+  publicarNoSite: boolean('publicar_no_site').notNull().default(true),
   criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Site público (landing de imóveis) de uma imobiliária. `config` é um jsonb com marca, hero,
+ *  seções, depoimentos etc. — o schema exato fica no zod da rota, pra dar pra evoluir sem migração. */
+export const sites = pgTable('sites', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  imobiliariaId: uuid('imobiliaria_id').notNull().unique().references(() => imobiliarias.id, { onDelete: 'cascade' }),
+  slug: text('slug').notNull().unique(),
+  publicado: boolean('publicado').notNull().default(false),
+  config: jsonb('config').notNull().default({}),
+  atualizadoEm: timestamp('atualizado_em', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const linksUteis = pgTable('links_uteis', {

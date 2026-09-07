@@ -9,7 +9,7 @@ import type { Server as SocketServer } from 'socket.io';
 
 const soDigitos = (s: string) => (s || '').replace(/[^0-9]/g, '');
 
-async function criarLead(io: SocketServer, imobId: string, dados: {
+export async function criarLead(io: SocketServer, imobId: string, dados: {
   nome: string; telefone: string; email?: string; mensagem?: string;
   imovelTitulo?: string; campanha?: string; canal: string;
 }) {

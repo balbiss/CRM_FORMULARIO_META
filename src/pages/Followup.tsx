@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { MessageSquare, Mic, Image as ImageIcon, FileText, Trash2, ArrowUp, ArrowDown, Plus } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { MessageSquare, Mic, Image as ImageIcon, FileText, Trash2, ArrowUp, ArrowDown, Plus, Upload } from 'lucide-react';
 import { useAppStore, type RemoteFluxo, type RemotePassoFluxo, type PassoTipo } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
+import { uploadArquivo } from '../lib/upload';
 
 const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const TIPOS: { v: PassoTipo; label: string; Icon: typeof MessageSquare }[] = [
@@ -24,6 +25,46 @@ const minDe = (hhmmStr: string) => { const [h, m] = hhmmStr.split(':').map(Numbe
 const fieldLabel: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 6px' };
 const inp: React.CSSProperties = { width: '100%', padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13, boxSizing: 'border-box' };
 const iconBtn: React.CSSProperties = { border: '1px solid var(--line)', background: 'var(--card)', width: 28, height: 28, borderRadius: 7, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' };
+
+const ACCEPT: Record<PassoTipo, string> = { texto: '', audio: 'audio/*', imagem: 'image/*', pdf: 'application/pdf' };
+
+function PassoAnexo({ passo, onChange }: { passo: RemotePassoFluxo; onChange: (p: Partial<RemotePassoFluxo>) => void }) {
+  const token = useAppStore(s => s.token);
+  const toast = useAppStore(s => s.toast);
+  const ref = useRef<HTMLInputElement>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function subir(file: File) {
+    if (!token) return;
+    setEnviando(true);
+    try {
+      const { url, nome } = await uploadArquivo(file, token);
+      onChange({ anexoUrl: url, anexoNome: nome });
+    } catch (e) {
+      toast((e as Error).message || 'Falha no upload');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <input ref={ref} type="file" accept={ACCEPT[passo.tipo]} hidden onChange={e => { const f = e.target.files?.[0]; if (f) subir(f); e.currentTarget.value = ''; }} />
+      {passo.anexoUrl ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)' }}>
+          <FileText size={13} style={{ flex: 'none', color: 'var(--muted)' }} />
+          <a href={passo.anexoUrl} target="_blank" rel="noreferrer" style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--terra)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{passo.anexoNome || 'arquivo'}</a>
+          <button type="button" onClick={() => ref.current?.click()} style={{ border: '1px solid var(--line)', background: 'none', borderRadius: 6, fontSize: 11.5, padding: '4px 8px' }}>Trocar</button>
+          <button type="button" onClick={() => onChange({ anexoUrl: null, anexoNome: null })} style={{ border: 'none', background: 'none', color: 'var(--terra)', fontSize: 11.5 }}>Remover</button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => ref.current?.click()} disabled={enviando} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', justifyContent: 'center', padding: '10px', border: '1px dashed var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 12.5, fontWeight: 600, color: 'var(--muted)' }}>
+          <Upload size={13} /> {enviando ? 'Enviando…' : 'Enviar ' + (passo.tipo === 'imagem' ? 'imagem' : passo.tipo === 'audio' ? 'áudio' : 'PDF')}
+        </button>
+      )}
+    </div>
+  );
+}
 
 interface Rascunho {
   nome: string; ativo: boolean; disparaEmLeadNovo: boolean;
@@ -298,7 +339,7 @@ export default function Followup() {
                             <textarea value={p.conteudo} onChange={e => patchPasso(i, { conteudo: e.target.value })} rows={3} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Mensagem…" />
                           ) : (
                             <>
-                              <input value={p.anexoUrl ?? ''} onChange={e => patchPasso(i, { anexoUrl: e.target.value || null })} placeholder="URL do arquivo (link público do MinIO)" style={{ ...inp, marginBottom: 6 }} />
+                              <PassoAnexo passo={p} onChange={patch => patchPasso(i, patch)} />
                               <input value={p.conteudo} onChange={e => patchPasso(i, { conteudo: e.target.value })} placeholder="Legenda (opcional)" style={{ ...inp, fontSize: 12 }} />
                             </>
                           )}

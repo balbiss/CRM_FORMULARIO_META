@@ -16,6 +16,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/templates', label: 'Templates', short: 'Modelos', group: 'ferramentas' },
   { path: '/followup', label: 'Follow-ups', short: 'Fluxo', group: 'ferramentas' },
   { path: '/integracoes', label: 'Integrações', short: 'Conexão', group: 'ferramentas' },
+  { path: '/site', label: 'Site de Imóveis', short: 'Site', mgrOnly: true, group: 'ferramentas' },
   { path: '/links-uteis', label: 'Links Úteis', short: 'Links', group: 'ferramentas' },
   { path: '/treinamentos', label: 'Treinamentos', short: 'Cursos', group: 'ferramentas' },
   { path: '/manual', label: 'Manual do CRM', short: 'Manual', group: 'ferramentas' },

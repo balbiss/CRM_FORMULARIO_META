@@ -26,11 +26,13 @@ import Equipe from './pages/Equipe';
 import Relatorios from './pages/Relatorios';
 import Manual from './pages/Manual';
 import Integracoes from './pages/Integracoes';
+import SiteImoveis from './pages/SiteImoveis';
 import Templates from './pages/Templates';
 import LinksUteis from './pages/LinksUteis';
 import Treinamentos from './pages/Treinamentos';
 import Configuracoes from './pages/Configuracoes';
 import Denied from './pages/Denied';
+import SitePublico from './pages/site/SitePublico';
 
 useAppStore.getState().hydrateAuth();
 usePlataformaStore.getState().hydrate();
@@ -40,6 +42,7 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/s/:slug" element={<SitePublico />} />
         <Route path="/plataforma/login" element={<PlataformaLogin />} />
         <Route element={<RequirePlataforma />}>
           <Route path="/plataforma" element={<PlataformaShell />}>
@@ -62,6 +65,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="followup" element={<Followup />} />
           <Route path="templates" element={<Templates />} />
           <Route path="integracoes" element={<Integracoes />} />
+          <Route path="site" element={<SiteImoveis />} />
           <Route path="links-uteis" element={<LinksUteis />} />
           <Route path="treinamentos" element={<Treinamentos />} />
           <Route path="equipe" element={<Equipe />} />
