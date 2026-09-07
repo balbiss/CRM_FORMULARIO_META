@@ -10,6 +10,21 @@ a cada 5 minutos.
 
 ---
 
+## Sites que você vai usar (todos são da Meta/Facebook)
+
+| Para quê | Link | Usado na |
+|---|---|---|
+| Gerenciador de Negócios (visão geral) | https://business.facebook.com | — |
+| **Configurações do negócio** (usuários do sistema, páginas, tokens) | https://business.facebook.com/settings | Partes 2 e 3 |
+| **Apps de desenvolvedor** (criar/ver o app) | https://developers.facebook.com/apps | Parte 1 |
+| **Explorador da API** (pegar o ID do formulário) | https://developers.facebook.com/tools/explorer | Parte 4 |
+| Biblioteca de formulários instantâneos (alternativa) | https://business.facebook.com/latest/instant_forms/forms | Parte 4 |
+| **Ferramenta de teste de Lead Ads** (mandar um lead de teste) | https://developers.facebook.com/tools/lead-ads-testing | Solução de problemas |
+
+Faça tudo **logado na mesma conta do Facebook** que administra a página e o Gerenciador de Negócios.
+
+---
+
 ## O que você vai coletar
 
 | Campo no CRM | O que é | Onde pega |
