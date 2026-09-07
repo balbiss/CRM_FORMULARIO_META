@@ -1129,7 +1129,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     apiFetch('/api/filas/embaralhar', token, { method: 'POST' })
       .then(() => apiFetch<RemoteFilaRow[]>('/api/filas', token))
       .then(rows => set({ fila: rows.map(f => ({ corretorId: f.corretorId, nome: f.nome, ativo: f.emPlantao })) }))
-      .then(() => get().toast('Roleta embaralhada'))
+      .then(() => { get().fetchRoletas(); get().toast('Ordem das roletas embaralhada'); })
       .catch(() => get().toast('Não foi possível embaralhar a roleta'));
   },
   distribuirPendentes: async () => {
@@ -1156,11 +1156,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   criarRoleta: async nome => {
     const token = get().token;
     if (!token) return;
+    const limpo = (nome || '').trim();
+    if (!limpo) { get().toast('Dê um nome pra roleta (ex: Equipe Locação)'); return; }
     try {
-      await apiFetch('/api/roletas', token, { method: 'POST', body: JSON.stringify({ nome }) });
+      const nova = await apiFetch<RemoteRoleta>('/api/roletas', token, { method: 'POST', body: JSON.stringify({ nome: limpo }) });
+      set(s => ({ roletas: [...s.roletas.filter(r => r.id !== nova.id), nova] }));
       get().fetchRoletas();
-      get().toast('Roleta criada');
-    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível criar'); }
+      get().toast('Roleta "' + limpo + '" criada');
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível criar a roleta'); }
   },
   atualizarRoleta: async (id, patch) => {
     const token = get().token;

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ArrowUp, ArrowDown, X, Trash2 } from 'lucide-react';
 import { useAppStore, type RemoteRoleta, type RoletaFinalidade } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
@@ -31,6 +31,9 @@ export default function Roleta() {
   const me = useAppStore(s => s.me);
 
   const [novaRoleta, setNovaRoleta] = useState('');
+  const [criando, setCriando] = useState(false);
+  const novaRef = useRef<HTMLInputElement>(null);
+  const salvarNova = () => { const n = novaRoleta.trim(); if (!n) { novaRef.current?.focus(); return; } criarRoleta(n); setNovaRoleta(''); setCriando(false); };
   const semCorretor = leads.filter(l => l.col === 'novo' && !l.corretor).length;
   const corretores = useMemo(() => perfis.filter(p => p.role === 'corretor' || p.role === 'gerente'), [perfis]);
   const nomeSessao = (id: string | null) => {
@@ -69,9 +72,19 @@ export default function Roleta() {
 
       {isManager && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          <input value={novaRoleta} onChange={e => setNovaRoleta(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && novaRoleta.trim()) { criarRoleta(novaRoleta.trim()); setNovaRoleta(''); } }}
-            placeholder="Nome da nova roleta (ex: Equipe Locação)" style={{ ...inp, flex: 1, maxWidth: 320, padding: '10px 12px', fontSize: 13 }} />
-          <button onClick={() => { if (novaRoleta.trim()) { criarRoleta(novaRoleta.trim()); setNovaRoleta(''); } }} style={{ padding: '10px 16px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600 }}>+ Nova roleta</button>
+          {criando ? (
+            <>
+              <input
+                ref={novaRef} autoFocus value={novaRoleta} onChange={e => setNovaRoleta(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') salvarNova(); if (e.key === 'Escape') { setCriando(false); setNovaRoleta(''); } }}
+                placeholder="Nome da roleta (ex: Equipe Locação)" style={{ ...inp, flex: 1, maxWidth: 320, padding: '10px 12px', fontSize: 13 }}
+              />
+              <button onClick={salvarNova} style={{ padding: '10px 16px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600 }}>Criar</button>
+              <button onClick={() => { setCriando(false); setNovaRoleta(''); }} style={{ padding: '10px 14px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13 }}>Cancelar</button>
+            </>
+          ) : (
+            <button onClick={() => setCriando(true)} style={{ padding: '10px 16px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13, fontWeight: 600 }}>+ Nova roleta</button>
+          )}
         </div>
       )}
 
@@ -118,7 +131,13 @@ function RoletaCard({ roleta, isManager, meNome, corretores, sessoes, nomeSessao
       <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--line)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {isManager
-            ? <input value={roleta.nome} onChange={e => onPatch({ nome: e.target.value })} style={{ fontSize: 15, fontWeight: 700, border: '1px solid transparent', background: 'none', flex: 1, minWidth: 0, padding: '2px 4px', borderRadius: 5 }} onFocus={e => e.currentTarget.style.borderColor = 'var(--line)'} onBlur={e => e.currentTarget.style.borderColor = 'transparent'} />
+            ? <input
+                key={roleta.nome} defaultValue={roleta.nome}
+                onBlur={e => { const v = e.target.value.trim(); if (v && v !== roleta.nome) onPatch({ nome: v }); else e.target.value = roleta.nome; }}
+                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                style={{ fontSize: 15, fontWeight: 700, border: '1px solid transparent', background: 'none', flex: 1, minWidth: 0, padding: '2px 4px', borderRadius: 5 }}
+                onFocus={e => e.currentTarget.style.borderColor = 'var(--line)'}
+              />
             : <span style={{ fontSize: 15, fontWeight: 700, flex: 1 }}>{roleta.nome}</span>}
           {roleta.padrao && <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', padding: '3px 7px', borderRadius: 20, background: 'var(--bg)', color: 'var(--muted)', border: '1px solid var(--line)' }}>padrão</span>}
           {isManager && (
