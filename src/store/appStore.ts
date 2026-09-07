@@ -15,7 +15,15 @@ export interface IntegracaoFacebook {
   ativo: boolean; ultimaSyncEm: string | null; ultimoErro: string | null; criadoEm: string; tokenFinal: string;
 }
 export interface IntegracaoFacebookInput { nomeConta: string; pageId: string; formId: string; accessToken: string }
-export interface SessaoWhatsapp { id: string; escopo: 'central' | 'corretor'; corretorId: string | null; status: 'desconectada' | 'conectando' | 'conectada'; numero: string | null }
+export interface SessaoWhatsapp { id: string; escopo: 'central' | 'corretor'; corretorId: string | null; status: 'desconectada' | 'conectando' | 'conectada'; numero: string | null; rotulo?: string | null }
+
+export type RoletaFinalidade = 'venda' | 'locacao' | 'ambos';
+export interface RoletaMembro { corretorId: string; nome: string; posicao: number; emPlantao: boolean; bloqueado: boolean }
+export interface RemoteRoleta {
+  id: string; nome: string; ativa: boolean; ordem: number; padrao: boolean;
+  canais: string[]; finalidade: RoletaFinalidade; sessaoWhatsappId: string | null;
+  membros: RoletaMembro[];
+}
 export interface RemoteTemplate { id: string; titulo: string; texto: string; anexoUrl: string | null }
 export type SituacaoImovel = 'Pronto para morar' | 'Em obras' | 'Lançamento';
 export interface RemoteImovel {
@@ -217,7 +225,8 @@ interface AppState {
   excluirIntegracaoFb: (id: string) => Promise<void>;
   testarIntegracaoFb: (id: string) => Promise<{ ok: boolean; msg: string }>;
   fetchSessoesWhatsapp: () => Promise<void>;
-  conectarWhatsapp: (escopo: 'central' | 'corretor', corretorId?: string) => Promise<string | null>;
+  conectarWhatsapp: (escopo: 'central' | 'corretor', corretorId?: string, extra?: { rotulo?: string; id?: string }) => Promise<string | null>;
+  renomearSessaoWhatsapp: (id: string, rotulo: string) => Promise<void>;
   qrWhatsapp: (id: string) => Promise<{ status: string; numero: string | null; qr: string | null }>;
   desconectarWhatsapp: (id: string) => Promise<void>;
   setKbTag: (tagId: string | null) => void;
@@ -262,8 +271,14 @@ interface AppState {
   bolsaoDiscard: (id: string, nome: string) => void;
   shuffle: () => void;
   distribuirPendentes: () => Promise<void>;
-  roletaLog: Array<{ criadoEm: string; origem: string; leadNome: string; corretorNome: string }>;
+  roletaLog: Array<{ criadoEm: string; origem: string; roletaNome?: string | null; leadNome: string; corretorNome: string }>;
   fetchRoletaLog: () => Promise<void>;
+  roletas: RemoteRoleta[];
+  fetchRoletas: () => Promise<void>;
+  criarRoleta: (nome: string) => Promise<void>;
+  atualizarRoleta: (id: string, patch: Partial<Pick<RemoteRoleta, 'nome' | 'ativa' | 'padrao' | 'canais' | 'finalidade' | 'sessaoWhatsappId'>>) => Promise<void>;
+  excluirRoleta: (id: string) => Promise<void>;
+  setMembrosRoleta: (id: string, corretorIds: string[]) => Promise<void>;
   pull: () => void;
 
   fetchFollowup: () => Promise<void>;
@@ -319,8 +334,8 @@ interface AppState {
   blockMember: (id: string) => void;
   revokeMember: (nome: string) => void;
   removeMember: (id: string, nome: string) => void;
-  createMember: (input: { nome: string; email: string; telefone?: string; role: 'gerente' | 'corretor' }) => Promise<boolean>;
-  updateMember: (id: string, patch: { nome: string; telefone: string }) => Promise<boolean>;
+  createMember: (input: { nome: string; email: string; telefone?: string; role: 'gerente' | 'corretor'; roletaIds?: string[] }) => Promise<boolean>;
+  updateMember: (id: string, patch: { nome?: string; telefone?: string; roletaIds?: string[] }) => Promise<boolean>;
 
   setFaqOpen: (id: string | null) => void;
   toggleNotifMenu: () => void;
@@ -333,7 +348,7 @@ interface AppState {
   addColumn: () => void;
   newLead: () => void;
   setNewLeadOpen: (v: boolean) => void;
-  criarLeadManual: (input: { nome: string; telefone: string; email?: string; canal: string; corretorId?: string }) => Promise<boolean>;
+  criarLeadManual: (input: { nome: string; telefone: string; email?: string; canal: string; corretorId?: string; finalidade?: 'venda' | 'locacao' }) => Promise<boolean>;
   excluirLead: (id: string) => Promise<boolean>;
   limparConversa: (id: string) => Promise<boolean>;
   advance: (id: string) => void;
@@ -433,6 +448,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   leads: [],
   leadsCorretorIds: {},
   roletaLog: [],
+  roletas: [],
   leadId: null,
   leadTab: 'detalhes',
   chats: {},
@@ -477,6 +493,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().fetchConversas();
       get().fetchTarefas();
       get().fetchFollowup();
+      get().fetchRoletas();
       return true;
     } catch (e) {
       set({ authError: (e as ApiError).message || 'Não foi possível entrar', authLoading: false });
@@ -486,7 +503,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('nova_token');
     disconnectSocket();
-    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [], tarefas: [], eventosLead: {}, fluxos: [], execucoesFollowup: [], site: null });
+    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [], tarefas: [], eventosLead: {}, fluxos: [], execucoesFollowup: [], site: null, roletas: [] });
   },
   hydrateAuth: () => {
     const token = localStorage.getItem('nova_token');
@@ -505,6 +522,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().fetchConversas();
       get().fetchTarefas();
       get().fetchFollowup();
+      get().fetchRoletas();
       get().fetchHorario();
       get().fetchIntegracoes();
       if ((perfil as AuthUser).role === 'corretor') pedirPermissaoNotificacao();
@@ -618,6 +636,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     socket.off('tarefa:mudou').on('tarefa:mudou', () => { get().fetchTarefas(); });
     socket.off('followup:mudou').on('followup:mudou', () => { get().fetchFollowup(); });
+    socket.off('roletas:mudou').on('roletas:mudou', () => { get().fetchRoletas(); });
     socket.off('tarefa:venceu').on('tarefa:venceu', (msg: { id: string; titulo: string; corretorId: string | null }) => {
       get().fetchTarefas();
       const me = get().me;
@@ -1041,17 +1060,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ wahaConfigurado: r.wahaConfigurado, sessoesWhatsapp: r.sessoes });
     } catch { /* provável corretor sem permissão */ }
   },
-  conectarWhatsapp: async (escopo, corretorId) => {
+  conectarWhatsapp: async (escopo, corretorId, extra) => {
     const token = get().token;
     if (!token) return null;
     try {
-      const row = await apiFetch<SessaoWhatsapp>('/api/whatsapp/sessoes', token, { method: 'POST', body: JSON.stringify({ escopo, ...(corretorId ? { corretorId } : {}) }) });
+      const row = await apiFetch<SessaoWhatsapp>('/api/whatsapp/sessoes', token, {
+        method: 'POST',
+        body: JSON.stringify({ escopo, ...(corretorId ? { corretorId } : {}), ...(extra || {}) }),
+      });
       await get().fetchSessoesWhatsapp();
       return row.id;
     } catch (e) {
       get().toast((e as ApiError).message || 'Não foi possível iniciar a conexão');
       return null;
     }
+  },
+  renomearSessaoWhatsapp: async (id, rotulo) => {
+    const token = get().token;
+    if (!token) return;
+    set(s => ({ sessoesWhatsapp: s.sessoesWhatsapp.map(x => (x.id === id ? { ...x, rotulo } : x)) }));
+    try { await apiFetch('/api/whatsapp/sessoes/' + id, token, { method: 'PATCH', body: JSON.stringify({ rotulo }) }); }
+    catch { get().fetchSessoesWhatsapp(); }
   },
   qrWhatsapp: async id => {
     const token = get().token;
@@ -1118,6 +1147,47 @@ export const useAppStore = create<AppState>((set, get) => ({
     const token = get().token;
     if (!token) return;
     try { set({ roletaLog: await apiFetch('/api/filas/log', token) }); } catch { /* ignore */ }
+  },
+  fetchRoletas: async () => {
+    const token = get().token;
+    if (!token) return;
+    try { set({ roletas: await apiFetch<RemoteRoleta[]>('/api/roletas', token) }); } catch { /* corretor sem permissão vê via /filas */ }
+  },
+  criarRoleta: async nome => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      await apiFetch('/api/roletas', token, { method: 'POST', body: JSON.stringify({ nome }) });
+      get().fetchRoletas();
+      get().toast('Roleta criada');
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível criar'); }
+  },
+  atualizarRoleta: async (id, patch) => {
+    const token = get().token;
+    if (!token) return;
+    set(s => ({ roletas: s.roletas.map(r => (r.id === id ? { ...r, ...patch } : r)) }));
+    try {
+      await apiFetch('/api/roletas/' + id, token, { method: 'PATCH', body: JSON.stringify(patch) });
+      get().fetchRoletas();
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível salvar'); get().fetchRoletas(); }
+  },
+  excluirRoleta: async id => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      await apiFetch('/api/roletas/' + id, token, { method: 'DELETE' });
+      get().fetchRoletas();
+      get().toast('Roleta excluída');
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível excluir'); }
+  },
+  setMembrosRoleta: async (id, corretorIds) => {
+    const token = get().token;
+    if (!token) return;
+    set(s => ({ roletas: s.roletas.map(r => (r.id === id ? { ...r, membros: corretorIds.map((cid, i) => r.membros.find(m => m.corretorId === cid) ?? { corretorId: cid, nome: get().perfisRemotos.find(p => p.id === cid)?.nome ?? '', posicao: i, emPlantao: false, bloqueado: false }) } : r)) }));
+    try {
+      await apiFetch('/api/roletas/' + id + '/membros', token, { method: 'PUT', body: JSON.stringify({ corretorIds }) });
+      get().fetchRoletas();
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível salvar'); get().fetchRoletas(); }
   },
   pull: () => get().toast('3 rebatidas puxadas para o seu atendimento'),
 
@@ -1517,6 +1587,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         perfisRemotos: s.perfisRemotos.some(p => p.id === row.id) ? s.perfisRemotos : [...s.perfisRemotos, row],
         fila: row.role === 'corretor' && !s.fila.some(f => f.corretorId === row.id) ? [...s.fila, { corretorId: row.id, nome: row.nome, ativo: false }] : s.fila,
       }));
+      if (input.roletaIds?.length) get().fetchRoletas();
       get().toast(row.nome + ' convidado — senha padrão 123456');
       return true;
     } catch (e) {
@@ -1533,6 +1604,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         perfisRemotos: s.perfisRemotos.map(p => (p.id === id ? row : p)),
         fila: s.fila.map(f => (f.corretorId === id ? { ...f, nome: row.nome } : f)),
       }));
+      if (patch.roletaIds) get().fetchRoletas();
       get().toast(row.nome + ' atualizado');
       return true;
     } catch (e) {
@@ -1634,6 +1706,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           telefone: input.telefone.trim(),
           ...(input.email?.trim() ? { email: input.email.trim() } : {}),
           canal: input.canal,
+          ...(input.finalidade ? { finalidade: input.finalidade } : {}),
           ...(colunaId ? { colunaId } : {}),
           ...(input.corretorId ? { corretorId: input.corretorId } : {}),
         }),

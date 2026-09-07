@@ -102,7 +102,7 @@ export function mensagensRouter(io: SocketServer) {
     // dispara pelo WhatsApp (central ou do corretor) sem travar a resposta;
     // se não houver sessão conectada, a mensagem fica só no histórico do CRM.
     despacharPeloWhatsapp({
-      imobiliariaId, telefone: lead.telefone, corretorId: lead.corretorId,
+      imobiliariaId, telefone: lead.telefone, corretorId: lead.corretorId, sessaoWhatsappId: lead.sessaoWhatsappId,
       texto: parsed.data.texto, anexoUrl: parsed.data.anexoUrl, anexoTipo: parsed.data.anexoTipo, anexoNome: parsed.data.anexoNome,
     })
       .then(r => { if (!r.enviado && r.erro && r.erro !== 'WAHA não configurado' && r.erro !== 'nenhuma sessão conectada') console.warn('WhatsApp não enviou:', r.erro); })

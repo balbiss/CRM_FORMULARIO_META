@@ -1,14 +1,32 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { perfis, filasAtendimento, imobiliarias } from '../db/schema.js';
+import { perfis, filasAtendimento, roletas, imobiliarias } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { garantirRoletaPadrao } from '../lib/roleta.js';
 import type { Server as SocketServer } from 'socket.io';
 
 function pluck(row: typeof perfis.$inferSelect) {
   return { id: row.id, nome: row.nome, email: row.email, role: row.role, telefone: row.telefone, bloqueado: row.bloqueado, emPlantao: row.emPlantao };
+}
+
+/** Ajusta as roletas que um corretor participa. `roletaIds` = lista final desejada. */
+async function sincronizarRoletas(imobiliariaId: string, corretorId: string, roletaIds: string[]) {
+  const daImob = await db.select({ id: roletas.id }).from(roletas).where(eq(roletas.imobiliariaId, imobiliariaId));
+  const validas = roletaIds.filter(id => daImob.some(r => r.id === id));
+  const atuais = await db.select().from(filasAtendimento).where(eq(filasAtendimento.corretorId, corretorId));
+
+  for (const m of atuais) {
+    if (m.roletaId && !validas.includes(m.roletaId)) await db.delete(filasAtendimento).where(eq(filasAtendimento.id, m.id));
+  }
+  for (const rid of validas) {
+    if (atuais.some(m => m.roletaId === rid)) continue;
+    const na = await db.select({ posicao: filasAtendimento.posicao }).from(filasAtendimento).where(eq(filasAtendimento.roletaId, rid));
+    const proxima = na.reduce((mx, r) => Math.max(mx, r.posicao), -1) + 1;
+    await db.insert(filasAtendimento).values({ imobiliariaId, roletaId: rid, corretorId, posicao: proxima });
+  }
 }
 
 export function perfisRouter(io: SocketServer) {
@@ -16,11 +34,17 @@ export function perfisRouter(io: SocketServer) {
   router.use(requireAuth);
 
   router.get('/', async (req, res) => {
+    const { imobiliariaId } = req.auth!;
     const rows = await db
       .select({ id: perfis.id, nome: perfis.nome, email: perfis.email, role: perfis.role, telefone: perfis.telefone, bloqueado: perfis.bloqueado, emPlantao: perfis.emPlantao })
       .from(perfis)
-      .where(eq(perfis.imobiliariaId, req.auth!.imobiliariaId));
-    res.json(rows);
+      .where(eq(perfis.imobiliariaId, imobiliariaId));
+    const memb = await db.select({ corretorId: filasAtendimento.corretorId, roletaId: filasAtendimento.roletaId })
+      .from(filasAtendimento).where(eq(filasAtendimento.imobiliariaId, imobiliariaId));
+    res.json(rows.map(r => ({
+      ...r,
+      roletaIds: memb.filter(m => m.corretorId === r.id && m.roletaId).map(m => m.roletaId),
+    })));
   });
 
   const createSchema = z.object({
@@ -28,6 +52,7 @@ export function perfisRouter(io: SocketServer) {
     email: z.string().email(),
     telefone: z.string().optional(),
     role: z.enum(['gerente', 'corretor']).default('corretor'),
+    roletaIds: z.array(z.string().uuid()).optional(),
   });
 
   router.post('/', requireRole('dono', 'gerente'), async (req, res) => {
@@ -60,8 +85,8 @@ export function perfisRouter(io: SocketServer) {
     }).returning();
 
     if (parsed.data.role === 'corretor') {
-      const filaAtual = await db.select({ id: filasAtendimento.id }).from(filasAtendimento).where(eq(filasAtendimento.imobiliariaId, imobiliariaId));
-      await db.insert(filasAtendimento).values({ imobiliariaId, corretorId: inserido.id, posicao: filaAtual.length });
+      const alvo = parsed.data.roletaIds?.length ? parsed.data.roletaIds : [await garantirRoletaPadrao(imobiliariaId)];
+      await sincronizarRoletas(imobiliariaId, inserido.id, alvo);
     }
 
     const perfil = pluck(inserido);
@@ -72,6 +97,7 @@ export function perfisRouter(io: SocketServer) {
   const updateSchema = z.object({
     nome: z.string().min(2).optional(),
     telefone: z.string().nullable().optional(),
+    roletaIds: z.array(z.string().uuid()).optional(),
   });
 
   router.patch('/:id', requireRole('dono', 'gerente'), async (req, res) => {
@@ -83,7 +109,14 @@ export function perfisRouter(io: SocketServer) {
     if (!alvo) return res.status(404).json({ error: 'Perfil não encontrado' });
     if (role === 'gerente' && alvo.role !== 'corretor') return res.status(403).json({ error: 'Gerente só edita corretores' });
 
-    const [row] = await db.update(perfis).set(parsed.data).where(eq(perfis.id, alvo.id)).returning();
+    const { roletaIds, ...campos } = parsed.data;
+    const [row] = Object.keys(campos).length
+      ? await db.update(perfis).set(campos).where(eq(perfis.id, alvo.id)).returning()
+      : [alvo];
+    if (roletaIds && alvo.role === 'corretor') {
+      await sincronizarRoletas(imobiliariaId, alvo.id, roletaIds);
+      io.to('imobiliaria:' + imobiliariaId).emit('roletas:mudou', {});
+    }
     const perfil = pluck(row);
     io.to('imobiliaria:' + imobiliariaId).emit('perfil:atualizado', perfil);
     res.json(perfil);

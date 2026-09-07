@@ -25,7 +25,7 @@ export default function SitePublico() {
   const [busca, setBusca] = useState('');
   const [aberto, setAberto] = useState<SiteImovel | null>(null);
   const [imgIdx, setImgIdx] = useState(0);
-  const [form, setForm] = useState({ nome: '', telefone: '', email: '', mensagem: '', imovel: '' });
+  const [form, setForm] = useState({ nome: '', telefone: '', email: '', mensagem: '', imovel: '', interesse: '' });
   const [enviado, setEnviado] = useState(false);
   const [enviando, setEnviando] = useState(false);
 
@@ -67,7 +67,7 @@ export default function SitePublico() {
     try {
       const r = await fetch(API_URL + '/api/sites/publico/' + encodeURIComponent(slug) + '/contato', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome: form.nome, telefone: form.telefone, email: form.email || undefined, mensagem: form.mensagem || undefined, imovel: form.imovel || undefined }),
+        body: JSON.stringify({ nome: form.nome, telefone: form.telefone, email: form.email || undefined, mensagem: form.mensagem || undefined, imovel: form.imovel || undefined, interesse: form.interesse || undefined }),
       });
       if (r.ok) setEnviado(true);
     } finally { setEnviando(false); }
@@ -227,6 +227,14 @@ export default function SitePublico() {
             ) : (
               <form onSubmit={enviar} style={{ display: 'grid', gap: 12 }}>
                 {form.imovel && <p style={{ fontSize: 13, color: brand, fontWeight: 600, margin: 0 }}>Imóvel: {form.imovel}</p>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {['Comprar', 'Alugar'].map(op => (
+                    <button key={op} type="button" onClick={() => setForm({ ...form, interesse: form.interesse === op ? '' : op })}
+                      style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1.5px solid ' + (form.interesse === op ? brand : '#d9d9d9'), background: form.interesse === op ? brand : '#fff', color: form.interesse === op ? '#fff' : '#555', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                      Quero {op.toLowerCase()}
+                    </button>
+                  ))}
+                </div>
                 <input required value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} placeholder="Seu nome" style={S.input} />
                 <input required value={form.telefone} onChange={e => setForm({ ...form, telefone: e.target.value })} placeholder="Telefone / WhatsApp" style={S.input} />
                 <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="E-mail (opcional)" style={S.input} />

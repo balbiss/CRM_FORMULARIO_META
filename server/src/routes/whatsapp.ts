@@ -134,6 +134,7 @@ export function whatsappRouter(io: SocketServer) {
           telefone: numero,
           canal: 'WhatsApp',
           colunaId: colNova?.id,
+          sessaoWhatsappId: sessao.id,
           corretorId: sessao.escopo === 'corretor' ? sessao.corretorId : null,
         }).returning();
         lead = novo;
@@ -146,6 +147,12 @@ export function whatsappRouter(io: SocketServer) {
         }
       }
       if (!lead) return;
+
+      // Carimba por qual número o lead entrou (se ainda não tiver).
+      if (!lead.sessaoWhatsappId) {
+        await db.update(leads).set({ sessaoWhatsappId: sessao.id }).where(eq(leads.id, lead.id)).catch(() => {});
+        lead = { ...lead, sessaoWhatsappId: sessao.id };
+      }
 
       // Lead já existia com nome-placeholder e agora temos o nome do perfil -> atualiza.
       if (pushName && lead.nome !== pushName && /^(Contato |WhatsApp )/.test(lead.nome)) {
@@ -273,38 +280,66 @@ export function whatsappRouter(io: SocketServer) {
 
   router.post('/sessoes', async (req, res) => {
     if (!wahaConfigurado()) return res.status(400).json({ error: 'WAHA não está configurado no servidor ainda (WAHA_URL / WAHA_API_KEY).' });
-    const parsed = z.object({ escopo: z.enum(['central', 'corretor']), corretorId: z.string().uuid().optional() }).safeParse(req.body);
+    const parsed = z.object({
+      escopo: z.enum(['central', 'corretor']),
+      corretorId: z.string().uuid().optional(),
+      rotulo: z.string().max(40).optional(),
+      id: z.string().uuid().optional(), // reconectar uma sessão existente
+    }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Dados inválidos' });
     const { imobiliariaId } = req.auth!;
+
+    // Reconectar uma sessão que já existe.
+    if (parsed.data.id) {
+      const [ex] = await db.select().from(sessoesWhatsapp)
+        .where(and(eq(sessoesWhatsapp.id, parsed.data.id), eq(sessoesWhatsapp.imobiliariaId, imobiliariaId))).limit(1);
+      if (!ex) return res.status(404).json({ error: 'Sessão não encontrada' });
+      await db.update(sessoesWhatsapp).set({ status: 'conectando', ...(parsed.data.rotulo !== undefined ? { rotulo: parsed.data.rotulo } : {}) }).where(eq(sessoesWhatsapp.id, ex.id));
+      try { await criarSessao(ex.sessionName); } catch (e) { return res.status(502).json({ error: 'WAHA recusou: ' + (e as Error).message }); }
+      const [row] = await db.select().from(sessoesWhatsapp).where(eq(sessoesWhatsapp.id, ex.id));
+      return res.status(200).json(row);
+    }
 
     if (parsed.data.escopo === 'corretor') {
       if (!parsed.data.corretorId) return res.status(400).json({ error: 'Escolha o corretor' });
       const [c] = await db.select({ id: perfis.id }).from(perfis).where(and(eq(perfis.id, parsed.data.corretorId), eq(perfis.imobiliariaId, imobiliariaId))).limit(1);
       if (!c) return res.status(404).json({ error: 'Corretor não encontrado' });
+      // uma sessão por corretor
+      const nome = 'cor-' + parsed.data.corretorId;
+      const [ja] = await db.select().from(sessoesWhatsapp).where(eq(sessoesWhatsapp.sessionName, nome)).limit(1);
+      let row = ja;
+      if (!row) {
+        [row] = await db.insert(sessoesWhatsapp).values({ imobiliariaId, escopo: 'corretor', corretorId: parsed.data.corretorId, sessionName: nome, status: 'conectando', rotulo: parsed.data.rotulo ?? null }).returning();
+      } else {
+        await db.update(sessoesWhatsapp).set({ status: 'conectando' }).where(eq(sessoesWhatsapp.id, row.id));
+      }
+      try { await criarSessao(nome); } catch (e) { return res.status(502).json({ error: 'WAHA recusou: ' + (e as Error).message }); }
+      return res.status(201).json(row);
     }
 
-    const sessionName = parsed.data.escopo === 'central'
-      ? 'imob-' + imobiliariaId
-      : 'cor-' + parsed.data.corretorId;
-
-    const [ja] = await db.select().from(sessoesWhatsapp).where(eq(sessoesWhatsapp.sessionName, sessionName)).limit(1);
-    let row = ja;
-    if (!row) {
-      [row] = await db.insert(sessoesWhatsapp).values({
-        imobiliariaId, escopo: parsed.data.escopo,
-        corretorId: parsed.data.escopo === 'corretor' ? parsed.data.corretorId : null,
-        sessionName, status: 'conectando',
-      }).returning();
-    } else {
-      await db.update(sessoesWhatsapp).set({ status: 'conectando' }).where(eq(sessoesWhatsapp.id, row.id));
-    }
-
+    // Central: a imobiliária pode ter vários números. O 1º usa o nome legado; os demais têm sufixo.
+    const centrais = await db.select({ id: sessoesWhatsapp.id }).from(sessoesWhatsapp)
+      .where(and(eq(sessoesWhatsapp.imobiliariaId, imobiliariaId), eq(sessoesWhatsapp.escopo, 'central')));
+    const sessionName = centrais.length === 0 ? 'imob-' + imobiliariaId : 'imob-' + imobiliariaId + '-' + Date.now().toString(36);
+    const [row] = await db.insert(sessoesWhatsapp).values({
+      imobiliariaId, escopo: 'central', corretorId: null, sessionName, status: 'conectando', rotulo: parsed.data.rotulo ?? null,
+    }).returning();
     try {
       await criarSessao(sessionName);
     } catch (e) {
       return res.status(502).json({ error: 'WAHA recusou: ' + (e as Error).message });
     }
     res.status(201).json(row);
+  });
+
+  // Renomear o rótulo de uma sessão.
+  router.patch('/sessoes/:id', async (req, res) => {
+    const parsed = z.object({ rotulo: z.string().max(40) }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Rótulo inválido' });
+    const [row] = await db.update(sessoesWhatsapp).set({ rotulo: parsed.data.rotulo })
+      .where(and(eq(sessoesWhatsapp.id, req.params.id), eq(sessoesWhatsapp.imobiliariaId, req.auth!.imobiliariaId))).returning();
+    if (!row) return res.status(404).json({ error: 'Sessão não encontrada' });
+    res.json(row);
   });
 
   router.get('/sessoes/:id/qr', async (req, res) => {
@@ -334,6 +369,7 @@ export async function despacharPeloWhatsapp(opts: {
   imobiliariaId: string;
   telefone: string;
   corretorId: string | null;
+  sessaoWhatsappId?: string | null;
   texto?: string | null;
   anexoUrl?: string | null;
   anexoTipo?: 'imagem' | 'video' | 'documento' | 'audio' | null;
@@ -345,8 +381,15 @@ export async function despacharPeloWhatsapp(opts: {
 
   let sessao;
   if (imob?.modo === 'central') {
-    [sessao] = await db.select().from(sessoesWhatsapp)
-      .where(and(eq(sessoesWhatsapp.imobiliariaId, opts.imobiliariaId), eq(sessoesWhatsapp.escopo, 'central'), eq(sessoesWhatsapp.status, 'conectada'))).limit(1);
+    // Sai pelo MESMO número que o lead usou pra falar; se não souber / não estiver conectado, cai no 1º central conectado.
+    if (opts.sessaoWhatsappId) {
+      [sessao] = await db.select().from(sessoesWhatsapp)
+        .where(and(eq(sessoesWhatsapp.id, opts.sessaoWhatsappId), eq(sessoesWhatsapp.status, 'conectada'))).limit(1);
+    }
+    if (!sessao) {
+      [sessao] = await db.select().from(sessoesWhatsapp)
+        .where(and(eq(sessoesWhatsapp.imobiliariaId, opts.imobiliariaId), eq(sessoesWhatsapp.escopo, 'central'), eq(sessoesWhatsapp.status, 'conectada'))).limit(1);
+    }
   } else if (opts.corretorId) {
     [sessao] = await db.select().from(sessoesWhatsapp)
       .where(and(eq(sessoesWhatsapp.corretorId, opts.corretorId), eq(sessoesWhatsapp.status, 'conectada'))).limit(1);

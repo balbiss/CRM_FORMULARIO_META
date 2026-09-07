@@ -319,12 +319,13 @@ function ConexaoWhatsapp({ modo }: { modo: ModoWhatsapp }) {
   const fetchSessoes = useAppStore(s => s.fetchSessoesWhatsapp);
   const [qrPara, setQrPara] = useState<string | null>(null);
 
+  const renomear = useAppStore(s => s.renomearSessaoWhatsapp);
   const corretores = perfis.filter(p => p.role === 'corretor');
-  const central = sessoes.find(s => s.escopo === 'central');
+  const centrais = sessoes.filter(s => s.escopo === 'central');
   const sessaoDoCorretor = (id: string) => sessoes.find(s => s.escopo === 'corretor' && s.corretorId === id);
 
-  const abrirConexao = async (escopo: 'central' | 'corretor', corretorId?: string) => {
-    const id = await conectar(escopo, corretorId);
+  const abrirConexao = async (escopo: 'central' | 'corretor', corretorId?: string, rotulo?: string) => {
+    const id = await conectar(escopo, corretorId, rotulo ? { rotulo } : undefined);
     if (id) setQrPara(id);
   };
 
@@ -360,10 +361,37 @@ function ConexaoWhatsapp({ modo }: { modo: ModoWhatsapp }) {
 
   return (
     <div style={{ marginTop: 16 }}>
-      <p style={secTitle}>{modo === 'central' ? 'Número central' : 'Números dos corretores'}</p>
+      <p style={secTitle}>{modo === 'central' ? 'Números da imobiliária' : 'Números dos corretores'}</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
         {modo === 'central'
-          ? linha('Número da imobiliária', central, () => central ? setQrPara(central.id) : abrirConexao('central'))
+          ? <>
+              {centrais.map(s => (
+                <div key={s.id} className="data-row" style={{ ...card, display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.status === 'conectada' ? 'var(--olive)' : 'var(--muted)' }} />
+                      <input
+                        defaultValue={s.rotulo || ''} placeholder="Rótulo (ex: Vendas, Locação)"
+                        onBlur={e => { const v = e.target.value.trim(); if (v !== (s.rotulo || '')) renomear(s.id, v); }}
+                        style={{ fontSize: 13.5, fontWeight: 700, border: '1px solid transparent', background: 'none', padding: '2px 4px', borderRadius: 5, minWidth: 120 }}
+                        onFocus={e => e.currentTarget.style.borderColor = 'var(--line)'}
+                      />
+                    </span>
+                    <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
+                      {s.status === 'conectada' ? '+' + s.numero : s.status === 'conectando' ? 'aguardando leitura do QR…' : 'não conectado'}
+                    </span>
+                  </span>
+                  <div className="row-actions" style={{ display: 'flex', gap: 7, flex: 'none' }}>
+                    {s.status === 'conectada'
+                      ? <button onClick={() => desconectar(s.id)} style={btn}>Desconectar</button>
+                      : <button onClick={() => setQrPara(s.id)} style={{ ...btn, background: 'var(--terra)', color: '#fff', border: 'none' }}>Ler QR</button>}
+                  </div>
+                </div>
+              ))}
+              <button onClick={() => abrirConexao('central', undefined, 'Novo número')} style={{ ...card, textAlign: 'left', border: '1px dashed var(--line)', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                + Conectar {centrais.length ? 'outro número' : 'um número'}
+              </button>
+            </>
           : (corretores.length === 0
               ? <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0 }}>Nenhum corretor cadastrado ainda.</p>
               : corretores.map(c => {
@@ -371,6 +399,11 @@ function ConexaoWhatsapp({ modo }: { modo: ModoWhatsapp }) {
                   return <div key={c.id}>{linha(c.nome, s, () => s ? setQrPara(s.id) : abrirConexao('corretor', c.id))}</div>;
                 }))}
       </div>
+      {modo === 'central' && (
+        <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '10px 0 0', lineHeight: 1.5 }}>
+          Vários números? Dá pra ter um pra Vendas e outro pra Locação, por exemplo. Depois, em <b>Roletas</b>, você liga cada número a uma equipe.
+        </p>
+      )}
       {qrPara && <QrWhatsappModal sessaoId={qrPara} onClose={() => { setQrPara(null); fetchSessoes(); }} />}
     </div>
   );

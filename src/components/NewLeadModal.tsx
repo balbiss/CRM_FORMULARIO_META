@@ -19,18 +19,19 @@ export function NewLeadModal() {
   const [telefone, setTelefone] = useState('');
   const [email, setEmail] = useState('');
   const [canal, setCanal] = useState<string>('Manual');
+  const [finalidade, setFinalidade] = useState<'' | 'venda' | 'locacao'>('');
   const [corretorId, setCorretorId] = useState('');
   const [saving, setSaving] = useState(false);
 
   if (!open) return null;
 
-  const reset = () => { setNome(''); setTelefone(''); setEmail(''); setCanal('Manual'); setCorretorId(''); };
+  const reset = () => { setNome(''); setTelefone(''); setEmail(''); setCanal('Manual'); setFinalidade(''); setCorretorId(''); };
   const fechar = () => { setOpen(false); reset(); };
 
   const submit = async () => {
     if (nome.trim().length < 1 || telefone.trim().length < 8) return;
     setSaving(true);
-    const ok = await criar({ nome, telefone, email, canal, corretorId: corretorId || undefined });
+    const ok = await criar({ nome, telefone, email, canal, corretorId: corretorId || undefined, finalidade: finalidade || undefined });
     setSaving(false);
     if (ok) reset();
   };
@@ -57,6 +58,14 @@ export function NewLeadModal() {
             <label style={label}>Canal</label>
             <select value={canal} onChange={e => setCanal(e.target.value)} style={input}>
               {CANAIS.map(c => <option key={c} value={c}>{CANAL_LABEL[c] ?? c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={label}>Interesse</label>
+            <select value={finalidade} onChange={e => setFinalidade(e.target.value as '' | 'venda' | 'locacao')} style={input}>
+              <option value="">Não sei ainda</option>
+              <option value="venda">Comprar</option>
+              <option value="locacao">Alugar</option>
             </select>
           </div>
           {isManager && (

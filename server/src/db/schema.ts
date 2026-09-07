@@ -14,6 +14,8 @@ export const direcaoEnum = pgEnum('direcao', ['in', 'out']);
 export const mensagemCanalEnum = pgEnum('mensagem_canal', ['corretor', 'followup']);
 export const aoEsgotarEnum = pgEnum('ao_esgotar', ['nada', 'descartar', 'mover']);
 export const execucaoStatusEnum = pgEnum('execucao_status', ['ativa', 'pausada', 'encerrada']);
+export const roletaFinalidadeEnum = pgEnum('roleta_finalidade', ['venda', 'locacao', 'ambos']);
+export const leadFinalidadeEnum = pgEnum('lead_finalidade', ['venda', 'locacao']);
 
 /** Janela de atendimento de um dia da semana (minutos desde a meia-noite, fuso São Paulo).
  *  Índice 0 = domingo … 6 = sábado. Controla quando o corretor pode ficar "No Plantão". */
@@ -149,6 +151,11 @@ export const leads = pgTable('leads', {
   corretorId: uuid('corretor_id').references(() => perfis.id, { onDelete: 'set null' }),
   campanha: text('campanha'),
   segundoCadastro: boolean('segundo_cadastro').notNull().default(false),
+  // Compra (venda) ou aluguel (locacao) — do formulário do site/facebook ou do número de WhatsApp.
+  // Usado pra rotear o lead pra roleta certa.
+  finalidade: leadFinalidadeEnum('finalidade'),
+  // Por qual número de WhatsApp o lead entrou (quando veio pelo WhatsApp).
+  sessaoWhatsappId: uuid('sessao_whatsapp_id'),
   // Cadência de chamada ("Chamada 1", "Chamada 2"…). O corretor mexe na mão OU a régua de
   // follow-up atualiza a cada passo enviado.
   cadencia: text('cadencia'),
@@ -187,14 +194,39 @@ export const leadTags = pgTable('lead_tags', {
 }));
 
 // A disponibilidade em si mora em perfis.emPlantao — esta tabela guarda só a ordem da fila.
+/** Uma roleta = uma "equipe" de distribuição. A imobiliária pode ter várias, cada uma com
+ *  regras de entrada (canais + finalidade + número de WhatsApp). A marcada como `padrao` pega
+ *  tudo que não se encaixa em nenhuma outra. */
+export const roletas = pgTable('roletas', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  imobiliariaId: uuid('imobiliaria_id').notNull().references(() => imobiliarias.id, { onDelete: 'cascade' }),
+  nome: text('nome').notNull(),
+  ativa: boolean('ativa').notNull().default(true),
+  ordem: integer('ordem').notNull().default(0),
+  padrao: boolean('padrao').notNull().default(false),
+  // [] = todos os canais. Ex: ['WhatsApp'] | ['Facebook','Instagram'] | ['Site']
+  canais: jsonb('canais').$type<string[]>().notNull().default([]),
+  finalidade: roletaFinalidadeEnum('finalidade').notNull().default('ambos'),
+  // Se setado, essa roleta só pega leads que entraram por ESSE número de WhatsApp.
+  sessaoWhatsappId: uuid('sessao_whatsapp_id').references(() => sessoesWhatsapp.id, { onDelete: 'set null' }),
+  criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+}, table => ({
+  imobIdx: index('roletas_imobiliaria_id_idx').on(table.imobiliariaId),
+}));
+
+/** Corretores que participam de uma roleta (muitos-pra-muitos). `posicao` e `ultimaAtribuicao`
+ *  são POR roleta — o mesmo corretor tem uma posição diferente em cada roleta que participa. */
 export const filasAtendimento = pgTable('filas_atendimento', {
   id: uuid('id').primaryKey().defaultRandom(),
   imobiliariaId: uuid('imobiliaria_id').notNull().references(() => imobiliarias.id, { onDelete: 'cascade' }),
-  corretorId: uuid('corretor_id').notNull().references(() => perfis.id, { onDelete: 'cascade' }).unique(),
+  roletaId: uuid('roleta_id').references(() => roletas.id, { onDelete: 'cascade' }),
+  corretorId: uuid('corretor_id').notNull().references(() => perfis.id, { onDelete: 'cascade' }),
   posicao: integer('posicao').notNull().default(0),
-  // Quando esse corretor recebeu o último lead da roleta — o próximo lead vai pro que faz mais tempo.
+  // Quando esse corretor recebeu o último lead DESSA roleta — o próximo vai pro que faz mais tempo.
   ultimaAtribuicao: timestamp('ultima_atribuicao', { withTimezone: true }),
-});
+}, table => ({
+  membroUq: uniqueIndex('filas_roleta_corretor_uq').on(table.roletaId, table.corretorId),
+}));
 
 /** Sessão de WhatsApp (WAHA). 'central' = número único da imobiliária;
  *  'corretor' = espelho do WhatsApp de um corretor específico. */
@@ -206,6 +238,8 @@ export const sessoesWhatsapp = pgTable('sessoes_whatsapp', {
   sessionName: text('session_name').notNull().unique(),
   status: sessaoStatusEnum('status').notNull().default('desconectada'),
   numero: text('numero'),
+  // Rótulo do número ("Vendas", "Locação", "Campanha Facebook") — só pra sessão central.
+  rotulo: text('rotulo'),
   criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
 }, table => ({
   imobiliariaIdx: index('sessoes_whatsapp_imobiliaria_id_idx').on(table.imobiliariaId),
@@ -426,6 +460,7 @@ export const distribuicaoLog = pgTable('distribuicao_log', {
   leadId: uuid('lead_id').notNull().references(() => leads.id, { onDelete: 'cascade' }),
   corretorId: uuid('corretor_id').notNull().references(() => perfis.id, { onDelete: 'cascade' }),
   origem: text('origem').notNull(),
+  roletaId: uuid('roleta_id'),
   criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
 });
 

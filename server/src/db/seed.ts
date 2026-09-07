@@ -56,6 +56,7 @@ async function main() {
   await db.delete(schema.mensagensWhatsapp);
   await db.delete(schema.leads);
   await db.delete(schema.filasAtendimento);
+  await db.delete(schema.roletas);
   await db.delete(schema.colunasKanban);
   await db.delete(schema.perfis);
   await db.delete(schema.imoveis);
@@ -88,8 +89,9 @@ async function main() {
   // Dono/Gerente logam e veem os 10.
   const corretoresRows = perfisRows.filter(p => p.role === 'corretor');
 
+  const [roletaGeral] = await db.insert(schema.roletas).values({ imobiliariaId: imob.id, nome: 'Geral', padrao: true, ordem: 0 }).returning();
   await db.insert(schema.filasAtendimento).values(
-    corretoresRows.map((p, i) => ({ imobiliariaId: imob.id, corretorId: p.id, posicao: i })),
+    corretoresRows.map((p, i) => ({ imobiliariaId: imob.id, roletaId: roletaGeral.id, corretorId: p.id, posicao: i })),
   );
 
   const leadsRows = await db.insert(schema.leads).values(

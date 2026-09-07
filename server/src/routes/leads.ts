@@ -43,6 +43,7 @@ export function leadsRouter(io: SocketServer) {
     campanha: z.string().optional(),
     valor: z.number().optional(),
     canal: z.enum(['WhatsApp', 'Instagram', 'Facebook', 'Indicacao', 'Manual']).default('Manual'),
+    finalidade: z.enum(['venda', 'locacao']).optional(),
     colunaId: z.string().uuid().optional(),
     corretorId: z.string().uuid().optional(),
   });
@@ -93,6 +94,7 @@ export function leadsRouter(io: SocketServer) {
     corretorId: z.string().uuid().nullable().optional(),
     motivoDescarte: z.string().nullable().optional(),
     cadencia: z.string().nullable().optional(),
+    finalidade: z.enum(['venda', 'locacao']).nullable().optional(),
     rendaDeclarada: z.number().optional(),
   });
 

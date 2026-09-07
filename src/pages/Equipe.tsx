@@ -147,21 +147,41 @@ export default function Equipe() {
   );
 }
 
+function RoletaPicker({ ids, onChange }: { ids: string[]; onChange: (v: string[]) => void }) {
+  const roletas = useAppStore(s => s.roletas);
+  if (!roletas.length) return null;
+  return (
+    <>
+      <label style={fieldLabel}>Participa das roletas</label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+        {roletas.map(r => (
+          <label key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <input type="checkbox" checked={ids.includes(r.id)} onChange={e => onChange(e.target.checked ? [...ids, r.id] : ids.filter(x => x !== r.id))} />
+            {r.nome}{r.padrao ? ' (padrão)' : ''}
+          </label>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function InviteModal({ isDono, onClose, onSubmit }: {
   isDono: boolean;
   onClose: () => void;
-  onSubmit: (input: { nome: string; email: string; telefone?: string; role: 'gerente' | 'corretor' }) => Promise<boolean>;
+  onSubmit: (input: { nome: string; email: string; telefone?: string; role: 'gerente' | 'corretor'; roletaIds?: string[] }) => Promise<boolean>;
 }) {
+  const roletasStore = useAppStore(s => s.roletas);
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [role, setRole] = useState<'gerente' | 'corretor'>('corretor');
+  const [roletaIds, setRoletaIds] = useState<string[]>(() => roletasStore.filter(r => r.padrao).map(r => r.id));
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
     if (!nome.trim() || !email.trim()) return;
     setSaving(true);
-    const ok = await onSubmit({ nome: nome.trim(), email: email.trim(), telefone: telefone.trim() || undefined, role });
+    const ok = await onSubmit({ nome: nome.trim(), email: email.trim(), telefone: telefone.trim() || undefined, role, ...(role === 'corretor' ? { roletaIds } : {}) });
     setSaving(false);
     if (ok) onClose();
   };
@@ -181,6 +201,7 @@ function InviteModal({ isDono, onClose, onSubmit }: {
           <option value="corretor">Corretor</option>
           {isDono && <option value="gerente">Gerente</option>}
         </select>
+        {role === 'corretor' && <RoletaPicker ids={roletaIds} onChange={setRoletaIds} />}
         <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '0 0 20px' }}>Senha padrão de acesso: 123456 (o membro pode trocar depois).</p>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{ padding: '11px 16px', border: '1px solid var(--line)', borderRadius: 8, background: 'none', fontSize: 13, fontWeight: 600 }}>Cancelar</button>
@@ -194,16 +215,17 @@ function InviteModal({ isDono, onClose, onSubmit }: {
 function EditModal({ perfil, onClose, onSubmit }: {
   perfil: RemotePerfil;
   onClose: () => void;
-  onSubmit: (id: string, patch: { nome: string; telefone: string }) => Promise<boolean>;
+  onSubmit: (id: string, patch: { nome?: string; telefone?: string; roletaIds?: string[] }) => Promise<boolean>;
 }) {
   const [nome, setNome] = useState(perfil.nome);
   const [telefone, setTelefone] = useState(perfil.telefone ?? '');
+  const [roletaIds, setRoletaIds] = useState<string[]>(perfil.roletaIds ?? []);
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
     if (!nome.trim()) return;
     setSaving(true);
-    const ok = await onSubmit(perfil.id, { nome: nome.trim(), telefone: telefone.trim() });
+    const ok = await onSubmit(perfil.id, { nome: nome.trim(), telefone: telefone.trim(), ...(perfil.role === 'corretor' ? { roletaIds } : {}) });
     setSaving(false);
     if (ok) onClose();
   };
@@ -215,7 +237,8 @@ function EditModal({ perfil, onClose, onSubmit }: {
         <label style={fieldLabel}>Nome</label>
         <input value={nome} onChange={e => setNome(e.target.value)} style={fieldInput} />
         <label style={fieldLabel}>Telefone</label>
-        <input value={telefone} onChange={e => setTelefone(e.target.value)} style={{ ...fieldInput, marginBottom: 20 }} placeholder="(11) 90000-0000" />
+        <input value={telefone} onChange={e => setTelefone(e.target.value)} style={{ ...fieldInput, marginBottom: 16 }} placeholder="(11) 90000-0000" />
+        {perfil.role === 'corretor' && <RoletaPicker ids={roletaIds} onChange={setRoletaIds} />}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{ padding: '11px 16px', border: '1px solid var(--line)', borderRadius: 8, background: 'none', fontSize: 13, fontWeight: 600 }}>Cancelar</button>
           <button onClick={submit} disabled={saving} style={{ padding: '11px 18px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600, opacity: saving ? 0.6 : 1 }}>{saving ? 'Salvando…' : 'Salvar'}</button>

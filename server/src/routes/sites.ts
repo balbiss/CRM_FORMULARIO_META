@@ -5,7 +5,7 @@ import type { Server as SocketServer } from 'socket.io';
 import { db } from '../db/client.js';
 import { sites, imoveis, imobiliarias } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { criarLead } from './captacao.js';
+import { criarLead, normalizarFinalidade } from './captacao.js';
 
 const slugify = (s: string) => {
   const semAcento = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -92,6 +92,7 @@ export function sitesRouter(io: SocketServer) {
       email: z.string().email().max(160).optional().or(z.literal('')),
       mensagem: z.string().max(1200).optional(),
       imovel: z.string().max(200).optional(),
+      interesse: z.string().max(40).optional(),
     }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Preencha nome e telefone.' });
 
@@ -102,6 +103,7 @@ export function sitesRouter(io: SocketServer) {
       nome: parsed.data.nome, telefone: parsed.data.telefone,
       email: parsed.data.email || undefined, mensagem: parsed.data.mensagem,
       imovelTitulo: parsed.data.imovel, campanha: 'Site', canal: 'Site',
+      finalidade: normalizarFinalidade(parsed.data.interesse),
     });
     res.status(201).json({ ok: true });
   });

@@ -1,7 +1,7 @@
 import { COLS, type ColId, type Lead } from './data';
 
 export interface RemoteColuna { id: string; titulo: string; ordem: number; cor: string | null; slug: string | null }
-export interface RemotePerfil { id: string; nome: string; email: string; role: string; telefone: string | null; bloqueado: boolean; emPlantao: boolean }
+export interface RemotePerfil { id: string; nome: string; email: string; role: string; telefone: string | null; bloqueado: boolean; emPlantao: boolean; roletaIds?: string[] }
 export interface RemoteLead {
   id: string;
   nome: string;

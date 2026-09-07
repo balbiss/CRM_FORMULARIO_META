@@ -256,7 +256,7 @@ export async function varrerFollowups(io: SocketServer): Promise<number> {
 
       const { despacharPeloWhatsapp } = await import('../routes/whatsapp.js');
       const r = await despacharPeloWhatsapp({
-        imobiliariaId: ex.imobiliariaId, telefone: lead.telefone, corretorId: ex.corretorId,
+        imobiliariaId: ex.imobiliariaId, telefone: lead.telefone, corretorId: ex.corretorId, sessaoWhatsappId: lead.sessaoWhatsappId,
         texto, anexoUrl: passo.anexoUrl, anexoTipo: anexoTipo as 'imagem' | 'audio' | 'documento' | null, anexoNome: passo.anexoNome,
       });
       if (!r.enviado) {

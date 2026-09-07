@@ -9,9 +9,18 @@ import type { Server as SocketServer } from 'socket.io';
 
 const soDigitos = (s: string) => (s || '').replace(/[^0-9]/g, '');
 
+/** "comprar"/"compra"/"venda" -> venda; "alugar"/"aluguel"/"locação" -> locacao; senão null. */
+export function normalizarFinalidade(v?: string | null): 'venda' | 'locacao' | null {
+  const s = (v || '').toLowerCase();
+  if (/alug|loca|rent/.test(s)) return 'locacao';
+  if (/compr|venda|sale|buy/.test(s)) return 'venda';
+  return null;
+}
+
 export async function criarLead(io: SocketServer, imobId: string, dados: {
   nome: string; telefone: string; email?: string; mensagem?: string;
   imovelTitulo?: string; campanha?: string; canal: string;
+  finalidade?: 'venda' | 'locacao' | null;
 }) {
   const [colunaNova] = await db.select().from(colunasKanban)
     .where(and(eq(colunasKanban.imobiliariaId, imobId), eq(colunasKanban.titulo, 'Lead Novo'))).limit(1);
@@ -25,6 +34,7 @@ export async function criarLead(io: SocketServer, imobId: string, dados: {
     imovelSub: dados.mensagem?.trim() || null,
     campanha: dados.campanha?.trim() || null,
     canal: dados.canal as any,
+    finalidade: dados.finalidade ?? null,
     colunaId: colunaNova?.id,
   }).returning();
 
@@ -57,6 +67,9 @@ export function captacaoRouter(io: SocketServer) {
     mensagem: z.string().max(2000).optional(),
     imovel: z.string().max(300).optional(),
     campanha: z.string().max(200).optional(),
+    // "comprar" / "alugar" / "venda" / "locacao" — pra rotear pra roleta certa
+    interesse: z.string().max(40).optional(),
+    finalidade: z.string().max(40).optional(),
   }).passthrough();
 
   router.post('/site/:token', cors, async (req, res) => {
@@ -79,6 +92,7 @@ export function captacaoRouter(io: SocketServer) {
       imovelTitulo: parsed.data.imovel,
       campanha: parsed.data.campanha,
       canal: 'Site',
+      finalidade: normalizarFinalidade(parsed.data.finalidade || parsed.data.interesse),
     });
     res.status(201).json({ ok: true, id: lead.id });
   });
@@ -100,6 +114,8 @@ export function captacaoRouter(io: SocketServer) {
     fotoUrl: z.string().url().optional(),
     imovelTitulo: z.string().optional(),
     campanha: z.string().optional(),
+    interesse: z.string().optional(),
+    finalidade: z.string().optional(),
     canal: z.enum(['WhatsApp', 'Instagram', 'Facebook', 'Indicacao', 'Manual', 'Site']).default('Facebook'),
   });
 
@@ -124,6 +140,7 @@ export function captacaoRouter(io: SocketServer) {
       imovelTitulo: parsed.data.imovelTitulo,
       campanha: parsed.data.campanha,
       canal: parsed.data.canal,
+      finalidade: normalizarFinalidade(parsed.data.finalidade || parsed.data.interesse),
       colunaId: colunaNova?.id,
     }).returning();
 

@@ -148,6 +148,13 @@
       "when": 1788750215025,
       "tag": "0020_married_enchantress",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788752638687,
+      "tag": "0021_zippy_dakota_north",
+      "breakpoints": true
     }
   ]
 }
