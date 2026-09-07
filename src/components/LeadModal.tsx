@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Paperclip } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
+import { useRoleInfo } from '../lib/selectors';
 import { CADENCIAS, MOTIVOS_DESCARTE, APROVACAO, mapMsgs } from '../lib/data';
 import { BRL, canalPill, thumb } from '../lib/format';
 import { css } from '../lib/css';
@@ -40,6 +41,7 @@ export function LeadModal() {
   const excluirLead = useAppStore(s => s.excluirLead);
   const limparConversa = useAppStore(s => s.limparConversa);
   const [excluirOpen, setExcluirOpen] = useState(false);
+  const { isManager } = useRoleInfo();
   const discardOpen = useAppStore(s => s.discardOpen);
   const discardWarn = useAppStore(s => s.discardWarn);
   const openDiscard = useAppStore(s => s.openDiscard);
@@ -194,6 +196,7 @@ export function LeadModal() {
                 <button onClick={closeLead} style={{ padding: '11px 18px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600 }}>Salvar alterações</button>
                 <button onClick={() => advance(L.id)} style={{ padding: '11px 16px', border: '1px solid var(--line)', borderRadius: 8, background: 'none', fontSize: 13, fontWeight: 600 }}>Avançar etapa</button>
                 <span style={{ flex: 1 }} />
+                {isManager && (
                 <div style={{ position: 'relative' }}>
                   <button onClick={() => setExcluirOpen(v => !v)} style={{ padding: '11px 16px', border: '1px solid var(--line)', borderRadius: 8, background: 'none', fontSize: 13, color: '#C0392B' }}>Excluir ▾</button>
                   {excluirOpen && (
@@ -213,6 +216,7 @@ export function LeadModal() {
                     </div>
                   )}
                 </div>
+                )}
                 <div style={{ position: 'relative' }}>
                   <button onClick={openDiscard} style={{ padding: '11px 16px', border: '1px solid var(--line)', borderRadius: 8, background: 'none', fontSize: 13, color: 'var(--terra)' }}>Descartar lead ▾</button>
                   {discardOpen && (

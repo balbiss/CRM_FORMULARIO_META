@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { and, asc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { leads, leadTags, mensagensWhatsapp, filasAtendimento, colunasKanban, eventosLead, perfis, tarefas, distribuicaoLog, imobiliarias, notificacoes } from '../db/schema.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 import { distribuirLead } from '../lib/roleta.js';
 import { registrarEvento } from '../lib/eventos.js';
 import { dispararGatilhoLeadNovo, encerrarPorLead } from '../lib/followup.js';
@@ -157,13 +157,11 @@ export function leadsRouter(io: SocketServer) {
     res.json({ ok: true, redistribuido: !!novoCorretor });
   });
 
-  // Limpa só a conversa de WhatsApp do lead (o lead continua).
-  router.delete('/:id/conversa', async (req, res) => {
-    const { imobiliariaId, role, sub } = req.auth!;
-    const scoped = role === 'corretor'
-      ? and(eq(leads.id, req.params.id), eq(leads.imobiliariaId, imobiliariaId), eq(leads.corretorId, sub))
-      : and(eq(leads.id, req.params.id), eq(leads.imobiliariaId, imobiliariaId));
-    const [lead] = await db.select({ id: leads.id }).from(leads).where(scoped).limit(1);
+  // Limpa só a conversa de WhatsApp do lead (o lead continua). Só dono/gerente.
+  router.delete('/:id/conversa', requireRole('dono', 'gerente'), async (req, res) => {
+    const { imobiliariaId } = req.auth!;
+    const [lead] = await db.select({ id: leads.id }).from(leads)
+      .where(and(eq(leads.id, req.params.id), eq(leads.imobiliariaId, imobiliariaId))).limit(1);
     if (!lead) return res.status(404).json({ error: 'Lead não encontrado' });
     await db.delete(mensagensWhatsapp).where(eq(mensagensWhatsapp.leadId, lead.id));
     io.to('imobiliaria:' + imobiliariaId).emit('conversa:limpa', { leadId: lead.id });
@@ -171,13 +169,11 @@ export function leadsRouter(io: SocketServer) {
   });
 
   // Exclui o lead do CRM inteiro (conversa, etiquetas, tudo — FKs ON DELETE CASCADE).
-  // Corretor pode excluir só os próprios; gerente/dono qualquer um da imobiliária.
-  router.delete('/:id', async (req, res) => {
-    const { imobiliariaId, role, sub } = req.auth!;
-    const scoped = role === 'corretor'
-      ? and(eq(leads.id, req.params.id), eq(leads.imobiliariaId, imobiliariaId), eq(leads.corretorId, sub))
-      : and(eq(leads.id, req.params.id), eq(leads.imobiliariaId, imobiliariaId));
-    const [lead] = await db.select({ id: leads.id }).from(leads).where(scoped).limit(1);
+  // SÓ dono/gerente — corretor não apaga lead do CRM (usa "Descartar" pra tirar do funil).
+  router.delete('/:id', requireRole('dono', 'gerente'), async (req, res) => {
+    const { imobiliariaId } = req.auth!;
+    const [lead] = await db.select({ id: leads.id }).from(leads)
+      .where(and(eq(leads.id, req.params.id), eq(leads.imobiliariaId, imobiliariaId))).limit(1);
     if (!lead) return res.status(404).json({ error: 'Lead não encontrado' });
     await db.delete(leads).where(eq(leads.id, lead.id));
     io.to('imobiliaria:' + imobiliariaId).emit('lead:removido', { id: lead.id });
