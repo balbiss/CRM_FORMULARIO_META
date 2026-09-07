@@ -23,10 +23,12 @@ import { whatsappRouter } from './routes/whatsapp.js';
 import { plataformaRouter } from './routes/plataforma.js';
 import { pushRouter } from './routes/push.js';
 import { tarefasRouter } from './routes/tarefas.js';
+import { followupRouter } from './routes/followup.js';
 import { verifyToken } from './lib/jwt.js';
 import { ensureBucket } from './lib/storage.js';
 import { bootstrapAdminPlataforma, varrerInadimplencia } from './lib/bootstrapPlataforma.js';
 import { varrerTarefasVencidas } from './lib/tarefas.js';
+import { varrerFollowups } from './lib/followup.js';
 
 const app = express();
 // O webhook do formulário de site é público (token na URL) e a página fica em domínio de
@@ -78,6 +80,7 @@ app.use('/api/captacao', captacaoRouter(io));
 app.use('/api/tags', tagsRouter(io));
 app.use('/api/whatsapp', whatsappRouter(io));
 app.use('/api/tarefas', tarefasRouter(io));
+app.use('/api/followup', followupRouter(io));
 
 const port = Number(process.env.PORT) || 3001;
 
@@ -88,11 +91,13 @@ setInterval(() => {
   varrerInadimplencia().catch(err => console.error('Plataforma: varredura falhou —', err.message));
 }, 60 * 60 * 1000);
 
-// Tarefas vencidas: varre a cada minuto e avisa o corretor responsável.
-varrerTarefasVencidas(io).catch(err => console.error('Tarefas: varredura falhou —', err.message));
-setInterval(() => {
+// Tarefas vencidas + régua de follow-up: varre a cada minuto.
+const varrerMinuto = () => {
   varrerTarefasVencidas(io).catch(err => console.error('Tarefas: varredura falhou —', err.message));
-}, 60 * 1000);
+  varrerFollowups(io).catch(err => console.error('Follow-up: varredura falhou —', err.message));
+};
+varrerMinuto();
+setInterval(varrerMinuto, 60 * 1000);
 
 ensureBucket()
   .catch(err => console.error('MinIO: não foi possível preparar o bucket —', err.message))

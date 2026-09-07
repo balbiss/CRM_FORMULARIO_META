@@ -3,6 +3,7 @@ import { db } from '../db/client.js';
 import { filasAtendimento, perfis, leads, colunasKanban, distribuicaoLog, notificacoes } from '../db/schema.js';
 import { enviarPush } from './push.js';
 import { registrarEvento } from './eventos.js';
+import { dispararGatilhoLeadNovo } from './followup.js';
 import type { Server as SocketServer } from 'socket.io';
 
 /** Distribui UM lead pro próximo corretor da roleta (o que está em plantão e faz mais tempo
@@ -48,6 +49,7 @@ export async function distribuirLead(io: SocketServer, imobiliariaId: string, le
     url: '/kanban',
     tag: 'lead-' + lead.id,
   }).catch(() => {});
+  void dispararGatilhoLeadNovo(io, imobiliariaId, leadId, escolhido.corretorId);
   return escolhido.corretorId;
 }
 

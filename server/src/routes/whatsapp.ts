@@ -9,6 +9,7 @@ import { uploadFile } from '../lib/storage.js';
 import { distribuirLead } from '../lib/roleta.js';
 import { enviarPush } from '../lib/push.js';
 import { registrarEvento } from '../lib/eventos.js';
+import { pausarPorResposta } from '../lib/followup.js';
 import type { Server as SocketServer } from 'socket.io';
 
 const soDigitos = (s: string) => (s || '').replace(/[^0-9]/g, '');
@@ -221,6 +222,9 @@ export function whatsappRouter(io: SocketServer) {
       const msg = inseridas[0];
       if (!msg) return; // era duplicada (webhook 2x) — ignora em silêncio
       io.to('imobiliaria:' + sessao.imobiliariaId).emit('mensagem:created', msg);
+
+      // lead respondeu -> pausa a régua de follow-up (o corretor assume)
+      if (!fromMe) void pausarPorResposta(io, sessao.imobiliariaId, lead.id);
 
       // mensagem RECEBIDA -> push pro corretor dono do lead (mesmo com o CRM fechado)
       if (!fromMe && lead.corretorId) {

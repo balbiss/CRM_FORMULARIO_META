@@ -6,6 +6,7 @@ import { leads, leadTags, mensagensWhatsapp, filasAtendimento, colunasKanban, ev
 import { requireAuth } from '../middleware/auth.js';
 import { distribuirLead } from '../lib/roleta.js';
 import { registrarEvento } from '../lib/eventos.js';
+import { dispararGatilhoLeadNovo, encerrarPorLead } from '../lib/followup.js';
 import { desc } from 'drizzle-orm';
 import type { Server as SocketServer } from 'socket.io';
 
@@ -54,6 +55,7 @@ export function leadsRouter(io: SocketServer) {
     registrarEvento(imobiliariaId, row.id, 'criado', 'Lead cadastrado manualmente (canal ' + row.canal + ')', nome);
     io.to('imobiliaria:' + imobiliariaId).emit('lead:created', row);
     res.status(201).json(row);
+    if (row.corretorId) void dispararGatilhoLeadNovo(io, imobiliariaId, row.id, row.corretorId);
   });
 
   const moveSchema = z.object({ colunaId: z.string().uuid() });
@@ -74,9 +76,11 @@ export function leadsRouter(io: SocketServer) {
       .returning();
     if (!row) return res.status(404).json({ error: 'Lead não encontrado' });
     if (antes?.colunaId !== parsed.data.colunaId) {
-      const [col] = await db.select({ titulo: colunasKanban.titulo }).from(colunasKanban)
+      const [col] = await db.select({ titulo: colunasKanban.titulo, slug: colunasKanban.slug }).from(colunasKanban)
         .where(eq(colunasKanban.id, parsed.data.colunaId)).limit(1);
       registrarEvento(imobiliariaId, row.id, 'coluna', 'Movido para "' + (col?.titulo ?? 'outra etapa') + '"', nome);
+      // fechou negócio ou saiu do funil → não faz sentido continuar a régua de follow-up
+      if (col?.slug === 'venda' || col?.slug === 'rebatida') void encerrarPorLead(io, imobiliariaId, row.id, 'lead saiu do funil (' + col.slug + ')');
     }
     io.to('imobiliaria:' + imobiliariaId).emit('lead:updated', row);
     res.json(row);
@@ -88,6 +92,7 @@ export function leadsRouter(io: SocketServer) {
     email: z.string().email().optional(),
     corretorId: z.string().uuid().nullable().optional(),
     motivoDescarte: z.string().nullable().optional(),
+    cadencia: z.string().nullable().optional(),
     rendaDeclarada: z.number().optional(),
   });
 
@@ -111,12 +116,15 @@ export function leadsRouter(io: SocketServer) {
       if (rest.corretorId) {
         const [c] = await db.select({ nome: perfis.nome }).from(perfis).where(eq(perfis.id, rest.corretorId)).limit(1);
         registrarEvento(imobiliariaId, row.id, 'atribuicao', 'Atribuído a ' + (c?.nome ?? 'corretor'), nome);
+        void dispararGatilhoLeadNovo(io, imobiliariaId, row.id, rest.corretorId);
       } else {
         registrarEvento(imobiliariaId, row.id, 'atribuicao', 'Removido do corretor', nome);
+        void encerrarPorLead(io, imobiliariaId, row.id, 'lead sem corretor');
       }
     }
     if (rest.motivoDescarte && rest.motivoDescarte !== antes?.motivoDescarte) {
       registrarEvento(imobiliariaId, row.id, 'descarte', 'Descartado: ' + rest.motivoDescarte, nome);
+      void encerrarPorLead(io, imobiliariaId, row.id, 'lead descartado');
     }
     io.to('imobiliaria:' + imobiliariaId).emit('lead:updated', row);
     res.json(row);
@@ -134,6 +142,7 @@ export function leadsRouter(io: SocketServer) {
     await db.update(filasAtendimento).set({ ultimaAtribuicao: new Date() }).where(eq(filasAtendimento.corretorId, sub));
     io.to('imobiliaria:' + imobiliariaId).emit('lead:updated', { ...lead, corretorId: null });
     registrarEvento(imobiliariaId, lead.id, 'recusa', 'Lead recusado por ' + nome + ' — devolvido à roleta', nome);
+    await encerrarPorLead(io, imobiliariaId, lead.id, 'lead recusado');
 
     const novoCorretor = await distribuirLead(io, imobiliariaId, lead.id);
     res.json({ ok: true, redistribuido: !!novoCorretor });

@@ -12,7 +12,7 @@ export const sessaoStatusEnum = pgEnum('sessao_status', ['desconectada', 'conect
 export const canalEnum = pgEnum('canal', ['WhatsApp', 'Instagram', 'Facebook', 'Indicacao', 'Manual', 'Site']);
 export const direcaoEnum = pgEnum('direcao', ['in', 'out']);
 export const mensagemCanalEnum = pgEnum('mensagem_canal', ['corretor', 'followup']);
-export const aoEsgotarEnum = pgEnum('ao_esgotar', ['nada', 'descartar']);
+export const aoEsgotarEnum = pgEnum('ao_esgotar', ['nada', 'descartar', 'mover']);
 export const execucaoStatusEnum = pgEnum('execucao_status', ['ativa', 'pausada', 'encerrada']);
 
 /** Janela de atendimento de um dia da semana (minutos desde a meia-noite, fuso São Paulo).
@@ -149,6 +149,9 @@ export const leads = pgTable('leads', {
   corretorId: uuid('corretor_id').references(() => perfis.id, { onDelete: 'set null' }),
   campanha: text('campanha'),
   segundoCadastro: boolean('segundo_cadastro').notNull().default(false),
+  // Cadência de chamada ("Chamada 1", "Chamada 2"…). O corretor mexe na mão OU a régua de
+  // follow-up atualiza a cada passo enviado.
+  cadencia: text('cadencia'),
   motivoDescarte: text('motivo_descarte'),
   rendaDeclarada: numeric('renda_declarada', { precision: 14, scale: 2 }),
   entrouNaColunaEm: timestamp('entrou_na_coluna_em', { withTimezone: true }).notNull().defaultNow(),
@@ -270,31 +273,60 @@ export const eventosLead = pgTable('eventos_lead', {
   leadIdx: index('eventos_lead_lead_id_idx').on(table.leadId),
 }));
 
+/** Régua de follow-up que um corretor monta. Cada corretor tem quantas quiser; no máximo uma
+ *  marcada como `disparaEmLeadNovo` dispara sozinha quando um lead cai pra ele. */
 export const followupFluxos = pgTable('followup_fluxos', {
   id: uuid('id').primaryKey().defaultRandom(),
   imobiliariaId: uuid('imobiliaria_id').notNull().references(() => imobiliarias.id, { onDelete: 'cascade' }),
   corretorId: uuid('corretor_id').references(() => perfis.id, { onDelete: 'cascade' }),
   nome: text('nome').notNull(),
   ativo: boolean('ativo').notNull().default(true),
+  disparaEmLeadNovo: boolean('dispara_em_lead_novo').notNull().default(false),
+  // Janela de envio (minutos desde a meia-noite, fuso São Paulo) + dias permitidos (0=domingo…6=sábado).
+  janelaInicioMin: integer('janela_inicio_min').notNull().default(480),
+  janelaFimMin: integer('janela_fim_min').notNull().default(1200),
+  janelaDias: jsonb('janela_dias').notNull().default([false, true, true, true, true, true, false]),
   aoEsgotar: aoEsgotarEnum('ao_esgotar').notNull().default('nada'),
-});
+  aoEsgotarColunaId: uuid('ao_esgotar_coluna_id').references(() => colunasKanban.id, { onDelete: 'set null' }),
+  criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+}, table => ({
+  corretorIdx: index('followup_fluxos_corretor_id_idx').on(table.corretorId),
+}));
 
 export const followupPassos = pgTable('followup_passos', {
   id: uuid('id').primaryKey().defaultRandom(),
   fluxoId: uuid('fluxo_id').notNull().references(() => followupFluxos.id, { onDelete: 'cascade' }),
   ordem: integer('ordem').notNull().default(0),
-  atrasoTexto: text('atraso_texto').notNull(),
-  conteudo: text('conteudo').notNull(),
-});
+  tipo: text('tipo').notNull().default('texto'), // 'texto' | 'audio' | 'imagem' | 'pdf'
+  conteudo: text('conteudo').notNull().default(''),
+  anexoUrl: text('anexo_url'),
+  anexoNome: text('anexo_nome'),
+  // Atraso relativo ao passo anterior. `atrasoMinutos` é o valor real; `atrasoTexto` é só o rótulo.
+  atrasoMinutos: integer('atraso_minutos').notNull().default(0),
+  atrasoTexto: text('atraso_texto').notNull().default('na hora'),
+  // Rótulo de cadência ("Chamada 1", "Chamada 2"…) — ao enviar o passo, grava em `leads.cadencia`.
+  cadenciaLabel: text('cadencia_label'),
+}, table => ({
+  fluxoIdx: index('followup_passos_fluxo_id_idx').on(table.fluxoId),
+}));
 
 export const followupExecucoes = pgTable('followup_execucoes', {
   id: uuid('id').primaryKey().defaultRandom(),
+  imobiliariaId: uuid('imobiliaria_id').notNull().references(() => imobiliarias.id, { onDelete: 'cascade' }),
   leadId: uuid('lead_id').notNull().references(() => leads.id, { onDelete: 'cascade' }),
   fluxoId: uuid('fluxo_id').notNull().references(() => followupFluxos.id, { onDelete: 'cascade' }),
+  corretorId: uuid('corretor_id').references(() => perfis.id, { onDelete: 'set null' }),
   passoAtual: integer('passo_atual').notNull().default(0),
   status: execucaoStatusEnum('status').notNull().default('ativa'),
+  proximoEnvioEm: timestamp('proximo_envio_em', { withTimezone: true }),
+  motivoFim: text('motivo_fim'),
   iniciadoEm: timestamp('iniciado_em', { withTimezone: true }).notNull().defaultNow(),
-});
+}, table => ({
+  leadIdx: index('followup_execucoes_lead_id_idx').on(table.leadId),
+  corretorIdx: index('followup_execucoes_corretor_id_idx').on(table.corretorId),
+  // No máximo uma execução "viva" (ativa ou pausada) por lead.
+  umaVivaPorLead: uniqueIndex('followup_execucoes_lead_viva_uq').on(table.leadId).where(sql`status <> 'encerrada'`),
+}));
 
 export const templatesMensagem = pgTable('templates_mensagem', {
   id: uuid('id').primaryKey().defaultRandom(),

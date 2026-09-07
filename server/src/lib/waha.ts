@@ -114,6 +114,20 @@ export async function enviarTexto(sessionName: string, numero: string, texto: st
   return waha('/api/sendText', { method: 'POST', body: { session: sessionName, chatId: chatId(numero), text: texto } });
 }
 
+/** Confere se o número existe no WhatsApp antes de mandar a 1ª mensagem da régua.
+ *  true = existe, false = não existe, null = não deu pra checar (WAHA fora / sessão off). */
+export async function checarNumero(sessionName: string, numero: string): Promise<boolean | null> {
+  try {
+    const fone = numero.replace(/[^0-9]/g, '');
+    const r = await waha<{ numberExists?: boolean }>(
+      `/api/contacts/check-exists?phone=${encodeURIComponent(fone)}&session=${encodeURIComponent(sessionName)}`,
+    );
+    return typeof r?.numberExists === 'boolean' ? r.numberExists : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Baixa a mídia de uma mensagem recebida: pede pro WAHA baixar (downloadMedia=true) e puxa
  *  o arquivo do storage local do WAHA (que exige a X-Api-Key). */
 export async function baixarMidiaMensagem(sessionName: string, chatId: string, msgId: string): Promise<{ buffer: Buffer; mimetype: string; filename: string | null } | null> {
