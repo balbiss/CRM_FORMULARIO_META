@@ -7,6 +7,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { wahaConfigurado, criarSessao, pararSessao, statusSessao, qrSessao, webhookSecret, fotoPerfil, baixarMidiaMensagem } from '../lib/waha.js';
 import { uploadFile } from '../lib/storage.js';
 import { distribuirLead } from '../lib/roleta.js';
+import { enviarPush } from '../lib/push.js';
 import type { Server as SocketServer } from 'socket.io';
 
 const soDigitos = (s: string) => (s || '').replace(/[^0-9]/g, '');
@@ -218,6 +219,21 @@ export function whatsappRouter(io: SocketServer) {
       const msg = inseridas[0];
       if (!msg) return; // era duplicada (webhook 2x) — ignora em silêncio
       io.to('imobiliaria:' + sessao.imobiliariaId).emit('mensagem:created', msg);
+
+      // mensagem RECEBIDA -> push pro corretor dono do lead (mesmo com o CRM fechado)
+      if (!fromMe && lead.corretorId) {
+        const previa = texto ? texto.slice(0, 80)
+          : anexoTipo === 'imagem' ? 'Enviou uma foto'
+          : anexoTipo === 'audio' ? 'Enviou um áudio'
+          : anexoTipo === 'video' ? 'Enviou um vídeo'
+          : anexoTipo ? 'Enviou um arquivo' : 'Nova mensagem';
+        enviarPush(lead.corretorId, {
+          title: lead.nome,
+          body: previa,
+          url: '/conversas',
+          tag: 'msg-' + lead.id,
+        }).catch(() => {});
+      }
     } catch (e) {
       console.error('webhook WAHA:', (e as Error).message);
     }

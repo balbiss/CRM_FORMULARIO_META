@@ -21,6 +21,7 @@ import { configRouter } from './routes/config.js';
 import { integracoesRouter } from './routes/integracoes.js';
 import { whatsappRouter } from './routes/whatsapp.js';
 import { plataformaRouter } from './routes/plataforma.js';
+import { pushRouter } from './routes/push.js';
 import { verifyToken } from './lib/jwt.js';
 import { ensureBucket } from './lib/storage.js';
 import { bootstrapAdminPlataforma, varrerInadimplencia } from './lib/bootstrapPlataforma.js';
@@ -40,6 +41,7 @@ app.use('/api/treinamentos', treinamentosRouter);
 app.use('/api/notificacoes', notificacoesRouter);
 app.use('/api/integracoes', integracoesRouter);
 app.use('/api/plataforma', plataformaRouter);
+app.use('/api/push', pushRouter);
 
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, { cors: { origin: process.env.CORS_ORIGIN || 'http://localhost:5173' } });

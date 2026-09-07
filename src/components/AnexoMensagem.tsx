@@ -1,15 +1,20 @@
 import { FileText, Download } from 'lucide-react';
 import type { AnexoTipo } from '../lib/data';
 
-export function AnexoMensagem({ url, tipo, nome }: { url: string; tipo: AnexoTipo | null | undefined; nome?: string | null }) {
+export function AnexoMensagem({ url, tipo, nome, onLoad }: { url: string; tipo: AnexoTipo | null | undefined; nome?: string | null; onLoad?: () => void }) {
   if (tipo === 'imagem') {
-    return <img src={url} alt="Anexo" style={{ display: 'block', maxWidth: '100%', borderRadius: 8, marginBottom: 6 }} />;
+    return (
+      <a href={url} target="_blank" rel="noreferrer" style={{ display: 'block', marginBottom: 6 }}>
+        <img src={url} alt="Anexo" onLoad={onLoad} onError={onLoad}
+          style={{ display: 'block', maxWidth: 260, maxHeight: 320, width: 'auto', height: 'auto', borderRadius: 8, objectFit: 'cover', cursor: 'zoom-in' }} />
+      </a>
+    );
   }
   if (tipo === 'video') {
-    return <video src={url} controls style={{ display: 'block', maxWidth: '100%', borderRadius: 8, marginBottom: 6 }} />;
+    return <video src={url} controls onLoadedData={onLoad} style={{ display: 'block', maxWidth: 280, maxHeight: 360, borderRadius: 8, marginBottom: 6, background: '#000' }} />;
   }
   if (tipo === 'audio') {
-    return <audio src={url} controls style={{ display: 'block', maxWidth: '100%', height: 36, marginBottom: 6 }} />;
+    return <audio src={url} controls onLoadedMetadata={onLoad} style={{ display: 'block', maxWidth: '100%', height: 36, marginBottom: 6 }} />;
   }
   const nomeArquivo = nome || decodeURIComponent(url.split('/').pop() || 'arquivo');
   return (

@@ -54,10 +54,12 @@ export function LeadModal() {
 
   const L = leads.find(l => l.id === leadId);
   const chatMsgs = mapMsgs((leadId && chats[leadId]) || []);
-  const fimChatRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (leadTab === 'chat') fimChatRef.current?.scrollIntoView({ block: 'end' });
-  }, [chatMsgs.length, leadTab, typing]);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const paraOFimChat = () => {
+    const el = chatScrollRef.current;
+    if (el) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+  };
+  useEffect(() => { if (leadTab === 'chat') paraOFimChat(); }, [chatMsgs.length, leadTab, typing]);
 
   if (!L) return null;
 
@@ -116,7 +118,7 @@ export function LeadModal() {
           ))}
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+        <div ref={chatScrollRef} style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
           {leadTab === 'detalhes' && (
             <>
               <div data-modal-grid style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 22 }}>
@@ -220,7 +222,7 @@ export function LeadModal() {
                     <div style={css(m.rowStyle)}>
                       <span style={css(m.bubbleStyle)}>
                         {m.bot && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'rgba(255,255,255,.18)', padding: '3px 8px', borderRadius: 20, marginBottom: 7 }}>Follow-up automático</span>}
-                        {m.anexoUrl && <AnexoMensagem url={m.anexoUrl} tipo={m.anexoTipo} nome={m.anexoNome} />}
+                        {m.anexoUrl && <AnexoMensagem url={m.anexoUrl} tipo={m.anexoTipo} nome={m.anexoNome} onLoad={paraOFimChat} />}
                         {m.texto && <span style={{ display: 'block' }}>{m.texto}</span>}
                         <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3, fontSize: 10.5, opacity: 0.75, marginTop: 5 }}>{m.stamp}<Visto estado={m.visto} /></span>
                       </span>
@@ -235,7 +237,7 @@ export function LeadModal() {
                     <span style={{ fontSize: 11.5, color: 'var(--muted)', marginLeft: 6 }}>{L.nome.split(' ')[0]} está digitando…</span>
                   </div>
                 )}
-                <div ref={fimChatRef} />
+                
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                 {quickTemplates.map(q => (

@@ -113,6 +113,13 @@
       "when": 1788736347923,
       "tag": "0015_rare_mysterio",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788741145709,
+      "tag": "0016_solid_blade",
+      "breakpoints": true
     }
   ]
 }

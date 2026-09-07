@@ -10,7 +10,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-192.png', 'icon-512.png'],
+      includeAssets: ['icon-192.png', 'icon-512.png', 'push-sw.js', 'favicon.svg'],
       manifest: {
         name: 'Visita IA — CRM',
         short_name: 'Visita IA',
@@ -30,6 +30,7 @@ export default defineConfig({
       workbox: {
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,png,svg}'],
+        importScripts: ['/push-sw.js'],
       },
       devOptions: {
         enabled: true,

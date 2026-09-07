@@ -315,6 +315,19 @@ export const treinamentos = pgTable('treinamentos', {
   videoUrl: text('video_url'),
 });
 
+/** Assinatura de Web Push de um dispositivo/navegador do usuário — pra notificar mesmo com
+ *  o CRM fechado (celular bloqueado, outra aba, outro navegador). */
+export const pushSubscriptions = pgTable('push_subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  perfilId: uuid('perfil_id').notNull().references(() => perfis.id, { onDelete: 'cascade' }),
+  endpoint: text('endpoint').notNull().unique(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+}, table => ({
+  perfilIdx: index('push_subscriptions_perfil_id_idx').on(table.perfilId),
+}));
+
 export const notificacoes = pgTable('notificacoes', {
   id: uuid('id').primaryKey().defaultRandom(),
   perfilId: uuid('perfil_id').notNull().references(() => perfis.id, { onDelete: 'cascade' }),

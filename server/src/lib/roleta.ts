@@ -1,6 +1,7 @@
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { filasAtendimento, perfis, leads, colunasKanban, distribuicaoLog, notificacoes } from '../db/schema.js';
+import { enviarPush } from './push.js';
 import type { Server as SocketServer } from 'socket.io';
 
 /** Distribui UM lead pro próximo corretor da roleta (o que está em plantão e faz mais tempo
@@ -38,6 +39,12 @@ export async function distribuirLead(io: SocketServer, imobiliariaId: string, le
   });
 
   io.to('imobiliaria:' + imobiliariaId).emit('lead:updated', lead);
+  enviarPush(escolhido.corretorId, {
+    title: 'Novo lead pra você',
+    body: `${lead.nome} caiu na sua carteira. Abra o CRM pra atender.`,
+    url: '/kanban',
+    tag: 'lead-' + lead.id,
+  }).catch(() => {});
   return escolhido.corretorId;
 }
 

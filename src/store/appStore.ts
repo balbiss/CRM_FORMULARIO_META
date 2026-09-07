@@ -353,10 +353,16 @@ function toqueLeadNovo() {
   try { navigator.vibrate?.([120, 60, 120]); } catch { /* ignore */ }
 }
 
-/** Notificação do navegador (desktop/celular). Pede permissão na 1ª vez. */
-export function pedirPermissaoNotificacao() {
+/** Notificação do navegador (desktop/celular). Pede permissão e registra Web Push
+ *  (pra notificar mesmo com o CRM fechado). */
+export async function pedirPermissaoNotificacao() {
   try {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission();
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') await Notification.requestPermission();
+    const token = useAppStore.getState().token;
+    if (token && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      const { registrarPush } = await import('../lib/push');
+      registrarPush(token).catch(() => {});
+    }
   } catch { /* ignore */ }
 }
 
@@ -498,6 +504,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().fetchConversas();
       get().fetchHorario();
       get().fetchIntegracoes();
+      if ((perfil as AuthUser).role === 'corretor') pedirPermissaoNotificacao();
       })
       .catch((e: ApiError) => {
         localStorage.removeItem('nova_token');

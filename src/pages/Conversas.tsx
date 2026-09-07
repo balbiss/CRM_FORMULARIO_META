@@ -52,8 +52,12 @@ export default function Conversas() {
 
   const CL = convBase.find(l => l.id === convId);
   const convThread = mapMsgs(CL ? thread(CL) : []);
-  const fimRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { fimRef.current?.scrollIntoView({ block: 'end' }); }, [convThread.length, convId, convTyping]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const paraOFim = () => {
+    const el = scrollRef.current;
+    if (el) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+  };
+  useEffect(paraOFim, [convThread.length, convId, convTyping]);
   const slashQ = (convDraft || '').startsWith('/') ? convDraft.slice(1).toLowerCase() : null;
   const SLASH_ITEMS: [string, string][] = [
     ['/tabela', 'Acabei de te enviar a tabela de valores atualizada. Qualquer dúvida, me chama.'],
@@ -135,7 +139,7 @@ export default function Conversas() {
                 <span style={css(canalPill(CL.canal))}>{CL.canal}</span>
                 <button onClick={() => openLead(CL.id, 'chat')} style={{ padding: '7px 12px', border: '1px solid var(--line)', borderRadius: 7, background: 'none', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap' }}>Ver lead</button>
               </div>
-              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '20px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '20px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {convThread.map(m => (
                   <div key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {m.sep && (
@@ -148,7 +152,7 @@ export default function Conversas() {
                     <div style={css(m.rowStyle)}>
                       <span style={css(m.bubbleStyle)}>
                         {m.bot && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'rgba(255,255,255,.18)', padding: '3px 8px', borderRadius: 20, marginBottom: 7 }}>Follow-up automático</span>}
-                        {m.anexoUrl && <AnexoMensagem url={m.anexoUrl} tipo={m.anexoTipo} nome={m.anexoNome} />}
+                        {m.anexoUrl && <AnexoMensagem url={m.anexoUrl} tipo={m.anexoTipo} nome={m.anexoNome} onLoad={paraOFim} />}
                         {m.texto && <span style={{ display: 'block' }}>{m.texto}</span>}
                         <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3, fontSize: 10.5, opacity: 0.75, marginTop: 5 }}>{m.stamp}<Visto estado={m.visto} /></span>
                       </span>
@@ -163,7 +167,7 @@ export default function Conversas() {
                     <span style={{ fontSize: 11.5, color: 'var(--muted)', marginLeft: 6 }}>{CL.nome.split(' ')[0]} está digitando…</span>
                   </div>
                 )}
-                <div ref={fimRef} />
+                
               </div>
               <div style={{ borderTop: '1px solid var(--line)', padding: '14px 18px', position: 'relative', background: 'var(--card)', flex: 'none' }}>
                 {slashQ !== null && slashItems.length > 0 && (
