@@ -29,6 +29,8 @@ export default function Integracoes() {
 
   useEffect(() => { fetchIntegracoes(); }, [fetchIntegracoes]);
 
+  if (!isManager) return <MeuWhatsapp modo={modo} />;
+
   const rodarTeste = async (id: string) => {
     setTestando(id);
     const r = await testar(id);
@@ -305,6 +307,67 @@ function ConexaoModal({ conexao, onClose }: { conexao: IntegracaoFacebook | null
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---- Página enxuta do corretor: conectar só o próprio número ----
+function MeuWhatsapp({ modo }: { modo: ModoWhatsapp }) {
+  const wahaOk = useAppStore(s => s.wahaConfigurado);
+  const sessoes = useAppStore(s => s.sessoesWhatsapp);
+  const me = useAppStore(s => s.me);
+  const conectar = useAppStore(s => s.conectarWhatsapp);
+  const desconectar = useAppStore(s => s.desconectarWhatsapp);
+  const fetchSessoes = useAppStore(s => s.fetchSessoesWhatsapp);
+  const [qrPara, setQrPara] = useState<string | null>(null);
+
+  const minha = sessoes.find(s => s.escopo === 'corretor' && s.corretorId === me?.id);
+
+  const conectarMeu = async () => {
+    const id = minha ? await conectar('corretor', undefined, { id: minha.id }) : await conectar('corretor');
+    if (id) setQrPara(id);
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <p style={secTitle}>Integrações</p>
+        <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Meu WhatsApp</h1>
+      </div>
+
+      {modo !== 'corretor' ? (
+        <div style={card}><p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, lineHeight: 1.6 }}>
+          Sua imobiliária atende por um número central. Não há nada pra conectar aqui — as mensagens saem pelo número da imobiliária.
+        </p></div>
+      ) : !wahaOk ? (
+        <div style={card}><p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, lineHeight: 1.6 }}>
+          A conexão por QR code fica disponível assim que o motor de WhatsApp for configurado no servidor. Fale com o seu gerente.
+        </p></div>
+      ) : (
+        <>
+          <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 12px', maxWidth: 560, lineHeight: 1.6 }}>
+            Conecte o seu número de WhatsApp pra atender os seus leads por aqui. O cliente continua vendo o número que ele já conhece — o CRM só espelha as conversas.
+          </p>
+          <div className="data-row" style={{ ...card, display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: minha?.status === 'conectada' ? 'var(--olive)' : 'var(--muted)' }} />
+                <span style={{ fontSize: 13.5, fontWeight: 700 }}>{me?.nome || 'Meu número'}</span>
+              </span>
+              <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
+                {minha?.status === 'conectada' ? '+' + minha.numero : minha?.status === 'conectando' ? 'aguardando leitura do QR…' : 'não conectado'}
+              </span>
+            </span>
+            <div className="row-actions" style={{ display: 'flex', gap: 7, flex: 'none' }}>
+              {minha?.status === 'conectada'
+                ? <button onClick={() => desconectar(minha.id)} style={btn}>Desconectar</button>
+                : <button onClick={() => minha ? setQrPara(minha.id) : conectarMeu()} style={{ ...btn, background: 'var(--terra)', color: '#fff', border: 'none' }}>Conectar</button>}
+            </div>
+          </div>
+        </>
+      )}
+
+      {qrPara && <QrWhatsappModal sessaoId={qrPara} onClose={() => { setQrPara(null); fetchSessoes(); }} />}
     </div>
   );
 }

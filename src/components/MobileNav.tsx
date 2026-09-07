@@ -39,8 +39,14 @@ export function MobileNav() {
     return () => { document.body.style.overflow = prev; };
   }, [open]);
 
+  const modoWhatsapp = useAppStore(s => s.modoWhatsapp);
   const menuItems = NAV_ITEMS.filter(it => it.group === 'menu');
-  const toolItems = NAV_ITEMS.filter(it => it.group === 'ferramentas' && (!it.mgrOnly || isManager));
+  const toolItems = NAV_ITEMS.filter(it => {
+    if (it.group !== 'ferramentas') return false;
+    if (it.mgrOnly && !isManager) return false;
+    if (it.path === '/integracoes' && !isManager && modoWhatsapp !== 'corretor') return false;
+    return true;
+  });
   const badgeFor = (path: string) => (path === '/conversas' ? unread : path === '/rebatidas' ? rebatidas : 0);
 
   const minhaFila = me ? fila.find(f => f.corretorId === me.id) : undefined;

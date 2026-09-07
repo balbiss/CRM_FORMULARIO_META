@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { sessoesWhatsapp, imobiliarias, perfis, leads, colunasKanban, mensagensWhatsapp } from '../db/schema.js';
-import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { wahaConfigurado, criarSessao, pararSessao, statusSessao, qrSessao, webhookSecret, fotoPerfil, baixarMidiaMensagem } from '../lib/waha.js';
 import { uploadFile } from '../lib/storage.js';
 import { distribuirLead } from '../lib/roleta.js';
@@ -262,7 +262,39 @@ export function whatsappRouter(io: SocketServer) {
     res.json({ wahaConfigurado: wahaConfigurado(), conectadas: rows.filter(r => r.status === 'conectada').length, total: rows.length });
   });
 
-  router.use(requireRole('dono', 'gerente'));
+  // Dono/Gerente mexem em qualquer sessão. Corretor só mexe no PRÓPRIO número,
+  // e apenas quando a imobiliária está no modo "WhatsApp de cada corretor".
+  const gestaoSessoes: import('express').RequestHandler = async (req, res, next) => {
+    const { role, imobiliariaId, sub } = req.auth!;
+    if (role === 'dono' || role === 'gerente') return next();
+    const [imob] = await db.select({ modo: imobiliarias.modoWhatsapp }).from(imobiliarias)
+      .where(eq(imobiliarias.id, imobiliariaId)).limit(1);
+    if ((imob?.modo ?? 'corretor') !== 'corretor') {
+      return res.status(403).json({ error: 'A imobiliária não usa número por corretor.' });
+    }
+    // rotas com :id — a sessão tem que ser a do próprio corretor
+    if (req.params.id) {
+      const [s] = await db.select().from(sessoesWhatsapp)
+        .where(and(eq(sessoesWhatsapp.id, req.params.id), eq(sessoesWhatsapp.imobiliariaId, imobiliariaId))).limit(1);
+      if (!s || s.escopo !== 'corretor' || s.corretorId !== sub) {
+        return res.status(403).json({ error: 'Sem acesso a essa sessão.' });
+      }
+    }
+    // POST /sessoes — corretor só cria/reconecta o próprio número
+    if (req.method === 'POST') {
+      if (req.body?.id) {
+        const [s] = await db.select().from(sessoesWhatsapp)
+          .where(and(eq(sessoesWhatsapp.id, req.body.id), eq(sessoesWhatsapp.imobiliariaId, imobiliariaId))).limit(1);
+        if (!s || s.escopo !== 'corretor' || s.corretorId !== sub) {
+          return res.status(403).json({ error: 'Sem acesso a essa sessão.' });
+        }
+      } else {
+        req.body = { ...req.body, escopo: 'corretor', corretorId: sub };
+      }
+    }
+    next();
+  };
+  router.use(gestaoSessoes);
 
   async function refrescar(sessionName: string, id: string) {
     if (!wahaConfigurado()) return;
@@ -271,10 +303,14 @@ export function whatsappRouter(io: SocketServer) {
   }
 
   router.get('/sessoes', async (req, res) => {
-    const rows = await db.select().from(sessoesWhatsapp).where(eq(sessoesWhatsapp.imobiliariaId, req.auth!.imobiliariaId));
+    const ehCorretor = req.auth!.role === 'corretor';
+    const escopoSessoes = ehCorretor
+      ? and(eq(sessoesWhatsapp.imobiliariaId, req.auth!.imobiliariaId), eq(sessoesWhatsapp.corretorId, req.auth!.sub))
+      : eq(sessoesWhatsapp.imobiliariaId, req.auth!.imobiliariaId);
+    const rows = await db.select().from(sessoesWhatsapp).where(escopoSessoes);
     // atualiza status de cada uma no WAHA (em paralelo)
     await Promise.all(rows.map(r => refrescar(r.sessionName, r.id).catch(() => {})));
-    const atualizados = await db.select().from(sessoesWhatsapp).where(eq(sessoesWhatsapp.imobiliariaId, req.auth!.imobiliariaId));
+    const atualizados = await db.select().from(sessoesWhatsapp).where(escopoSessoes);
     res.json({ wahaConfigurado: wahaConfigurado(), sessoes: atualizados });
   });
 
