@@ -1,390 +1,332 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ReactFlow, ReactFlowProvider, useReactFlow, Background, Controls, Handle, Position, applyNodeChanges,
-  type Node, type Edge, type NodeProps, type NodeChange,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import { MessageSquare, Mic, Image as ImageIcon, FileText, Clock, Zap, Trash2 } from 'lucide-react';
-import { useAppStore, GATILHOS_FLOW, type FlowBloco, type BlocoTipo, type FlowDef } from '../store/appStore';
+import { useEffect, useMemo, useState } from 'react';
+import { MessageSquare, Mic, Image as ImageIcon, FileText, Trash2, ArrowUp, ArrowDown, Plus } from 'lucide-react';
+import { useAppStore, type RemoteFluxo, type RemotePassoFluxo, type PassoTipo } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
 
-const DND_MIME = 'application/x-crm-visitaia-bloco';
+const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const TIPOS: { v: PassoTipo; label: string; Icon: typeof MessageSquare }[] = [
+  { v: 'texto', label: 'Texto', Icon: MessageSquare },
+  { v: 'audio', label: 'Áudio', Icon: Mic },
+  { v: 'imagem', label: 'Imagem', Icon: ImageIcon },
+  { v: 'pdf', label: 'PDF', Icon: FileText },
+];
 
-const TIPO_META: Record<BlocoTipo, { label: string; Icon: typeof MessageSquare }> = {
-  texto: { label: 'Texto', Icon: MessageSquare },
-  audio: { label: 'Áudio', Icon: Mic },
-  imagem: { label: 'Imagem', Icon: ImageIcon },
-  pdf: { label: 'PDF', Icon: FileText },
-  espera: { label: 'Espera', Icon: Clock },
+const fmtMin = (m: number) => {
+  if (m <= 0) return 'na hora';
+  if (m < 60) return m + ' min';
+  if (m % 1440 === 0) return (m / 1440) + (m / 1440 > 1 ? ' dias' : ' dia');
+  if (m % 60 === 0) return (m / 60) + (m / 60 > 1 ? ' horas' : ' hora');
+  return m + ' min';
 };
-
-const cardBase: React.CSSProperties = { padding: '12px 14px', border: '1.5px solid var(--line)', borderRadius: 10, background: 'var(--card)', boxShadow: '0 2px 6px rgba(28,27,26,.06)' };
-const handleStyle = { background: 'var(--line)', width: 7, height: 7, border: 'none' };
-
-function TriggerNode({ data }: NodeProps) {
-  return (
-    <div style={{ ...cardBase, borderColor: 'var(--terra)', background: 'var(--terraSoft)', minWidth: 260 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-        <Zap size={14} color="var(--terra)" />
-        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--terra)' }}>Gatilho</span>
-      </div>
-      <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>{String(data.label ?? '')}</p>
-      <Handle type="source" position={Position.Bottom} isConnectable={false} style={handleStyle} />
-    </div>
-  );
-}
-
-function BlocoNode({ data, selected }: NodeProps) {
-  const bloco = data.bloco as FlowBloco;
-  const meta = TIPO_META[bloco.tipo];
-  const preview = bloco.tipo === 'texto' ? bloco.texto : bloco.tipo === 'espera' ? 'Aguardar ' + bloco.delay : bloco.arquivo;
-  return (
-    <div style={{ ...cardBase, borderColor: selected ? 'var(--terra)' : 'var(--line)', minWidth: 260, maxWidth: 280 }}>
-      <Handle type="target" position={Position.Top} isConnectable={false} style={handleStyle} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <meta.Icon size={13} color="var(--terra)" />
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>{meta.label}</span>
-      </div>
-      <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const }}>{preview || '(vazio)'}</p>
-      <Handle type="source" position={Position.Bottom} isConnectable={false} style={handleStyle} />
-    </div>
-  );
-}
-
-const nodeTypes = { trigger: TriggerNode, bloco: BlocoNode };
+const hhmm = (min: number) => String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0');
+const minDe = (hhmmStr: string) => { const [h, m] = hhmmStr.split(':').map(Number); return (h || 0) * 60 + (m || 0); };
 
 const fieldLabel: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 6px' };
-const fieldInput: React.CSSProperties = { width: '100%', padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13, marginBottom: 12, boxSizing: 'border-box' };
-const iconBtn: React.CSSProperties = { border: '1px solid var(--line)', background: 'var(--card)', width: 26, height: 26, borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-const canvasHeight = 'clamp(640px, calc(100vh - 260px), 920px)';
-const basePos = (i: number) => ({ x: 40, y: 160 + i * 155 });
+const inp: React.CSSProperties = { width: '100%', padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13, boxSizing: 'border-box' };
+const iconBtn: React.CSSProperties = { border: '1px solid var(--line)', background: 'var(--card)', width: 28, height: 28, borderRadius: 7, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' };
 
-/** O canvas propriamente dito — precisa estar dentro de um <ReactFlowProvider> porque usa
- * `screenToFlowPosition` (useReactFlow) pra converter onde o bloco foi solto em coordenadas do
- * fluxo. Isolado num componente próprio até por isso: o hook não pode ser chamado no mesmo
- * componente que renderiza o Provider, só em um descendente dele. */
-function FlowCanvas({ flow, addBloco, setBlocoIdSel }: {
-  flow: FlowDef;
-  addBloco: (flowId: string, tipo: BlocoTipo) => string;
-  setBlocoIdSel: (id: string | null) => void;
-}) {
-  const { screenToFlowPosition, fitView } = useReactFlow();
-
-  // Nós de verdade em estado (não só um mapa de posições) — o React Flow reclama ("not
-  // initialized") e a posição do nó se perde/salta durante o arrasto se a gente não devolver pra
-  // ele, via onNodesChange, o MESMO array de nós com as mudanças aplicadas (inclusive as de
-  // dimensão que ele mesmo mede) — é o padrão "controlado" oficial da lib, não um detalhe opcional.
-  const [rfNodes, setRfNodes] = useState<Node[]>([]);
-  // Quando um bloco é solto (drag da paleta) na posição X,Y, guarda aqui pra o efeito de sincronia
-  // abaixo usar como posição inicial em vez do empilhamento vertical padrão.
-  const pendingPos = useRef<{ id: string; pos: { x: number; y: number } } | null>(null);
-
-  // Sincroniza conteúdo (texto/arquivo/gatilho) sempre que o fluxo mudar, mas preserva a posição
-  // (e as dimensões medidas) dos nós que já existiam — editar um texto não reseta o que foi
-  // arrastado.
-  useEffect(() => {
-    setRfNodes(prev => {
-      const porId = new Map(prev.map(n => [n.id, n]));
-      const t = porId.get('trigger');
-      const ns: Node[] = [t ? { ...t, data: { label: flow.gatilho } } : { id: 'trigger', type: 'trigger', position: { x: 60, y: 30 }, data: { label: flow.gatilho }, draggable: false, selectable: false }];
-      flow.blocos.forEach((b, i) => {
-        const ex = porId.get(b.id);
-        if (ex) { ns.push({ ...ex, data: { bloco: b } }); return; }
-        const drop = pendingPos.current?.id === b.id ? pendingPos.current.pos : basePos(i);
-        ns.push({ id: b.id, type: 'bloco', position: drop, data: { bloco: b } });
-      });
-      pendingPos.current = null;
-      return ns;
-    });
-  }, [flow]);
-
-  // `fitView` como prop booleana só roda uma vez, no primeiro render — e o primeiro render aqui
-  // sempre começa com `rfNodes` vazio (o efeito acima só popula depois), então o enquadramento
-  // automático acertava a vista contra ZERO nós e nunca reenquadrava depois, deixando o canvas
-  // "em branco" (só os controles de zoom visíveis, os blocos existindo fora da área enquadrada).
-  // Chamando fitView manualmente assim que os nós existirem de verdade, resolve.
-  const jaEnquadrou = useRef(false);
-  useEffect(() => {
-    if (rfNodes.length > 0 && !jaEnquadrou.current) {
-      jaEnquadrou.current = true;
-      requestAnimationFrame(() => fitView({ padding: 0.2, duration: 200 }));
-    }
-  }, [rfNodes.length, fitView]);
-
-  const onNodesChange = (changes: NodeChange[]) => setRfNodes(nds => applyNodeChanges(changes, nds));
-
-  // Efeito corrente (estilo Typebot): ao começar a arrastar um bloco, guarda a posição de partida
-  // de todos os nós; a cada tick do arrasto, cada bloco SEGUINTE na sequência segue o MESMO
-  // deslocamento total do bloco arrastado desde o início (não incremental — incremental faz a
-  // cauda "correr" mais rápido que a cabeça e divergir).
-  const dragStart = useRef<{ idx: number; base: Record<string, { x: number; y: number }> } | null>(null);
-
-  const onNodeDragStart = (_: unknown, node: Node) => {
-    if (node.id === 'trigger') return;
-    const idx = flow.blocos.findIndex(b => b.id === node.id);
-    if (idx < 0) return;
-    const base: Record<string, { x: number; y: number }> = {};
-    rfNodes.forEach(n => { base[n.id] = n.position; });
-    dragStart.current = { idx, base };
-  };
-
-  const onNodeDrag = (_: unknown, node: Node) => {
-    if (node.id === 'trigger' || !dragStart.current) return;
-    const { idx, base } = dragStart.current;
-    const origem = base[node.id];
-    if (!origem) return;
-    const delta = { x: node.position.x - origem.x, y: node.position.y - origem.y };
-    setRfNodes(nds => nds.map(n => {
-      const i = flow.blocos.findIndex(b => b.id === n.id);
-      if (i <= idx) return n; // trigger (i=-1) e o próprio nó arrastado (já tratado pelo onNodesChange) ficam de fora
-      const b0 = base[n.id];
-      return b0 ? { ...n, position: { x: b0.x + delta.x, y: b0.y + delta.y } } : n;
-    }));
-  };
-
-  const onNodeDragStop = () => { dragStart.current = null; };
-
-  const edges = useMemo(() => {
-    const es: Edge[] = [];
-    let prev = 'trigger';
-    flow.blocos.forEach(b => {
-      es.push({
-        id: prev + '-' + b.id, source: prev, target: b.id, type: 'default', animated: true,
-        style: { stroke: 'var(--terra)', strokeWidth: 1.6, opacity: 0.55 },
-      });
-      prev = b.id;
-    });
-    return es;
-  }, [flow]);
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const tipo = e.dataTransfer.getData(DND_MIME) as BlocoTipo;
-    if (!tipo || !TIPO_META[tipo]) return;
-    const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-    const id = addBloco(flow.id, tipo);
-    pendingPos.current = { id, pos };
-    setBlocoIdSel(id);
-  };
-
-  return (
-    <div
-      style={{ flex: 1, minWidth: 0, height: canvasHeight, border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}
-      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
-      onDrop={handleDrop}
-    >
-      <ReactFlow
-        nodes={rfNodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onNodeClick={(_, n) => { if (n.id !== 'trigger') setBlocoIdSel(n.id); }}
-        onNodeDragStart={onNodeDragStart}
-        onNodeDrag={onNodeDrag}
-        onNodeDragStop={onNodeDragStop}
-        onPaneClick={() => setBlocoIdSel(null)}
-        minZoom={0.3}
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background color="var(--line)" gap={22} size={1.2} />
-        <Controls showInteractive={false} />
-      </ReactFlow>
-    </div>
-  );
+interface Rascunho {
+  nome: string; ativo: boolean; disparaEmLeadNovo: boolean;
+  janelaInicioMin: number; janelaFimMin: number; janelaDias: boolean[];
+  aoEsgotar: 'nada' | 'descartar' | 'mover'; aoEsgotarColunaId: string | null;
+  passos: RemotePassoFluxo[];
 }
+const doFluxo = (f: RemoteFluxo): Rascunho => ({
+  nome: f.nome, ativo: f.ativo, disparaEmLeadNovo: f.disparaEmLeadNovo,
+  janelaInicioMin: f.janelaInicioMin, janelaFimMin: f.janelaFimMin,
+  janelaDias: Array.isArray(f.janelaDias) && f.janelaDias.length === 7 ? [...f.janelaDias] : [false, true, true, true, true, true, false],
+  aoEsgotar: f.aoEsgotar, aoEsgotarColunaId: f.aoEsgotarColunaId,
+  passos: f.passos.map(p => ({ ...p })),
+});
 
 export default function Followup() {
-  const flows = useAppStore(s => s.flows);
-  const perfis = useAppStore(s => s.perfisRemotos);
-  const createFlow = useAppStore(s => s.createFlow);
-  const renameFlow = useAppStore(s => s.renameFlow);
-  const setFlowGatilho = useAppStore(s => s.setFlowGatilho);
-  const toggleFlowAtivo = useAppStore(s => s.toggleFlowAtivo);
-  const deleteFlow = useAppStore(s => s.deleteFlow);
-  const addBloco = useAppStore(s => s.addBloco);
-  const ask = useAppStore(s => s.ask);
   const { isManager, meNome } = useRoleInfo();
+  const fluxos = useAppStore(s => s.fluxos);
+  const execucoes = useAppStore(s => s.execucoesFollowup);
+  const perfis = useAppStore(s => s.perfisRemotos);
+  const colunas = useAppStore(s => s.colunasRemotas);
+  const criarFluxo = useAppStore(s => s.criarFluxo);
+  const atualizarFluxo = useAppStore(s => s.atualizarFluxo);
+  const salvarPassos = useAppStore(s => s.salvarPassos);
+  const excluirFluxo = useAppStore(s => s.excluirFluxo);
+  const mudarExecucao = useAppStore(s => s.mudarExecucao);
+  const fetchFollowup = useAppStore(s => s.fetchFollowup);
+  const openLead = useAppStore(s => s.openLead);
+  const ask = useAppStore(s => s.ask);
 
-  // perfisRemotos chega assíncrono (fetch pós-login) — não dá pra fixar o corretor selecionado
-  // num useState inicial (a lista pode estar vazia no primeiro render). Fica null até o usuário
-  // escolher, e cai no primeiro corretor real assim que a lista carrega.
-  const corretores = useMemo(() => perfis.filter(p => p.role === 'corretor').map(p => p.nome), [perfis]);
-  const [corretorSel, setCorretorSel] = useState<string | null>(null);
-  const corretorAtivo = isManager ? (corretorSel ?? corretores[0] ?? meNome) : meNome;
+  useEffect(() => { fetchFollowup(); }, [fetchFollowup]);
 
-  const flowsDoCorretor = flows.filter(f => f.corretor === corretorAtivo);
-  const [flowIdSel, setFlowIdSel] = useState<string | null>(null);
-  const flow = flows.find(f => f.id === flowIdSel) ?? flowsDoCorretor[0] ?? null;
-  const [blocoIdSel, setBlocoIdSel] = useState<string | null>(null);
+  const corretores = useMemo(() => perfis.filter(p => p.role === 'corretor'), [perfis]);
+  const [aba, setAba] = useState<'fluxos' | 'andamento'>('fluxos');
+  const [corretorSel, setCorretorSel] = useState<string>('');
+  const meId = perfis.find(p => p.nome === meNome)?.id;
+  const corretorAtivo = isManager ? corretorSel : (meId ?? '');
+
+  const fluxosDoCorretor = fluxos.filter(f => (isManager ? (corretorAtivo ? f.corretorId === corretorAtivo : true) : f.corretorId === meId));
+  const [fluxoIdSel, setFluxoIdSel] = useState<string | null>(null);
+  const fluxo = fluxos.find(f => f.id === fluxoIdSel) ?? fluxosDoCorretor[0] ?? null;
+
+  const [rasc, setRasc] = useState<Rascunho | null>(null);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => { setRasc(fluxo ? doFluxo(fluxo) : null); setDirty(false); }, [fluxo?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [novoNome, setNovoNome] = useState('');
+  const patch = (p: Partial<Rascunho>) => { setRasc(r => (r ? { ...r, ...p } : r)); setDirty(true); };
+  const patchPasso = (i: number, p: Partial<RemotePassoFluxo>) => {
+    setRasc(r => (r ? { ...r, passos: r.passos.map((x, j) => (j === i ? { ...x, ...p } : x)) } : r));
+    setDirty(true);
+  };
+  const moverPasso = (i: number, dir: -1 | 1) => {
+    setRasc(r => {
+      if (!r) return r;
+      const j = i + dir;
+      if (j < 0 || j >= r.passos.length) return r;
+      const passos = [...r.passos];
+      [passos[i], passos[j]] = [passos[j], passos[i]];
+      return { ...r, passos };
+    });
+    setDirty(true);
+  };
+  const addPasso = () => {
+    patch({
+      passos: [...(rasc?.passos ?? []), {
+        tipo: 'texto', conteudo: 'Oi {{primeiro_nome}}, aqui é o {{corretor}}. ',
+        atrasoMinutos: rasc?.passos.length ? 1440 : 0, atrasoTexto: rasc?.passos.length ? '1 dia' : 'na hora',
+        cadenciaLabel: 'Chamada ' + ((rasc?.passos.length ?? 0) + 1), anexoUrl: null, anexoNome: null,
+      }],
+    });
+  };
 
-  const bloco = flow?.blocos.find(b => b.id === blocoIdSel) ?? null;
+  async function salvar() {
+    if (!fluxo || !rasc) return;
+    await atualizarFluxo(fluxo.id, {
+      nome: rasc.nome, ativo: rasc.ativo, disparaEmLeadNovo: rasc.disparaEmLeadNovo,
+      janelaInicioMin: rasc.janelaInicioMin, janelaFimMin: rasc.janelaFimMin, janelaDias: rasc.janelaDias,
+      aoEsgotar: rasc.aoEsgotar, aoEsgotarColunaId: rasc.aoEsgotar === 'mover' ? rasc.aoEsgotarColunaId : null,
+    });
+    await salvarPassos(fluxo.id, rasc.passos.map(p => ({
+      ...p,
+      atrasoMinutos: Math.max(0, Math.round(p.atrasoMinutos)),
+      atrasoTexto: fmtMin(Math.max(0, Math.round(p.atrasoMinutos))),
+    })));
+    setDirty(false);
+  }
 
-  const criarFluxo = () => {
+  async function criar() {
     if (!novoNome.trim()) return;
-    const id = createFlow(corretorAtivo, novoNome.trim());
+    const alvo = isManager ? (corretorAtivo || undefined) : meId;
+    const f = await criarFluxo(novoNome.trim(), alvo);
     setNovoNome('');
-    setFlowIdSel(id);
-  };
+    if (f) setFluxoIdSel(f.id);
+  }
 
-  const paletaBtn = (tipo: BlocoTipo) => {
-    const meta = TIPO_META[tipo];
-    return (
-      <button
-        key={tipo}
-        draggable={!!flow}
-        onDragStart={e => { if (!flow) return; e.dataTransfer.setData(DND_MIME, tipo); e.dataTransfer.effectAllowed = 'move'; }}
-        onClick={() => { if (!flow) return; const id = addBloco(flow.id, tipo); setBlocoIdSel(id); }}
-        disabled={!flow}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8,
-          background: 'var(--bg)', fontSize: 12.5, fontWeight: 600, opacity: flow ? 1 : 0.5, width: '100%', textAlign: 'left',
-          cursor: flow ? 'grab' : 'not-allowed',
-        }}
-      >
-        <meta.Icon size={14} />+ {meta.label}
-      </button>
-    );
-  };
+  const pill = (txt: string, on: boolean) => (
+    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', padding: '3px 7px', borderRadius: 20, background: on ? 'var(--terraSoft)' : 'var(--bg)', color: on ? 'var(--terra)' : 'var(--muted)', border: '1px solid ' + (on ? 'transparent' : 'var(--line)') }}>{txt}</span>
+  );
 
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
         <p style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 4px' }}>Automação</p>
         <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Follow-up Automático</h1>
-        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '6px 0 0' }}>Cada corretor monta o próprio fluxo de blocos — dispara quando um lead é atribuído a ele. Arraste um bloco da lista pro fluxo, ou clique pra adicionar no fim. Envio real via WAHA entra numa próxima etapa; por enquanto é só o construtor visual.</p>
+        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '6px 0 0', maxWidth: 640, lineHeight: 1.5 }}>
+          Cada corretor monta as próprias réguas. A que estiver marcada como “disparar em lead novo” começa sozinha
+          quando um lead cai pra ele — checando antes se o número existe no WhatsApp. Quando o lead responde, a régua pausa.
+        </p>
       </div>
 
-      <div className="split-pane" style={{ display: 'grid', gridTemplateColumns: '230px 1fr', gap: 14, alignItems: 'start' }}>
-        {/* coluna esquerda: corretor + fluxos + paleta de blocos — fixa ao rolar a página, com
-            rolagem própria caso o conteúdo (fluxos + blocos) seja mais alto que a tela. */}
-        <div className="split-aside" style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 78, maxHeight: 'calc(100vh - 98px)', overflowY: 'auto' }}>
-          <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', padding: 16 }}>
-            {isManager && (
-              <>
-                <label style={fieldLabel}>Corretor</label>
-                <select value={corretorAtivo} onChange={e => { setCorretorSel(e.target.value); setFlowIdSel(null); setBlocoIdSel(null); }} style={fieldInput}>
-                  {corretores.map(c => <option key={c}>{c}</option>)}
-                </select>
-              </>
-            )}
-            <p style={{ fontSize: 10.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', margin: '4px 0 8px' }}>Fluxos de {corretorAtivo}</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
-              {flowsDoCorretor.length === 0 && <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0 }}>Nenhum fluxo ainda.</p>}
-              {flowsDoCorretor.map(f => (
-                <button
-                  key={f.id}
-                  onClick={() => { setFlowIdSel(f.id); setBlocoIdSel(null); }}
-                  style={{
-                    textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid ' + (f.id === flow?.id ? 'var(--terra)' : 'var(--line)'),
-                    background: f.id === flow?.id ? 'var(--terraSoft)' : 'var(--bg)',
-                  }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: f.ativo ? 'var(--olive)' : 'var(--muted)', flex: 'none' }} />
-                    <span style={{ fontSize: 13, fontWeight: 700 }}>{f.nome}</span>
-                  </span>
-                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>{f.gatilho}</span>
-                </button>
-              ))}
-            </div>
-            <label style={fieldLabel}>Novo fluxo</label>
-            <input value={novoNome} onChange={e => setNovoNome(e.target.value)} onKeyDown={e => e.key === 'Enter' && criarFluxo()} placeholder="Ex: Primeira vez" style={fieldInput} />
-            <button onClick={criarFluxo} style={{ width: '100%', padding: '9px 12px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 12.5, fontWeight: 600 }}>+ Criar fluxo</button>
-          </div>
+      <div style={{ display: 'flex', gap: 22, borderBottom: '1px solid var(--line)', marginBottom: 18 }}>
+        {(['fluxos', 'andamento'] as const).map(t => (
+          <button key={t} onClick={() => setAba(t)} style={{ padding: '0 0 12px', border: 'none', background: 'none', fontSize: 13.5, fontWeight: aba === t ? 700 : 500, color: aba === t ? 'var(--ink)' : 'var(--muted)', borderBottom: '2px solid ' + (aba === t ? 'var(--terra)' : 'transparent'), marginBottom: -1 }}>
+            {t === 'fluxos' ? 'Meus fluxos' : 'Em andamento' + (execucoes.length ? ' (' + execucoes.length + ')' : '')}
+          </button>
+        ))}
+      </div>
 
-          <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', padding: 16 }}>
-            <p style={{ fontSize: 10.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 10px' }}>Blocos</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {(['texto', 'audio', 'imagem', 'pdf', 'espera'] as BlocoTipo[]).map(paletaBtn)}
-            </div>
-            <p style={{ fontSize: 11, color: 'var(--muted)', margin: '10px 0 0', lineHeight: 1.5 }}>Arraste pro fluxo, ou clique pra adicionar no fim.</p>
-          </div>
-        </div>
-
-        {/* coluna direita: canvas + editor do bloco selecionado */}
-        <div>
-          {flow ? (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-                <input
-                  value={flow.nome}
-                  onChange={e => renameFlow(flow.id, e.target.value)}
-                  style={{ fontFamily: 'Newsreader,serif', fontSize: 19, border: '1px solid transparent', background: 'none', padding: '4px 6px', borderRadius: 6, minWidth: 120 }}
-                  onFocus={e => (e.currentTarget.style.borderColor = 'var(--line)')}
-                  onBlur={e => (e.currentTarget.style.borderColor = 'transparent')}
-                />
-                <select value={flow.gatilho} onChange={e => setFlowGatilho(flow.id, e.target.value)} style={{ padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 7, background: 'var(--card)', fontSize: 12 }}>
-                  {GATILHOS_FLOW.map(g => <option key={g}>{g}</option>)}
-                </select>
-                <button onClick={() => toggleFlowAtivo(flow.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', border: '1px solid var(--line)', borderRadius: 20, background: 'var(--card)' }}>
-                  <span style={{ width: 26, height: 15, borderRadius: 10, background: flow.ativo ? 'var(--olive)' : 'var(--line)', padding: 2, display: 'flex', justifyContent: flow.ativo ? 'flex-end' : 'flex-start' }}>
-                    <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#fff', display: 'block' }} />
-                  </span>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>{flow.ativo ? 'Ativo' : 'Inativo'}</span>
-                </button>
-                <span style={{ flex: 1 }} />
-                <button
-                  onClick={() => ask('Excluir fluxo "' + flow.nome + '"?', 'Todos os blocos desse fluxo são apagados. Esta ação não pode ser desfeita.', 'Excluir fluxo', () => { deleteFlow(flow.id); setFlowIdSel(null); setBlocoIdSel(null); })}
-                  style={{ ...iconBtn, color: 'var(--terra)' }}
-                  title="Excluir fluxo"
-                >
-                  <Trash2 size={13} />
-                </button>
+      {aba === 'andamento' ? (
+        <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', overflow: 'hidden' }}>
+          {execucoes.map(e => (
+            <div key={e.id} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '13px 18px', borderBottom: '1px solid var(--line)', flexWrap: 'wrap' }}>
+              <button onClick={() => openLead(e.leadId)} style={{ border: 'none', background: 'none', textAlign: 'left', padding: 0, flex: 1, minWidth: 160 }}>
+                <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700 }}>{e.leadNome}</span>
+                <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{e.fluxoNome}{e.corretorNome ? ' · ' + e.corretorNome : ''}</span>
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>passo {Math.min(e.passoAtual + 1, e.totalPassos)}/{e.totalPassos}</span>
+              <span style={{ fontSize: 11.5, color: 'var(--muted)', minWidth: 130 }}>
+                {e.status === 'pausada' ? (e.motivoFim || 'pausado')
+                  : e.proximoEnvioEm ? 'próx. ' + new Date(e.proximoEnvioEm).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                  : '—'}
+              </span>
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', padding: '3px 8px', borderRadius: 20, background: e.status === 'ativa' ? 'var(--oliveSoft)' : 'var(--terraSoft)', color: e.status === 'ativa' ? 'var(--olive)' : 'var(--terra)' }}>{e.status}</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {e.status === 'ativa'
+                  ? <button onClick={() => mudarExecucao(e.id, 'pausada')} style={{ ...iconBtn, width: 'auto', padding: '0 10px', fontSize: 12, fontWeight: 600 }}>Pausar</button>
+                  : <button onClick={() => mudarExecucao(e.id, 'ativa')} style={{ ...iconBtn, width: 'auto', padding: '0 10px', fontSize: 12, fontWeight: 600, color: 'var(--olive)', borderColor: 'var(--olive)' }}>Retomar</button>}
+                <button onClick={() => ask('Encerrar follow-up?', e.leadNome + ' sai da régua e não recebe mais mensagens programadas.', 'Encerrar', () => mudarExecucao(e.id, 'encerrada'))} style={{ ...iconBtn, width: 'auto', padding: '0 10px', fontSize: 12, color: 'var(--terra)' }}>Encerrar</button>
               </div>
+            </div>
+          ))}
+          {execucoes.length === 0 && <p style={{ padding: '30px 18px', textAlign: 'center', fontSize: 13, color: 'var(--muted)', margin: 0 }}>Nenhum lead em follow-up agora.</p>}
+        </div>
+      ) : (
+        <div className="split-pane" style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 14, alignItems: 'start' }}>
+          <div className="split-aside" style={{ display: 'flex', flexDirection: 'column', gap: 12, position: 'sticky', top: 78 }}>
+            <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', padding: 14 }}>
+              {isManager && (
+                <>
+                  <label style={fieldLabel}>Corretor</label>
+                  <select value={corretorAtivo} onChange={e => { setCorretorSel(e.target.value); setFluxoIdSel(null); }} style={{ ...inp, marginBottom: 12 }}>
+                    <option value="">Todos</option>
+                    {corretores.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
+                </>
+              )}
+              <p style={{ fontSize: 10.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 8px' }}>Fluxos</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                {fluxosDoCorretor.length === 0 && <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0 }}>Nenhum fluxo ainda.</p>}
+                {fluxosDoCorretor.map(f => (
+                  <button key={f.id} onClick={() => setFluxoIdSel(f.id)} style={{ textAlign: 'left', padding: '9px 11px', borderRadius: 8, border: '1px solid ' + (f.id === fluxo?.id ? 'var(--terra)' : 'var(--line)'), background: f.id === fluxo?.id ? 'var(--terraSoft)' : 'var(--bg)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: f.ativo ? 'var(--olive)' : 'var(--muted)', flex: 'none' }} />
+                      <span style={{ fontSize: 13, fontWeight: 700, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.nome}</span>
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{f.passos.length} passo{f.passos.length === 1 ? '' : 's'}{f.disparaEmLeadNovo ? ' · auto' : ''}</span>
+                  </button>
+                ))}
+              </div>
+              <label style={fieldLabel}>Novo fluxo</label>
+              <input value={novoNome} onChange={e => setNovoNome(e.target.value)} onKeyDown={e => e.key === 'Enter' && criar()} placeholder="Ex: Boas-vindas" style={{ ...inp, marginBottom: 8 }} />
+              <button onClick={criar} disabled={isManager && !corretorAtivo} style={{ width: '100%', padding: '9px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 12.5, fontWeight: 600, opacity: isManager && !corretorAtivo ? 0.5 : 1 }}>+ Criar fluxo</button>
+              {isManager && !corretorAtivo && <p style={{ fontSize: 11, color: 'var(--muted)', margin: '6px 0 0' }}>Escolha um corretor pra criar.</p>}
+            </div>
+          </div>
 
-              <div className="fu-canvas-row" style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
-                <ReactFlowProvider>
-                  <FlowCanvas key={flow.id} flow={flow} addBloco={addBloco} setBlocoIdSel={setBlocoIdSel} />
-                </ReactFlowProvider>
-
-                {/* painel do bloco selecionado — só aparece durante a edição, pra dar mais espaço ao canvas o resto do tempo */}
-                {bloco && (
-                  <div className="fu-editor" style={{ width: 320, flex: 'none', height: canvasHeight, overflowY: 'auto' }}>
-                    <div style={cardBase}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                        {(() => { const M = TIPO_META[bloco.tipo].Icon; return <M size={15} color="var(--terra)" />; })()}
-                        <h3 style={{ margin: 0, fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 17 }}>{TIPO_META[bloco.tipo].label}</h3>
-                        <span style={{ flex: 1 }} />
-                        <button onClick={() => useAppStore.getState().moveBloco(flow.id, bloco.id, 'up')} title="Mover pra cima" style={iconBtn}>↑</button>
-                        <button onClick={() => useAppStore.getState().moveBloco(flow.id, bloco.id, 'down')} title="Mover pra baixo" style={iconBtn}>↓</button>
-                        <button onClick={() => { useAppStore.getState().removeBloco(flow.id, bloco.id); setBlocoIdSel(null); }} title="Excluir bloco" style={{ ...iconBtn, color: 'var(--terra)' }}><Trash2 size={12} /></button>
-                      </div>
-                      {bloco.tipo === 'texto' && (
-                        <textarea
-                          value={bloco.texto ?? ''}
-                          onChange={e => useAppStore.getState().updateBloco(flow.id, bloco.id, { texto: e.target.value })}
-                          rows={8}
-                          style={{ ...fieldInput, resize: 'vertical', fontFamily: 'inherit' }}
-                          placeholder="Digite a mensagem…"
-                        />
-                      )}
-                      {bloco.tipo === 'espera' && (
-                        <>
-                          <label style={fieldLabel}>Aguardar</label>
-                          <input value={bloco.delay ?? ''} onChange={e => useAppStore.getState().updateBloco(flow.id, bloco.id, { delay: e.target.value })} style={fieldInput} placeholder="+1 dia, +10 min…" />
-                        </>
-                      )}
-                      {(bloco.tipo === 'audio' || bloco.tipo === 'imagem' || bloco.tipo === 'pdf') && (
-                        <>
-                          <label style={fieldLabel}>Arquivo ({TIPO_META[bloco.tipo].label.toLowerCase()})</label>
-                          <input value={bloco.arquivo ?? ''} onChange={e => useAppStore.getState().updateBloco(flow.id, bloco.id, { arquivo: e.target.value })} style={fieldInput} />
-                          <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: 0, lineHeight: 1.5 }}>Upload de verdade e envio pelo WAHA entram numa próxima etapa — por enquanto é só o nome do arquivo, ilustrativo.</p>
-                        </>
-                      )}
-                      <p style={{ fontSize: 11, color: 'var(--muted)', margin: '14px 0 0' }}>Variáveis disponíveis: {'{nome}'}, {'{corretor}'}, {'{imovel}'}</p>
-                    </div>
+          <div>
+            {fluxo && rasc ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', padding: 16 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+                    <input value={rasc.nome} onChange={e => patch({ nome: e.target.value })} style={{ fontFamily: 'Newsreader,serif', fontSize: 18, border: '1px solid var(--line)', background: 'var(--bg)', padding: '5px 8px', borderRadius: 7, minWidth: 160, flex: 1 }} />
+                    <button onClick={() => patch({ ativo: !rasc.ativo })} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 11px', border: '1px solid var(--line)', borderRadius: 20, background: 'var(--card)', fontSize: 12, fontWeight: 600 }}>
+                      <span style={{ width: 24, height: 14, borderRadius: 8, background: rasc.ativo ? 'var(--olive)' : 'var(--line)', padding: 2, display: 'flex', justifyContent: rasc.ativo ? 'flex-end' : 'flex-start' }}>
+                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#fff' }} />
+                      </span>
+                      {rasc.ativo ? 'Ativo' : 'Inativo'}
+                    </button>
+                    <button onClick={() => ask('Excluir fluxo "' + fluxo.nome + '"?', 'Os passos e o histórico de execuções somem.', 'Excluir', () => { excluirFluxo(fluxo.id); setFluxoIdSel(null); })} style={{ ...iconBtn, color: 'var(--terra)' }}><Trash2 size={13} /></button>
                   </div>
-                )}
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 14 }}>
+                    <input type="checkbox" checked={rasc.disparaEmLeadNovo} onChange={e => patch({ disparaEmLeadNovo: e.target.checked })} />
+                    Começar sozinho quando um lead novo cai pra este corretor
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>(só um fluxo por corretor)</span>
+                  </label>
+
+                  <p style={fieldLabel}>Janela de envio</p>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+                    <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>Só mandar das</span>
+                    <input type="time" value={hhmm(rasc.janelaInicioMin)} onChange={e => patch({ janelaInicioMin: minDe(e.target.value) })} style={{ ...inp, width: 110 }} />
+                    <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>às</span>
+                    <input type="time" value={hhmm(rasc.janelaFimMin)} onChange={e => patch({ janelaFimMin: minDe(e.target.value) })} style={{ ...inp, width: 110 }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+                    {DIAS.map((d, i) => (
+                      <button key={i} onClick={() => patch({ janelaDias: rasc.janelaDias.map((v, j) => (j === i ? !v : v)) })} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid ' + (rasc.janelaDias[i] ? 'var(--terra)' : 'var(--line)'), background: rasc.janelaDias[i] ? 'var(--terraSoft)' : 'var(--bg)', color: rasc.janelaDias[i] ? 'var(--terra)' : 'var(--muted)', fontSize: 12, fontWeight: 600 }}>{d}</button>
+                    ))}
+                  </div>
+
+                  <p style={fieldLabel}>Quando a régua terminar</p>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <select value={rasc.aoEsgotar} onChange={e => patch({ aoEsgotar: e.target.value as Rascunho['aoEsgotar'] })} style={{ ...inp, width: 200 }}>
+                      <option value="nada">Não fazer nada</option>
+                      <option value="descartar">Descartar o lead (rebatidas)</option>
+                      <option value="mover">Mover pra uma coluna</option>
+                    </select>
+                    {rasc.aoEsgotar === 'mover' && (
+                      <select value={rasc.aoEsgotarColunaId ?? ''} onChange={e => patch({ aoEsgotarColunaId: e.target.value || null })} style={{ ...inp, width: 200 }}>
+                        <option value="">Escolha a coluna…</option>
+                        {colunas.map(c => <option key={c.id} value={c.id}>{c.titulo}</option>)}
+                      </select>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', padding: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <p style={fieldLabel}>Passos da régua</p>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>Variáveis: {'{{nome}} {{primeiro_nome}} {{corretor}} {{imobiliaria}} {{imovel}}'}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {rasc.passos.map((p, i) => {
+                      const Icon = TIPOS.find(t => t.v === p.tipo)?.Icon ?? MessageSquare;
+                      return (
+                        <div key={i} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 12, background: 'var(--bg)' }}>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+                            <Icon size={14} color="var(--terra)" />
+                            <select value={p.tipo} onChange={e => patchPasso(i, { tipo: e.target.value as PassoTipo })} style={{ ...inp, width: 110, padding: '6px 8px' }}>
+                              {TIPOS.map(t => <option key={t.v} value={t.v}>{t.label}</option>)}
+                            </select>
+                            <span style={{ fontSize: 12, color: 'var(--muted)' }}>enviar</span>
+                            <input type="number" min={0} value={p.atrasoMinutos >= 1440 && p.atrasoMinutos % 1440 === 0 ? p.atrasoMinutos / 1440 : p.atrasoMinutos >= 60 && p.atrasoMinutos % 60 === 0 ? p.atrasoMinutos / 60 : p.atrasoMinutos}
+                              onChange={e => {
+                                const n = Math.max(0, Number(e.target.value) || 0);
+                                const unidade = p.atrasoMinutos >= 1440 && p.atrasoMinutos % 1440 === 0 ? 1440 : p.atrasoMinutos >= 60 && p.atrasoMinutos % 60 === 0 ? 60 : 1;
+                                patchPasso(i, { atrasoMinutos: n * unidade });
+                              }}
+                              style={{ ...inp, width: 64, padding: '6px 8px' }} />
+                            <select
+                              value={p.atrasoMinutos >= 1440 && p.atrasoMinutos % 1440 === 0 ? 'd' : p.atrasoMinutos >= 60 && p.atrasoMinutos % 60 === 0 ? 'h' : 'm'}
+                              onChange={e => {
+                                const cur = p.atrasoMinutos >= 1440 && p.atrasoMinutos % 1440 === 0 ? p.atrasoMinutos / 1440 : p.atrasoMinutos >= 60 && p.atrasoMinutos % 60 === 0 ? p.atrasoMinutos / 60 : p.atrasoMinutos;
+                                const mult = e.target.value === 'd' ? 1440 : e.target.value === 'h' ? 60 : 1;
+                                patchPasso(i, { atrasoMinutos: cur * mult });
+                              }}
+                              style={{ ...inp, width: 90, padding: '6px 8px' }}
+                            >
+                              <option value="m">minutos</option>
+                              <option value="h">horas</option>
+                              <option value="d">dias</option>
+                            </select>
+                            <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{i === 0 ? 'após o lead cair' : 'após o passo anterior'} · {fmtMin(p.atrasoMinutos)}</span>
+                            <span style={{ flex: 1 }} />
+                            <button onClick={() => moverPasso(i, -1)} disabled={i === 0} style={{ ...iconBtn, opacity: i === 0 ? 0.4 : 1 }}><ArrowUp size={12} /></button>
+                            <button onClick={() => moverPasso(i, 1)} disabled={i === rasc.passos.length - 1} style={{ ...iconBtn, opacity: i === rasc.passos.length - 1 ? 0.4 : 1 }}><ArrowDown size={12} /></button>
+                            <button onClick={() => { patch({ passos: rasc.passos.filter((_, j) => j !== i) }); }} style={{ ...iconBtn, color: 'var(--terra)' }}><Trash2 size={12} /></button>
+                          </div>
+                          <input value={p.cadenciaLabel ?? ''} onChange={e => patchPasso(i, { cadenciaLabel: e.target.value || null })} placeholder="Rótulo da cadência (ex: Chamada 1) — some no card do lead" style={{ ...inp, marginBottom: 8, fontSize: 12 }} />
+                          {p.tipo === 'texto' ? (
+                            <textarea value={p.conteudo} onChange={e => patchPasso(i, { conteudo: e.target.value })} rows={3} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} placeholder="Mensagem…" />
+                          ) : (
+                            <>
+                              <input value={p.anexoUrl ?? ''} onChange={e => patchPasso(i, { anexoUrl: e.target.value || null })} placeholder="URL do arquivo (link público do MinIO)" style={{ ...inp, marginBottom: 6 }} />
+                              <input value={p.conteudo} onChange={e => patchPasso(i, { conteudo: e.target.value })} placeholder="Legenda (opcional)" style={{ ...inp, fontSize: 12 }} />
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button onClick={addPasso} style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6, padding: '9px 12px', border: '1px dashed var(--line)', borderRadius: 8, background: 'none', fontSize: 12.5, fontWeight: 600, color: 'var(--muted)', width: '100%', justifyContent: 'center' }}>
+                    <Plus size={14} /> Adicionar passo
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <button onClick={salvar} disabled={!dirty} style={{ padding: '10px 20px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600, opacity: dirty ? 1 : 0.5 }}>Salvar fluxo</button>
+                  {dirty && <span style={{ fontSize: 12, color: 'var(--muted)' }}>alterações não salvas</span>}
+                  <span style={{ flex: 1 }} />
+                  {pill(rasc.ativo ? 'ativo' : 'inativo', rasc.ativo)}
+                  {rasc.disparaEmLeadNovo && pill('auto em lead novo', true)}
+                </div>
               </div>
-            </>
-          ) : (
-            <div style={{ height: canvasHeight, border: '1px dashed var(--line)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 13.5 }}>
-              Selecione ou crie um fluxo pra começar a montar os blocos.
-            </div>
-          )}
+            ) : (
+              <div style={{ border: '1px dashed var(--line)', borderRadius: 12, padding: '60px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: 13.5 }}>
+                Selecione ou crie um fluxo pra montar a régua.
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

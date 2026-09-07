@@ -31,8 +31,7 @@ export function LeadModal() {
   const toast = useAppStore(s => s.toast);
   const [enviandoAnexo, setEnviandoAnexo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cadencia = useAppStore(s => s.cadencia);
-  const setCadencia = useAppStore(s => s.setCadencia);
+  const setCadenciaLead = useAppStore(s => s.setCadenciaLead);
   const move = useAppStore(s => s.move);
   const colunas = useAppStore(s => s.colunasRemotas);
   const advance = useAppStore(s => s.advance);
@@ -46,11 +45,11 @@ export function LeadModal() {
   const closeDiscard = useAppStore(s => s.closeDiscard);
   const pickMotivoDescarte = useAppStore(s => s.pickMotivoDescarte);
   const requestApproval = useAppStore(s => s.requestApproval);
-  const steps = useAppStore(s => s.steps);
-  const seqState = useAppStore(s => s.seqState);
-  const pauseSeq = useAppStore(s => s.pauseSeq);
-  const resumeSeq = useAppStore(s => s.resumeSeq);
-  const endSeq = useAppStore(s => s.endSeq);
+  const fluxos = useAppStore(s => s.fluxos);
+  const execucoesFollowup = useAppStore(s => s.execucoesFollowup);
+  const iniciarFollowupLead = useAppStore(s => s.iniciarFollowupLead);
+  const mudarExecucao = useAppStore(s => s.mudarExecucao);
+  const [fluxoEscolhido, setFluxoEscolhido] = useState('');
   const eventosLead = useAppStore(s => s.eventosLead);
   const fetchEventosLead = useAppStore(s => s.fetchEventosLead);
   const addNotaLead = useAppStore(s => s.addNotaLead);
@@ -74,8 +73,9 @@ export function LeadModal() {
   if (!L) return null;
 
   const colAtual = colunas.find(c => c.id === L.colunaId)?.titulo ?? '—';
-  const cad = cadencia[L.id] || 'Chamada 1';
-  const seqSt = seqState[L.id] || 'ativa';
+  const cad = L.cadencia || '';
+  const execucao = execucoesFollowup.find(e => e.leadId === leadId) ?? null;
+  const fluxosDisponiveis = fluxos.filter(f => f.passos.length > 0);
 
   const fields = [
     { label: 'Nome completo', value: L.nome }, { label: 'Telefone', value: L.tel },
@@ -106,10 +106,6 @@ export function LeadModal() {
     if (ok) { setTarefaTitulo(''); setTarefaQuando(''); fetchEventosLead(leadId); }
   }
 
-  const seqSteps = steps.map((st, i) => {
-    const done = i < 2, now = i === 2;
-    return { ...st, tag: done ? 'Enviado' : now ? 'Agendado' : 'Na fila', done, now };
-  });
 
   const quickTemplates = [
     { label: 'Enviar tabela de valores', texto: 'Acabei de te enviar a tabela de valores atualizada. Qualquer dúvida, me chama.' },
@@ -167,8 +163,10 @@ export function LeadModal() {
               <div data-modal-grid style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 7 }}>Cadência de chamada</label>
-                  <select value={cad} onChange={e => setCadencia(L.id, e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5 }}>
+                  <select value={cad} onChange={e => setCadenciaLead(L.id, e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5 }}>
+                    <option value="">—</option>
                     {CADENCIAS.map(c => <option key={c}>{c}</option>)}
+                    {cad && !CADENCIAS.includes(cad) && <option value={cad}>{cad}</option>}
                   </select>
                 </div>
                 <div>
@@ -317,29 +315,66 @@ export function LeadModal() {
 
           {leadTab === 'followup' && (
             <>
-              <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 18, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', flex: 'none', background: seqSt === 'ativa' ? 'var(--olive)' : seqSt === 'pausada' ? 'var(--terra)' : 'var(--muted)' }} />
-                <span style={{ flex: 1, minWidth: 190 }}>
-                  <span style={{ display: 'block', fontSize: 14, fontWeight: 700 }}>{seqSt === 'ativa' ? 'Sequência ativa' : seqSt === 'pausada' ? 'Sequência pausada' : 'Sequência encerrada'} — "Lead novo — Aurora"</span>
-                  <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>Próximo envio: amanhã, 09:00 · passo 3 de 5</span>
-                </span>
-                {seqSt === 'ativa' && <button onClick={() => pauseSeq(L.id)} style={{ padding: '8px 14px', border: '1px solid var(--line)', borderRadius: 7, background: 'none', fontSize: 12.5, fontWeight: 600 }}>Pausar</button>}
-                {seqSt === 'pausada' && <button onClick={() => resumeSeq(L.id)} style={{ padding: '8px 14px', border: '1px solid var(--olive)', borderRadius: 7, background: 'none', color: 'var(--olive)', fontSize: 12.5, fontWeight: 600 }}>Retomar</button>}
-                {seqSt === 'encerrada' && <button onClick={() => resumeSeq(L.id)} style={{ padding: '8px 14px', border: '1px solid var(--line)', borderRadius: 7, background: 'none', fontSize: 12.5, fontWeight: 600 }}>Reinscrever</button>}
-                <button onClick={() => endSeq(L.id)} style={{ padding: '8px 14px', border: '1px solid var(--line)', borderRadius: 7, background: 'none', fontSize: 12.5, color: 'var(--terra)' }}>Encerrar</button>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {seqSteps.map((s, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 14, padding: '14px 0', borderBottom: '1px solid var(--line)' }}>
-                    <span style={{ width: 9, height: 9, borderRadius: '50%', marginTop: 5, flex: 'none', background: s.done ? 'var(--olive)' : s.now ? 'var(--terra)' : 'var(--line)' }} />
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600 }}>{s.delay}</span>
-                      <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 3, lineHeight: 1.5 }}>{s.texto}</span>
+              {execucao ? (
+                <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 18, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', flex: 'none', background: execucao.status === 'ativa' ? 'var(--olive)' : 'var(--terra)' }} />
+                  <span style={{ flex: 1, minWidth: 190 }}>
+                    <span style={{ display: 'block', fontSize: 14, fontWeight: 700 }}>
+                      {execucao.status === 'ativa' ? 'Follow-up rodando' : 'Follow-up pausado'} — {execucao.fluxoNome}
                     </span>
-                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', padding: '4px 8px', borderRadius: 20, alignSelf: 'center', ...(s.done ? { background: 'var(--oliveSoft)', color: 'var(--olive)' } : s.now ? { background: 'var(--terraSoft)', color: 'var(--terra)' } : { border: '1px solid var(--line)', color: 'var(--muted)' }) }}>{s.tag}</span>
+                    <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>
+                      passo {Math.min(execucao.passoAtual + 1, execucao.totalPassos)} de {execucao.totalPassos}
+                      {execucao.status === 'ativa' && execucao.proximoEnvioEm
+                        ? ' · próximo envio ' + new Date(execucao.proximoEnvioEm).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                        : execucao.motivoFim ? ' · ' + execucao.motivoFim : ''}
+                    </span>
+                  </span>
+                  {execucao.status === 'ativa'
+                    ? <button onClick={() => mudarExecucao(execucao.id, 'pausada')} style={{ padding: '8px 14px', border: '1px solid var(--line)', borderRadius: 7, background: 'none', fontSize: 12.5, fontWeight: 600 }}>Pausar</button>
+                    : <button onClick={() => mudarExecucao(execucao.id, 'ativa')} style={{ padding: '8px 14px', border: '1px solid var(--olive)', borderRadius: 7, background: 'none', color: 'var(--olive)', fontSize: 12.5, fontWeight: 600 }}>Retomar</button>}
+                  <button onClick={() => ask('Encerrar follow-up?', L.nome + ' sai da régua e não recebe mais mensagens programadas.', 'Encerrar', () => mudarExecucao(execucao.id, 'encerrada'))} style={{ padding: '8px 14px', border: '1px solid var(--line)', borderRadius: 7, background: 'none', fontSize: 12.5, color: 'var(--terra)' }}>Encerrar</button>
+                </div>
+              ) : (
+                <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 18, marginBottom: 16 }}>
+                  <p style={{ fontSize: 13.5, fontWeight: 700, margin: '0 0 4px' }}>Nenhuma régua rodando pra este lead</p>
+                  <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 12px' }}>Escolha um fluxo pra começar o follow-up automático.</p>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <select value={fluxoEscolhido} onChange={e => setFluxoEscolhido(e.target.value)} style={{ flex: 1, minWidth: 180, padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13 }}>
+                      <option value="">Escolha o fluxo…</option>
+                      {fluxosDisponiveis.map(f => <option key={f.id} value={f.id}>{f.nome} ({f.passos.length} passos)</option>)}
+                    </select>
+                    <button
+                      onClick={async () => { if (fluxoEscolhido && await iniciarFollowupLead(L.id, fluxoEscolhido)) setFluxoEscolhido(''); }}
+                      disabled={!fluxoEscolhido}
+                      style={{ padding: '9px 16px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600, opacity: fluxoEscolhido ? 1 : 0.5 }}
+                    >Iniciar</button>
                   </div>
-                ))}
-              </div>
+                  {fluxosDisponiveis.length === 0 && <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '10px 0 0' }}>Monte um fluxo com passos na página Follow-up primeiro.</p>}
+                </div>
+              )}
+              {execucao && (() => {
+                const fx = fluxos.find(f => f.id === execucao.fluxoId);
+                if (!fx) return null;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {fx.passos.map((p, i) => {
+                      const done = i < execucao.passoAtual, now = i === execucao.passoAtual && execucao.status === 'ativa';
+                      return (
+                        <div key={i} style={{ display: 'flex', gap: 14, padding: '13px 0', borderBottom: '1px solid var(--line)' }}>
+                          <span style={{ width: 9, height: 9, borderRadius: '50%', marginTop: 5, flex: 'none', background: done ? 'var(--olive)' : now ? 'var(--terra)' : 'var(--line)' }} />
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>{p.cadenciaLabel || 'Passo ' + (i + 1)} · {p.atrasoTexto}</span>
+                            <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 3, lineHeight: 1.5 }}>
+                              {p.tipo !== 'texto' ? '[' + p.tipo + '] ' : ''}{p.conteudo || '(sem texto)'}
+                            </span>
+                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', padding: '4px 8px', borderRadius: 20, alignSelf: 'center', ...(done ? { background: 'var(--oliveSoft)', color: 'var(--olive)' } : now ? { background: 'var(--terraSoft)', color: 'var(--terra)' } : { border: '1px solid var(--line)', color: 'var(--muted)' }) }}>{done ? 'enviado' : now ? 'agora' : 'na fila'}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </>
           )}
 

@@ -82,17 +82,26 @@ export type LeadTab = 'detalhes' | 'chat' | 'followup' | 'historico';
 export type BolsaoTab = 'novos' | 'rebatidas' | 'descartados' | 'descadastrar' | 'roletalog';
 export type AlertKind = 'lead' | 'visita' | 'credito' | 'plantao' | 'tarefa' | 'fora-horario' | null;
 
-export interface FollowupStep { delay: string; texto: string }
 export interface ConfirmState { titulo: string; texto: string; ok: string; fn: () => void }
 
-// Construtor visual de fluxos (estilo ManyChat) da aba Follow-up — só visual/mock por enquanto,
-// sem backend nem envio real (isso vai plugar no WAHA mais pra frente). Cada corretor tem os
-// próprios fluxos; um fluxo dispara quando um lead é atribuído a ele, com blocos em sequência.
-export type BlocoTipo = 'texto' | 'audio' | 'imagem' | 'pdf' | 'espera';
-export interface FlowBloco { id: string; tipo: BlocoTipo; texto?: string; arquivo?: string; delay?: string }
-export interface FlowDef { id: string; corretor: string; nome: string; gatilho: string; ativo: boolean; blocos: FlowBloco[] }
-
-export const GATILHOS_FLOW = ['Lead atribuído (novo)', 'Lead rebatido', 'Pós-visita agendada', 'Análise de crédito parada'] as const;
+// Régua de follow-up (backend real). Cada corretor monta quantas quiser; a que estiver marcada
+// como "dispara em lead novo" começa sozinha quando um lead cai pra ele.
+export type PassoTipo = 'texto' | 'audio' | 'imagem' | 'pdf';
+export interface RemotePassoFluxo {
+  tipo: PassoTipo; conteudo: string; atrasoMinutos: number; atrasoTexto: string;
+  cadenciaLabel: string | null; anexoUrl: string | null; anexoNome: string | null;
+}
+export interface RemoteFluxo {
+  id: string; corretorId: string | null; nome: string; ativo: boolean; disparaEmLeadNovo: boolean;
+  janelaInicioMin: number; janelaFimMin: number; janelaDias: boolean[];
+  aoEsgotar: 'nada' | 'descartar' | 'mover'; aoEsgotarColunaId: string | null;
+  passos: RemotePassoFluxo[];
+}
+export interface RemoteExecucao {
+  id: string; leadId: string; leadNome: string; fluxoId: string; fluxoNome: string;
+  passoAtual: number; totalPassos: number; status: 'ativa' | 'pausada' | 'encerrada';
+  proximoEnvioEm: string | null; motivoFim: string | null; corretorId: string | null; corretorNome: string | null;
+}
 export interface Toast { id: number; msg: string }
 
 interface AppState {
@@ -131,9 +140,8 @@ interface AppState {
   typing: boolean;
 
   fila: { corretorId: string; nome: string; ativo: boolean }[];
-  steps: FollowupStep[];
-  autoDiscard: boolean;
-  flows: FlowDef[];
+  fluxos: RemoteFluxo[];
+  execucoesFollowup: RemoteExecucao[];
 
   kbCorretor: string;
   bolsaoTab: BolsaoTab;
@@ -144,10 +152,8 @@ interface AppState {
   convCorretor: string;
   convTyping: boolean;
 
-  cadencia: Record<string, string>;
   discardOpen: boolean;
   discardWarn: string | null;
-  seqState: Record<string, 'ativa' | 'pausada' | 'encerrada'>;
 
   conn: Record<string, boolean>;
   qrFor: string | null;
@@ -243,33 +249,19 @@ interface AppState {
   fetchRoletaLog: () => Promise<void>;
   pull: () => void;
 
-  addStep: () => void;
-  moveStepUp: (i: number) => void;
-  moveStepDown: (i: number) => void;
-  removeStep: (i: number) => void;
-  toggleAutoDiscard: () => void;
-  saveFlow: () => void;
-
-  createFlow: (corretor: string, nome: string) => string;
-  renameFlow: (id: string, nome: string) => void;
-  setFlowGatilho: (id: string, gatilho: string) => void;
-  toggleFlowAtivo: (id: string) => void;
-  deleteFlow: (id: string) => void;
-  addBloco: (flowId: string, tipo: BlocoTipo) => string;
-  updateBloco: (flowId: string, blocoId: string, patch: Partial<FlowBloco>) => void;
-  removeBloco: (flowId: string, blocoId: string) => void;
-  moveBloco: (flowId: string, blocoId: string, dir: 'up' | 'down') => void;
-
-  setCadencia: (leadId: string, value: string) => void;
+  fetchFollowup: () => Promise<void>;
+  criarFluxo: (nome: string, corretorId?: string) => Promise<RemoteFluxo | null>;
+  atualizarFluxo: (id: string, patch: Partial<Pick<RemoteFluxo, 'nome' | 'ativo' | 'disparaEmLeadNovo' | 'janelaInicioMin' | 'janelaFimMin' | 'janelaDias' | 'aoEsgotar' | 'aoEsgotarColunaId'>>) => Promise<void>;
+  salvarPassos: (fluxoId: string, passos: RemotePassoFluxo[]) => Promise<void>;
+  excluirFluxo: (id: string) => Promise<void>;
+  iniciarFollowupLead: (leadId: string, fluxoId: string) => Promise<boolean>;
+  mudarExecucao: (id: string, status: 'ativa' | 'pausada' | 'encerrada') => Promise<void>;
+  setCadenciaLead: (leadId: string, valor: string) => Promise<void>;
   setColByTitle: (leadId: string, title: string) => void;
   openDiscard: () => void;
   closeDiscard: () => void;
   pickMotivoDescarte: (motivo: string) => void;
   requestApproval: () => void;
-
-  pauseSeq: (leadId: string) => void;
-  resumeSeq: (leadId: string) => void;
-  endSeq: (leadId: string) => void;
 
   setQrFor: (nome: string) => void;
   closeQr: () => void;
@@ -432,51 +424,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Ninguém entra "No Plantão" sozinho — igual ao CRM original, cada um liga manualmente ao começar a trabalhar.
   fila: [],
-  steps: [
-    { delay: 'logo após inscrição', texto: 'Olá {nome}! Aqui é o {corretor}. Recebi seu interesse no {imovel} — posso te mandar a tabela de valores?' },
-    { delay: '+1 dia', texto: '{nome}, separei duas plantas que combinam com o que você buscava. Quer receber por aqui?' },
-    { delay: '+3 dias', texto: 'Estamos com condição especial de entrada nesta semana. Vale uma conversa rápida, {nome}?' },
-    { delay: '+7 dias', texto: 'Se preferir, deixo sua ficha guardada e te chamo no próximo lançamento. Tudo bem, {nome}?' },
-  ],
-  autoDiscard: true,
-
-  flows: [
-    {
-      id: 'flow-1', corretor: 'Diego Antunes', nome: 'Primeira vez', gatilho: 'Lead atribuído (novo)', ativo: true,
-      blocos: [
-        { id: 'b1', tipo: 'texto', texto: 'Olá {nome}! Aqui é o {corretor} 👋 Vi que você se interessou pelo {imovel} — posso te contar mais?' },
-        { id: 'b2', tipo: 'espera', delay: '+10 min' },
-        { id: 'b3', tipo: 'audio', arquivo: 'audio-boas-vindas.ogg' },
-        { id: 'b4', tipo: 'espera', delay: '+1 dia' },
-        { id: 'b5', tipo: 'imagem', arquivo: 'fachada-aurora.jpg' },
-        { id: 'b6', tipo: 'texto', texto: 'Separei essa foto pra você já visualizar o empreendimento. Quer agendar uma visita essa semana?' },
-      ],
-    },
-    {
-      id: 'flow-2', corretor: 'Diego Antunes', nome: 'Rebatida', gatilho: 'Lead rebatido', ativo: false,
-      blocos: [
-        { id: 'b7', tipo: 'texto', texto: '{nome}, tudo bem? Notei que faz um tempo que não conversamos sobre o {imovel}. Ainda tem interesse?' },
-        { id: 'b8', tipo: 'espera', delay: '+2 dias' },
-        { id: 'b9', tipo: 'pdf', arquivo: 'tabela-valores-aurora.pdf' },
-      ],
-    },
-    {
-      id: 'flow-3', corretor: 'Fernanda Lopes', nome: 'Pós-visita', gatilho: 'Pós-visita agendada', ativo: true,
-      blocos: [
-        { id: 'b10', tipo: 'texto', texto: 'Oi {nome}! Foi um prazer te receber hoje. O que achou do {imovel}?' },
-        { id: 'b11', tipo: 'espera', delay: '+1 dia' },
-        { id: 'b12', tipo: 'texto', texto: 'Separei as condições de pagamento que conversamos. Posso te enviar?' },
-        { id: 'b13', tipo: 'pdf', arquivo: 'condicoes-pagamento.pdf' },
-      ],
-    },
-  ],
+  fluxos: [],
+  execucoesFollowup: [],
 
   kbCorretor: 'Todos os corretores',
   bolsaoTab: 'rebatidas',
 
   convId: null, convDraft: '', convQuery: '', convCorretor: 'Todos os corretores', convTyping: false,
 
-  cadencia: {}, discardOpen: false, discardWarn: null, seqState: {},
+  discardOpen: false, discardWarn: null,
 
   conn: { 'Camila Rocha': true, 'Diego Antunes': true, 'Fernanda Lopes': false, 'Marcelo Braga': false, 'Priscila Nunes': true, 'Rafael Teixeira': false },
   qrFor: null, importOpen: false, newLeadOpen: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [],
@@ -502,6 +458,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().fetchNotificacoes();
       get().fetchConversas();
       get().fetchTarefas();
+      get().fetchFollowup();
       return true;
     } catch (e) {
       set({ authError: (e as ApiError).message || 'Não foi possível entrar', authLoading: false });
@@ -511,7 +468,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('nova_token');
     disconnectSocket();
-    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [], tarefas: [], eventosLead: {} });
+    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [], tarefas: [], eventosLead: {}, fluxos: [], execucoesFollowup: [] });
   },
   hydrateAuth: () => {
     const token = localStorage.getItem('nova_token');
@@ -529,6 +486,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().fetchNotificacoes();
       get().fetchConversas();
       get().fetchTarefas();
+      get().fetchFollowup();
       get().fetchHorario();
       get().fetchIntegracoes();
       if ((perfil as AuthUser).role === 'corretor') pedirPermissaoNotificacao();
@@ -641,6 +599,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
     });
     socket.off('tarefa:mudou').on('tarefa:mudou', () => { get().fetchTarefas(); });
+    socket.off('followup:mudou').on('followup:mudou', () => { get().fetchFollowup(); });
     socket.off('tarefa:venceu').on('tarefa:venceu', (msg: { id: string; titulo: string; corretorId: string | null }) => {
       get().fetchTarefas();
       const me = get().me;
@@ -1103,58 +1062,99 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   pull: () => get().toast('3 rebatidas puxadas para o seu atendimento'),
 
-  addStep: () => set(s => ({ steps: [...s.steps, { delay: '+14 dias', texto: 'Nova mensagem — edite o conteúdo e use {nome} ou {corretor}.' }] })),
-  moveStepUp: i => set(s => { if (!i) return s; const a = [...s.steps]; [a[i - 1], a[i]] = [a[i], a[i - 1]]; return { steps: a }; }),
-  moveStepDown: i => set(s => { if (i === s.steps.length - 1) return s; const a = [...s.steps]; [a[i + 1], a[i]] = [a[i], a[i + 1]]; return { steps: a }; }),
-  removeStep: i => get().ask(
-    'Remover passo ' + (i + 1) + '?',
-    'A mensagem sai da sequência para todos os leads que ainda não a receberam.',
-    'Remover',
-    () => { set(s => ({ steps: s.steps.filter((_, x) => x !== i) })); get().toast('Passo removido da sequência'); },
-  ),
-  toggleAutoDiscard: () => set(s => ({ autoDiscard: !s.autoDiscard })),
-  saveFlow: () => get().toast('Sequência salva e ativada para novos leads'),
-
-  createFlow: (corretor, nome) => {
-    const id = 'flow-' + Date.now();
-    set(s => ({ flows: [...s.flows, { id, corretor, nome, gatilho: GATILHOS_FLOW[0], ativo: false, blocos: [] }] }));
-    return id;
+  fetchFollowup: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const [fluxos, execucoesFollowup] = await Promise.all([
+        apiFetch<RemoteFluxo[]>('/api/followup/fluxos', token),
+        apiFetch<RemoteExecucao[]>('/api/followup/execucoes', token),
+      ]);
+      set({ fluxos, execucoesFollowup });
+    } catch { /* silencioso */ }
   },
-  renameFlow: (id, nome) => set(s => ({ flows: s.flows.map(f => (f.id === id ? { ...f, nome } : f)) })),
-  setFlowGatilho: (id, gatilho) => set(s => ({ flows: s.flows.map(f => (f.id === id ? { ...f, gatilho } : f)) })),
-  toggleFlowAtivo: id => set(s => ({ flows: s.flows.map(f => (f.id === id ? { ...f, ativo: !f.ativo } : f)) })),
-  deleteFlow: id => set(s => ({ flows: s.flows.filter(f => f.id !== id) })),
-
-  addBloco: (flowId, tipo) => {
-    const id = 'bloco-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
-    const base: FlowBloco =
-      tipo === 'texto' ? { id, tipo, texto: 'Nova mensagem — edite o conteúdo e use {nome}, {corretor} ou {imovel}.' } :
-      tipo === 'espera' ? { id, tipo, delay: '+1 dia' } :
-      tipo === 'audio' ? { id, tipo, arquivo: 'novo-audio.ogg' } :
-      tipo === 'imagem' ? { id, tipo, arquivo: 'nova-imagem.jpg' } :
-      { id, tipo, arquivo: 'novo-documento.pdf' };
-    set(s => ({ flows: s.flows.map(f => (f.id === flowId ? { ...f, blocos: [...f.blocos, base] } : f)) }));
-    return id;
+  criarFluxo: async (nome, corretorId) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const f = await apiFetch<RemoteFluxo>('/api/followup/fluxos', token, {
+        method: 'POST', body: JSON.stringify({ nome, ...(corretorId ? { corretorId } : {}) }),
+      });
+      set(s => ({ fluxos: [...s.fluxos, f] }));
+      return f;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível criar o fluxo');
+      return null;
+    }
   },
-  updateBloco: (flowId, blocoId, patch) => set(s => ({
-    flows: s.flows.map(f => (f.id === flowId ? { ...f, blocos: f.blocos.map(b => (b.id === blocoId ? { ...b, ...patch } : b)) } : f)),
-  })),
-  removeBloco: (flowId, blocoId) => set(s => ({
-    flows: s.flows.map(f => (f.id === flowId ? { ...f, blocos: f.blocos.filter(b => b.id !== blocoId) } : f)),
-  })),
-  moveBloco: (flowId, blocoId, dir) => set(s => ({
-    flows: s.flows.map(f => {
-      if (f.id !== flowId) return f;
-      const i = f.blocos.findIndex(b => b.id === blocoId);
-      const j = dir === 'up' ? i - 1 : i + 1;
-      if (i < 0 || j < 0 || j >= f.blocos.length) return f;
-      const blocos = [...f.blocos];
-      [blocos[i], blocos[j]] = [blocos[j], blocos[i]];
-      return { ...f, blocos };
-    }),
-  })),
-
-  setCadencia: (leadId, value) => { set(s => ({ cadencia: { ...s.cadencia, [leadId]: value } })); get().toast(get().leads.find(l => l.id === leadId)?.nome + ': ' + value); },
+  atualizarFluxo: async (id, patch) => {
+    const token = get().token;
+    if (!token) return;
+    set(s => ({ fluxos: s.fluxos.map(f => (f.id === id ? { ...f, ...patch } : f)) }));
+    try {
+      const row = await apiFetch<RemoteFluxo>('/api/followup/fluxos/' + id, token, { method: 'PATCH', body: JSON.stringify(patch) });
+      set(s => ({ fluxos: s.fluxos.map(f => (f.id === id ? { ...f, ...row } : f)) }));
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível salvar');
+      get().fetchFollowup();
+    }
+  },
+  salvarPassos: async (fluxoId, passos) => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const row = await apiFetch<RemoteFluxo>('/api/followup/fluxos/' + fluxoId + '/passos', token, { method: 'PUT', body: JSON.stringify({ passos }) });
+      set(s => ({ fluxos: s.fluxos.map(f => (f.id === fluxoId ? { ...f, ...row } : f)) }));
+      get().toast('Fluxo salvo');
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível salvar os passos');
+    }
+  },
+  excluirFluxo: async id => {
+    const token = get().token;
+    if (!token) return;
+    const antes = get().fluxos;
+    set(s => ({ fluxos: s.fluxos.filter(f => f.id !== id) }));
+    try {
+      await apiFetch('/api/followup/fluxos/' + id, token, { method: 'DELETE' });
+    } catch {
+      set({ fluxos: antes });
+      get().toast('Não foi possível excluir');
+    }
+  },
+  iniciarFollowupLead: async (leadId, fluxoId) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      await apiFetch('/api/followup/execucoes', token, { method: 'POST', body: JSON.stringify({ leadId, fluxoId }) });
+      get().fetchFollowup();
+      get().toast('Follow-up iniciado');
+      return true;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível iniciar');
+      return false;
+    }
+  },
+  mudarExecucao: async (id, status) => {
+    const token = get().token;
+    if (!token) return;
+    set(s => ({ execucoesFollowup: s.execucoesFollowup.map(e => (e.id === id ? { ...e, status } : e)) }));
+    try {
+      await apiFetch('/api/followup/execucoes/' + id, token, { method: 'PATCH', body: JSON.stringify({ status }) });
+      get().fetchFollowup();
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível mudar o follow-up');
+      get().fetchFollowup();
+    }
+  },
+  setCadenciaLead: async (leadId, valor) => {
+    const token = get().token;
+    if (!token) return;
+    set(s => ({ leads: s.leads.map(l => (l.id === leadId ? { ...l, cadencia: valor } : l)) }));
+    try {
+      await apiFetch('/api/leads/' + leadId, token, { method: 'PATCH', body: JSON.stringify({ cadencia: valor }) });
+    } catch { get().fetchKanbanData(); }
+  },
   setColByTitle: (leadId, title) => { const c = get().colunasRemotas.find(x => x.titulo === title); if (c) get().move(leadId, c.id); },
   openDiscard: () => set(s => ({ discardOpen: !s.discardOpen, discardWarn: null })),
   closeDiscard: () => set({ discardOpen: false, discardWarn: null }),
@@ -1172,15 +1172,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     );
   },
   requestApproval: () => { set({ discardOpen: false, discardWarn: null }); get().toast('Solicitação enviada ao gerente para aprovação'); },
-
-  pauseSeq: leadId => { set(s => ({ seqState: { ...s.seqState, [leadId]: 'pausada' } })); get().toast('Follow-up pausado'); },
-  resumeSeq: leadId => { set(s => ({ seqState: { ...s.seqState, [leadId]: 'ativa' } })); get().toast('Follow-up retomado'); },
-  endSeq: leadId => get().ask(
-    'Encerrar sequência?',
-    'O lead sai do follow-up automático e não recebe mais mensagens programadas.',
-    'Encerrar',
-    () => { set(s => ({ seqState: { ...s.seqState, [leadId]: 'encerrada' } })); get().toast('Sequência encerrada'); },
-  ),
 
   setQrFor: nome => set({ qrFor: nome }),
   closeQr: () => set({ qrFor: null }),

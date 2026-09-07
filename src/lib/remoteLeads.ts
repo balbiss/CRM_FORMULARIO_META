@@ -16,6 +16,7 @@ export interface RemoteLead {
   corretorId: string | null;
   campanha: string | null;
   segundoCadastro: boolean;
+  cadencia: string | null;
   motivoDescarte: string | null;
   rendaDeclarada: string | null;
   entrouNaColunaEm: string;
@@ -53,6 +54,7 @@ export function mapRemoteLead(r: RemoteLead, colunas: RemoteColuna[], perfis: Re
     col: colToSemantico(r.colunaId, colunas),
     dias,
     segundo: r.segundoCadastro,
+    cadencia: r.cadencia ?? '',
     corretor: perfis.find(p => p.id === r.corretorId)?.nome ?? '',
     campanha: r.campanha ?? '',
     motivo: r.motivoDescarte ?? '',

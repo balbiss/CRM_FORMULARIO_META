@@ -82,6 +82,7 @@ export interface Lead {
   col: string;
   dias: number;
   segundo: boolean;
+  cadencia: string;
   corretor: string;
   campanha: string;
   motivo: string;
@@ -110,7 +111,7 @@ export function buildLeads(): Lead[] {
       email: stripAccents(nome.toLowerCase()).replace(/ /g, '.') + '@email.com',
       imovel: im[0], imovelSub: im[1], valor: im[2],
       canal: CANAIS[i % CANAIS.length], col: dist[i], colunaId: dist[i], dias: (i * 3) % 11,
-      segundo: i % 7 === 0, corretor: CORRETORES[i % CORRETORES.length].nome,
+      segundo: i % 7 === 0, cadencia: '', corretor: CORRETORES[i % CORRETORES.length].nome,
       campanha: i % 2 ? 'Aurora — Lançamento' : 'Vila Serena — Fase 2',
       motivo: MOTIVOS[i % MOTIVOS.length], renda: 9000 + (i % 6) * 4200,
       tags: [],
