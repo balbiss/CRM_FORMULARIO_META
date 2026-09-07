@@ -162,6 +162,13 @@
       "when": 1788760318959,
       "tag": "0022_little_surge",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788761111023,
+      "tag": "0023_light_doctor_doom",
+      "breakpoints": true
     }
   ]
 }

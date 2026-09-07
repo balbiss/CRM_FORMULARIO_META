@@ -46,6 +46,7 @@ export interface SiteConfig {
   rodapeTexto: string;
 }
 export interface SiteState { slug: string; publicado: boolean; config: SiteConfig }
+export interface RebatidasStatus { limite: number; puxadasHoje: number; tarefasAtrasadas: number; disponiveis: number }
 export interface ImovelInput {
   tipo: string; finalidade: string; titulo: string;
   endereco?: string | null; cidade?: string | null; estado?: string | null;
@@ -267,7 +268,7 @@ interface AppState {
   fetchKanbanData: () => Promise<void>;
 
   setBolsaoTab: (t: BolsaoTab) => void;
-  bolsaoAssume: (id: string) => void;
+  bolsaoAssume: (id: string) => Promise<void>;
   bolsaoDiscard: (id: string, nome: string) => void;
   shuffle: () => void;
   distribuirPendentes: () => Promise<void>;
@@ -279,7 +280,12 @@ interface AppState {
   atualizarRoleta: (id: string, patch: Partial<Pick<RemoteRoleta, 'nome' | 'ativa' | 'padrao' | 'canais' | 'finalidade' | 'sessaoWhatsappId'>>) => Promise<void>;
   excluirRoleta: (id: string) => Promise<void>;
   setMembrosRoleta: (id: string, corretorIds: string[]) => Promise<void>;
-  pull: () => void;
+  rebatidasStatus: RebatidasStatus | null;
+  fetchRebatidasStatus: () => Promise<void>;
+  puxarRebatida: () => Promise<void>;
+  limiteRebatidasDia: number;
+  fetchLimiteRebatidas: () => Promise<void>;
+  salvarLimiteRebatidas: (valor: number) => Promise<void>;
 
   fetchFollowup: () => Promise<void>;
   criarFluxo: (nome: string, corretorId?: string) => Promise<RemoteFluxo | null>;
@@ -449,6 +455,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   leadsCorretorIds: {},
   roletaLog: [],
   roletas: [],
+  rebatidasStatus: null,
+  limiteRebatidasDia: 0,
   leadId: null,
   leadTab: 'detalhes',
   chats: {},
@@ -503,7 +511,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('nova_token');
     disconnectSocket();
-    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [], tarefas: [], eventosLead: {}, fluxos: [], execucoesFollowup: [], site: null, roletas: [] });
+    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [], tarefas: [], eventosLead: {}, fluxos: [], execucoesFollowup: [], site: null, roletas: [], rebatidasStatus: null });
   },
   hydrateAuth: () => {
     const token = localStorage.getItem('nova_token');
@@ -637,6 +645,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     socket.off('tarefa:mudou').on('tarefa:mudou', () => { get().fetchTarefas(); });
     socket.off('followup:mudou').on('followup:mudou', () => { get().fetchFollowup(); });
     socket.off('roletas:mudou').on('roletas:mudou', () => { get().fetchRoletas(); });
+    socket.off('config:rebatidas').on('config:rebatidas', (m: { limiteRebatidasDia: number }) => { set({ limiteRebatidasDia: m.limiteRebatidasDia }); get().fetchRebatidasStatus(); });
     socket.off('tarefa:venceu').on('tarefa:venceu', (msg: { id: string; titulo: string; corretorId: string | null }) => {
       get().fetchTarefas();
       const me = get().me;
@@ -1116,7 +1125,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setBolsaoTab: t => set({ bolsaoTab: t }),
-  bolsaoAssume: id => get().moverPorSlug(id, 'novo'),
+  bolsaoAssume: async id => {
+    const token = get().token;
+    const me = get().me;
+    if (!token || !me) return;
+    try {
+      // corretor assume pra si; dono/gerente devolve pro funil pra roleta pegar
+      if (me.role === 'corretor') {
+        await apiFetch('/api/leads/' + id, token, { method: 'PATCH', body: JSON.stringify({ corretorId: me.id }) });
+        get().setColByTitle(id, 'Em Atendimento');
+        get().toast('Lead assumido');
+      } else {
+        get().moverPorSlug(id, 'novo');
+        get().toast('Lead devolvido ao funil');
+      }
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível assumir'); }
+  },
   bolsaoDiscard: (id, nome) => get().ask(
     'Descartar ' + nome + '?',
     'O lead sai do bolsão e vai para a base de descadastrados. Esta ação não pode ser desfeita.',
@@ -1192,7 +1216,40 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().fetchRoletas();
     } catch (e) { get().toast((e as ApiError).message || 'Não foi possível salvar'); get().fetchRoletas(); }
   },
-  pull: () => get().toast('3 rebatidas puxadas para o seu atendimento'),
+  fetchRebatidasStatus: async () => {
+    const token = get().token;
+    if (!token) return;
+    try { set({ rebatidasStatus: await apiFetch('/api/leads/rebatidas/status', token) }); } catch { /* ignora */ }
+  },
+  puxarRebatida: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const r = await apiFetch<{ lead: RemoteLead; status: RebatidasStatus }>('/api/leads/rebatidas/puxar', token, { method: 'POST' });
+      set({ rebatidasStatus: r.status });
+      const mapped = mapRemoteLead(r.lead, get().colunasRemotas, get().perfisRemotos);
+      set(s => ({ leads: s.leads.some(l => l.id === mapped.id) ? s.leads.map(l => (l.id === mapped.id ? mapped : l)) : [...s.leads, mapped] }));
+      get().toast(r.lead.nome + ' voltou pra sua carteira');
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível puxar');
+      get().fetchRebatidasStatus();
+    }
+  },
+  fetchLimiteRebatidas: async () => {
+    const token = get().token;
+    if (!token) return;
+    try { const r = await apiFetch<{ limiteRebatidasDia: number }>('/api/config/rebatidas', token); set({ limiteRebatidasDia: r.limiteRebatidasDia }); } catch { /* ignora */ }
+  },
+  salvarLimiteRebatidas: async valor => {
+    const token = get().token;
+    if (!token) return;
+    set({ limiteRebatidasDia: valor });
+    try {
+      await apiFetch('/api/config/rebatidas', token, { method: 'PUT', body: JSON.stringify({ limiteRebatidasDia: valor }) });
+      get().toast('Limite de rebatidas: ' + (valor === 0 ? 'ilimitado' : valor + ' por dia'));
+      get().fetchRebatidasStatus();
+    } catch (e) { get().toast((e as ApiError).message || 'Não foi possível salvar'); }
+  },
 
   fetchFollowup: async () => {
     const token = get().token;

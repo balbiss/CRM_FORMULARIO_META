@@ -21,10 +21,18 @@ export default function Bolsao() {
   const setBolsaoTab = useAppStore(s => s.setBolsaoTab);
   const bolsaoAssume = useAppStore(s => s.bolsaoAssume);
   const bolsaoDiscard = useAppStore(s => s.bolsaoDiscard);
-  const pull = useAppStore(s => s.pull);
+  const puxarRebatida = useAppStore(s => s.puxarRebatida);
+  const rebatidasStatus = useAppStore(s => s.rebatidasStatus);
+  const fetchRebatidasStatus = useAppStore(s => s.fetchRebatidasStatus);
+  const limiteRebatidasDia = useAppStore(s => s.limiteRebatidasDia);
+  const fetchLimiteRebatidas = useAppStore(s => s.fetchLimiteRebatidas);
+  const salvarLimiteRebatidas = useAppStore(s => s.salvarLimiteRebatidas);
   const openLead = useAppStore(s => s.openLead);
   const toast = useAppStore(s => s.toast);
   const { isManager } = useRoleInfo();
+  useEffect(() => { fetchRebatidasStatus(); fetchLimiteRebatidas(); }, [fetchRebatidasStatus, fetchLimiteRebatidas]);
+  const [limiteEdit, setLimiteEdit] = useState('');
+  useEffect(() => { setLimiteEdit(String(limiteRebatidasDia)); }, [limiteRebatidasDia]);
   const [query, setQuery] = useState('');
   const [cidade, setCidade] = useState('Todas as Cidades');
   const [de, setDe] = useState('');
@@ -63,7 +71,43 @@ export default function Bolsao() {
           <p style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 4px' }}>Recuperação</p>
           <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Bolsão de Leads</h1>
         </div>
-        <button onClick={pull} style={{ padding: '11px 18px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600 }}>Puxar mais rebatidas</button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {isManager && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
+              Limite por corretor/dia
+              <input
+                type="number" min={0} value={limiteEdit}
+                onChange={e => setLimiteEdit(e.target.value)}
+                onBlur={() => { const v = Math.max(0, parseInt(limiteEdit || '0', 10) || 0); if (v !== limiteRebatidasDia) salvarLimiteRebatidas(v); }}
+                style={{ width: 56, padding: '7px 8px', border: '1px solid var(--line)', borderRadius: 7, background: 'var(--card)', fontSize: 13 }}
+              />
+              <span style={{ fontSize: 11 }}>0 = ilimitado</span>
+            </label>
+          )}
+          {!isManager && rebatidasStatus && (
+            <span style={{ fontSize: 12, color: rebatidasStatus.tarefasAtrasadas > 0 ? 'var(--terra)' : 'var(--muted)' }}>
+              {rebatidasStatus.tarefasAtrasadas > 0
+                ? rebatidasStatus.tarefasAtrasadas + ' tarefa(s) atrasada(s) — resolva pra liberar'
+                : rebatidasStatus.limite > 0
+                  ? 'Você puxou ' + rebatidasStatus.puxadasHoje + ' de ' + rebatidasStatus.limite + ' hoje'
+                  : rebatidasStatus.puxadasHoje + ' puxadas hoje'}
+            </span>
+          )}
+          {(() => {
+            const rs = rebatidasStatus;
+            const bloqueado = !!rs && (rs.tarefasAtrasadas > 0 || (rs.limite > 0 && rs.puxadasHoje >= rs.limite) || rs.disponiveis === 0);
+            return (
+              <button
+                onClick={() => puxarRebatida()}
+                disabled={!isManager && bloqueado}
+                title={rs && rs.disponiveis === 0 ? 'Bolsão vazio' : ''}
+                style={{ padding: '11px 18px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600, opacity: !isManager && bloqueado ? 0.5 : 1 }}
+              >
+                Puxar rebatida{rs && rs.disponiveis > 0 ? ' (' + rs.disponiveis + ' no bolsão)' : ''}
+              </button>
+            );
+          })()}
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>

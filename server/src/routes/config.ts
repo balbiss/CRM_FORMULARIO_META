@@ -50,5 +50,20 @@ configRouter.put('/whatsapp', requireRole('dono', 'gerente'), async (req, res) =
   res.json({ modo: parsed.data.modo });
 });
 
+// Limite de rebatidas que cada corretor pode puxar do bolsão por dia (0 = ilimitado).
+configRouter.get('/rebatidas', async (req, res) => {
+  const [imob] = await db.select({ limite: imobiliarias.limiteRebatidasDia })
+    .from(imobiliarias).where(eq(imobiliarias.id, req.auth!.imobiliariaId)).limit(1);
+  res.json({ limiteRebatidasDia: imob?.limite ?? 0 });
+});
+
+configRouter.put('/rebatidas', requireRole('dono', 'gerente'), async (req, res) => {
+  const parsed = z.object({ limiteRebatidasDia: z.number().int().min(0).max(200) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Valor inválido' });
+  await db.update(imobiliarias).set({ limiteRebatidasDia: parsed.data.limiteRebatidasDia }).where(eq(imobiliarias.id, req.auth!.imobiliariaId));
+  io.to('imobiliaria:' + req.auth!.imobiliariaId).emit('config:rebatidas', { limiteRebatidasDia: parsed.data.limiteRebatidasDia });
+  res.json({ limiteRebatidasDia: parsed.data.limiteRebatidasDia });
+});
+
   return configRouter;
 }

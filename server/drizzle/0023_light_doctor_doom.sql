@@ -1,0 +1,1 @@
+ALTER TABLE "imobiliarias" ADD COLUMN "limite_rebatidas_dia" integer DEFAULT 5 NOT NULL;

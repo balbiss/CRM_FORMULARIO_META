@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { leads, leadTags, mensagensWhatsapp, filasAtendimento, colunasKanban, eventosLead, perfis } from '../db/schema.js';
+import { leads, leadTags, mensagensWhatsapp, filasAtendimento, colunasKanban, eventosLead, perfis, tarefas, distribuicaoLog, imobiliarias, notificacoes } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 import { distribuirLead } from '../lib/roleta.js';
 import { registrarEvento } from '../lib/eventos.js';
@@ -175,6 +175,59 @@ export function leadsRouter(io: SocketServer) {
     await db.delete(leads).where(eq(leads.id, lead.id));
     io.to('imobiliaria:' + imobiliariaId).emit('lead:removido', { id: lead.id });
     res.json({ ok: true });
+  });
+
+  // --- Puxar rebatidas do bolsão (corretor pega leads rebatidos sem dono) ---
+  async function statusRebatidas(imobiliariaId: string, corretorId: string) {
+    const [imob] = await db.select({ limite: imobiliarias.limiteRebatidasDia }).from(imobiliarias).where(eq(imobiliarias.id, imobiliariaId)).limit(1);
+    const limite = imob?.limite ?? 0;
+    const inicioDia = new Date(); inicioDia.setHours(0, 0, 0, 0);
+    const [{ n: puxadasHoje }] = await db.select({ n: sql<number>`count(*)::int` }).from(distribuicaoLog)
+      .where(and(eq(distribuicaoLog.corretorId, corretorId), eq(distribuicaoLog.origem, 'rebatida-puxada'), gte(distribuicaoLog.criadoEm, inicioDia)));
+    const [{ n: tarefasAtrasadas }] = await db.select({ n: sql<number>`count(*)::int` }).from(tarefas)
+      .where(and(eq(tarefas.corretorId, corretorId), eq(tarefas.concluida, false), lt(tarefas.venceEm, new Date())));
+    const [colReb] = await db.select({ id: colunasKanban.id }).from(colunasKanban)
+      .where(and(eq(colunasKanban.imobiliariaId, imobiliariaId), eq(colunasKanban.slug, 'rebatida'))).limit(1);
+    const [{ n: disponiveis }] = colReb
+      ? await db.select({ n: sql<number>`count(*)::int` }).from(leads).where(and(eq(leads.colunaId, colReb.id), isNull(leads.corretorId)))
+      : [{ n: 0 }];
+    return { limite, puxadasHoje, tarefasAtrasadas, disponiveis, colRebId: colReb?.id ?? null };
+  }
+
+  router.get('/rebatidas/status', async (req, res) => {
+    const { imobiliariaId, sub } = req.auth!;
+    const s = await statusRebatidas(imobiliariaId, sub);
+    res.json({ limite: s.limite, puxadasHoje: s.puxadasHoje, tarefasAtrasadas: s.tarefasAtrasadas, disponiveis: s.disponiveis });
+  });
+
+  router.post('/rebatidas/puxar', async (req, res) => {
+    const { imobiliariaId, sub, nome, role } = req.auth!;
+    const alvoId = role !== 'corretor' && typeof req.body?.corretorId === 'string' ? req.body.corretorId : sub;
+    const s = await statusRebatidas(imobiliariaId, alvoId);
+    if (s.tarefasAtrasadas > 0) return res.status(409).json({ error: 'Resolva suas ' + s.tarefasAtrasadas + ' tarefa(s) atrasada(s) antes de puxar rebatidas.', motivo: 'tarefas' });
+    if (s.limite > 0 && s.puxadasHoje >= s.limite) return res.status(409).json({ error: 'Você já puxou o máximo de ' + s.limite + ' rebatidas hoje.', motivo: 'limite' });
+    if (!s.colRebId) return res.status(400).json({ error: 'Coluna de rebatidas não configurada' });
+
+    const [colAtend] = await db.select({ id: colunasKanban.id }).from(colunasKanban)
+      .where(and(eq(colunasKanban.imobiliariaId, imobiliariaId), eq(colunasKanban.slug, 'atend'))).limit(1);
+
+    const [lead] = await db.select().from(leads)
+      .where(and(eq(leads.colunaId, s.colRebId), isNull(leads.corretorId), eq(leads.imobiliariaId, imobiliariaId)))
+      .orderBy(asc(leads.entrouNaColunaEm)).limit(1);
+    if (!lead) return res.status(404).json({ error: 'Nenhuma rebatida disponível no bolsão agora.', motivo: 'vazio' });
+
+    const [atualizado] = await db.update(leads)
+      .set({ corretorId: alvoId, colunaId: colAtend?.id ?? lead.colunaId, entrouNaColunaEm: new Date(), motivoDescarte: null })
+      .where(and(eq(leads.id, lead.id), isNull(leads.corretorId))).returning();
+    if (!atualizado) return res.status(409).json({ error: 'Alguém puxou essa rebatida primeiro. Tenta de novo.' });
+
+    await db.insert(distribuicaoLog).values({ imobiliariaId, leadId: lead.id, corretorId: alvoId, origem: 'rebatida-puxada' });
+    await db.insert(notificacoes).values({ perfilId: alvoId, tipo: 'lead', titulo: 'Rebatida puxada', texto: atualizado.nome + ' voltou pra sua carteira.', lida: false });
+    registrarEvento(imobiliariaId, lead.id, 'roleta', 'Rebatida puxada do bolsão por ' + nome, nome);
+    io.to('imobiliaria:' + imobiliariaId).emit('lead:updated', atualizado);
+
+    const novo = await statusRebatidas(imobiliariaId, alvoId);
+    res.json({ lead: atualizado, status: { limite: novo.limite, puxadasHoje: novo.puxadasHoje, tarefasAtrasadas: novo.tarefasAtrasadas, disponiveis: novo.disponiveis } });
   });
 
   // Linha do tempo do lead (eventos reais registrados pelo sistema + notas manuais).
