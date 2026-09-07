@@ -38,6 +38,7 @@ export function leadsRouter(io: SocketServer) {
     telefone: z.string().min(8),
     email: z.string().email().optional(),
     fotoUrl: z.string().url().optional(),
+    imovelInteresseId: z.string().uuid().optional(),
     imovelTitulo: z.string().optional(),
     imovelSub: z.string().optional(),
     campanha: z.string().optional(),
