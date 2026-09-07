@@ -104,6 +104,8 @@ export default function Integracoes() {
           )}
         </div>
 
+        {isManager && <GuiaFacebook />}
+
         {!isManager ? (
           <div style={card}><p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>Só Dono ou Gerente configura as integrações.</p></div>
         ) : conexoes.length === 0 ? (
@@ -244,6 +246,64 @@ function fmtData(iso: string | null): string {
   if (min < 60) return 'há ' + min + ' min';
   if (min < 60 * 24) return 'há ' + Math.round(min / 60) + ' h';
   return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+const LINKS_META: { rotulo: string; url: string; nota: string }[] = [
+  { rotulo: 'Configurações do negócio', url: 'https://business.facebook.com/settings', nota: 'criar o usuário do sistema, atribuir a página e gerar o token' },
+  { rotulo: 'Apps de desenvolvedor', url: 'https://developers.facebook.com/apps', nota: 'criar o app (uma vez só)' },
+  { rotulo: 'Explorador da API', url: 'https://developers.facebook.com/tools/explorer', nota: 'descobrir o ID do formulário' },
+  { rotulo: 'Teste de Lead Ads', url: 'https://developers.facebook.com/tools/lead-ads-testing', nota: 'mandar um lead de teste' },
+];
+
+const PASSOS_FB: { t: string; d: React.ReactNode }[] = [
+  { t: '1. Criar um App no Meta (uma vez)', d: <>Em <b>developers.facebook.com/apps</b> → <b>Criar app</b> → caso de uso <b>Outro</b> → tipo <b>Empresa</b>. Dê um nome (ex: "Integração CRM") e vincule ao seu Gerenciador de Negócios. Não precisa enviar pra Análise (App Review).</> },
+  { t: '2. Gerar o Token de acesso', d: <>Em <b>business.facebook.com/settings</b> → <b>Usuários → Usuários do sistema</b> → <b>Adicionar</b> (função Administrador). Clique em <b>Atribuir ativos</b> → Páginas → sua página → <b>Controle total</b>. Depois <b>Gerar novo token</b>: escolha o app do passo 1, validade <b>Nunca</b>, e marque as permissões <code>leads_retrieval</code>, <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_metadata</code>, <code>business_management</code>, <code>ads_management</code>. Copie o token (começa com <code>EAA…</code>) — ele só aparece uma vez.</> },
+  { t: '3. Pegar o ID da Página', d: <>Em <b>business.facebook.com/settings</b> → <b>Contas → Páginas</b> → clique na página. O ID aparece abaixo do nome.</> },
+  { t: '4. Pegar o ID do Formulário', d: <>Em <b>developers.facebook.com/tools/explorer</b>, selecione o app, clique em <b>Gerar token de acesso</b>, e na URL digite <code>&lt;ID_DA_PÁGINA&gt;/leadgen_forms</code> → <b>Enviar</b>. A resposta lista seus formulários com <code>id</code> e <code>name</code>. Copie o <code>id</code> do formulário que quer conectar.</> },
+  { t: '5. Cadastrar aqui e testar', d: <>Clique em <b>"+ Nova conexão"</b>, cole o ID da página, o ID do formulário e o token. Depois clique em <b>"Testar conexão"</b> — se aparecer o nome do formulário, está funcionando e os leads começam a cair em até 5 minutos.</> },
+];
+
+function GuiaFacebook() {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div style={{ ...card, padding: 0, overflow: 'hidden', marginBottom: 12 }}>
+      <button
+        onClick={() => setAberto(v => !v)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '13px 16px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer' }}
+      >
+        <span style={{ width: 8, height: 8, transform: 'rotate(45deg)', flex: 'none', background: aberto ? 'var(--terra)' : 'var(--line)' }} />
+        <span style={{ flex: 1, fontSize: 13.5, fontWeight: 700 }}>Como conseguir o token e os IDs do Facebook — passo a passo</span>
+        <span style={{ color: 'var(--muted)', fontSize: 15 }}>{aberto ? '–' : '+'}</span>
+      </button>
+      {aberto && (
+        <div style={{ padding: '4px 16px 18px', borderTop: '1px solid var(--line)' }}>
+          <p style={{ fontSize: 12, color: 'var(--muted)', margin: '12px 0 10px', lineHeight: 1.6 }}>
+            Você precisa de 3 coisas: <b>ID da página</b>, <b>ID do formulário</b> e <b>token de acesso</b>.
+            Faça tudo logado na mesma conta do Facebook que administra a página. Tem uma agência de tráfego? Peça pra ela.
+          </p>
+          <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {PASSOS_FB.map(p => (
+              <li key={p.t} style={{ fontSize: 12.5, lineHeight: 1.65 }}>
+                <b>{p.t}</b>
+                <div style={{ color: 'var(--muted)', marginTop: 3 }}>{p.d}</div>
+              </li>
+            ))}
+          </ol>
+          <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', margin: '18px 0 8px' }}>Sites que você vai usar</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {LINKS_META.map(l => (
+              <a key={l.url} href={l.url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: 'var(--terra)', textDecoration: 'none' }}>
+                {l.url} <span style={{ color: 'var(--muted)' }}>— {l.nota}</span>
+              </a>
+            ))}
+          </div>
+          <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '14px 0 0', lineHeight: 1.6 }}>
+            Deu erro no teste? "Malformed access token" = token colado errado. "requires leads_retrieval permission" = faltou marcar as permissões no passo 2. "nonexisting field (leads)" = ID do formulário errado ou de outra página.
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ConexaoModal({ conexao, onClose }: { conexao: IntegracaoFacebook | null; onClose: () => void }) {
