@@ -219,9 +219,14 @@ reais do imóvel (antes aparecia "R$ 0").
   `imovelId`, `mensagem`, `interesse`, `finalidade`. `criarLead` é compartilhada e faz a denormalização
   do imóvel.
 - **Integrações Facebook:** cada imobiliária cola na tela de Integrações o token do Graph API + page id
-  + form id; fica cifrado em repouso (AES-256-GCM, `INTEGRACOES_ENC_KEY`). A automação n8n lê
-  `GET /api/integracoes/facebook/ativas` (segredo `INTEGRACOES_SECRET`) e faz o polling de todas as
-  imobiliárias num workflow só. Detalhe e pendências em [`../VISAO_MULTI_TENANT.md`](../VISAO_MULTI_TENANT.md).
+  + form id; fica cifrado em repouso (AES-256-GCM, `INTEGRACOES_ENC_KEY`). A automação n8n
+  (workflow "CRM FORMULÁRIO META — CAPTAÇÃO FACEBOOK (DINÂMICO)" no n8n do Guilherme, **ativo**) lê
+  `GET /api/integracoes/facebook/ativas` (segredo `INTEGRACOES_SECRET`) a cada 5 min, busca os leads
+  novos de cada formulário no Graph API (marca-d'água por conexão), posta cada lead em
+  `POST /api/captacao/facebook` com o `imobiliariaId` certo e reporta o resultado em
+  `POST /api/integracoes/facebook/sync-status` (aparece na coluna "Situação" da tela de Integrações).
+  Guia para a imobiliária pegar token + IDs: [`GUIA_FACEBOOK_LEAD_ADS.md`](GUIA_FACEBOOK_LEAD_ADS.md).
+  Contexto e histórico em [`../VISAO_MULTI_TENANT.md`](../VISAO_MULTI_TENANT.md).
 
 ## 11. Upload de arquivos (MinIO)
 

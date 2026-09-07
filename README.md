@@ -17,6 +17,7 @@ captação de leads do Facebook/site e um painel "Plataforma" para o dono do Saa
 | [`docs/DOCUMENTACAO_CRM.md`](docs/DOCUMENTACAO_CRM.md) | Como o CRM funciona: arquitetura, módulos, regras de negócio, papéis de acesso |
 | [`docs/INSTALACAO.md`](docs/INSTALACAO.md) | O que é preciso e como instalar (dev local e produção) |
 | [`VISAO_MULTI_TENANT.md`](VISAO_MULTI_TENANT.md) | Por que este repo existe e o que ainda falta na captação Facebook multi-empresa |
+| [`docs/GUIA_FACEBOOK_LEAD_ADS.md`](docs/GUIA_FACEBOOK_LEAD_ADS.md) | Guia para a imobiliária: como gerar o token + IDs do Facebook e conectar os formulários de Lead Ads |
 
 ## Início rápido (desenvolvimento local)
 
