@@ -42,6 +42,16 @@ export interface TreinamentoInput { titulo: string; descricao?: string | null; d
 
 export interface RemoteNotificacao { id: string; tipo: string; titulo: string; texto: string | null; lida: boolean; criadoEm: string }
 
+export interface RemoteTarefa {
+  id: string; titulo: string; descricao: string | null; venceEm: string;
+  concluida: boolean; concluidaEm: string | null;
+  leadId: string | null; corretorId: string | null;
+  leadNome: string | null; corretorNome: string | null; criadoEm: string;
+}
+export interface RemoteEvento {
+  id: string; tipo: string; descricao: string; atorNome: string | null; criadoEm: string;
+}
+
 export interface RemoteMensagem {
   id: string; leadId: string; direcao: 'in' | 'out'; texto: string | null;
   anexoUrl: string | null; anexoTipo: AnexoTipo | null; anexoNome?: string | null; canal: 'corretor' | 'followup'; enviadoEm: string;
@@ -157,6 +167,9 @@ interface AppState {
   notificacoes: RemoteNotificacao[];
   notifOpen: boolean;
   day: number;
+
+  tarefas: RemoteTarefa[];
+  eventosLead: Record<string, RemoteEvento[]>;
 
   // actions
   login: (email: string, senha: string) => Promise<boolean>;
@@ -317,6 +330,14 @@ interface AppState {
   advance: (id: string) => void;
   askDiscard: (id: string, nome: string) => void;
   goDay: (n: number) => void;
+
+  fetchTarefas: () => Promise<void>;
+  criarTarefa: (input: { titulo: string; descricao?: string; venceEm: string; leadId?: string; corretorId?: string }) => Promise<boolean>;
+  toggleTarefa: (id: string, concluida: boolean) => Promise<void>;
+  excluirTarefa: (id: string) => Promise<void>;
+  fetchEventosLead: (leadId: string) => Promise<void>;
+  addNotaLead: (leadId: string, texto: string) => Promise<boolean>;
+  importarLeads: (linhas: Array<{ nome: string; telefone: string; email?: string; campanha?: string; corretorId?: string }>) => Promise<{ criados: number; ignorados: number }>;
 }
 
 let alertTimer: ReturnType<typeof setInterval> | undefined;
@@ -461,6 +482,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   qrFor: null, importOpen: false, newLeadOpen: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [],
 
   alert: null, alertCount: 45, alertMenu: false, faqOpen: 'kanban', confirm: null, toasts: [], notificacoes: [], notifOpen: false, day: 17, leadPendente: null,
+  tarefas: [], eventosLead: {},
 
   login: async (email, senha) => {
     set({ authLoading: true, authError: null });
@@ -479,6 +501,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().fetchTreinamentos();
       get().fetchNotificacoes();
       get().fetchConversas();
+      get().fetchTarefas();
       return true;
     } catch (e) {
       set({ authError: (e as ApiError).message || 'Não foi possível entrar', authLoading: false });
@@ -488,7 +511,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('nova_token');
     disconnectSocket();
-    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [] });
+    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [], tarefas: [], eventosLead: {} });
   },
   hydrateAuth: () => {
     const token = localStorage.getItem('nova_token');
@@ -505,6 +528,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         get().fetchTreinamentos();
       get().fetchNotificacoes();
       get().fetchConversas();
+      get().fetchTarefas();
       get().fetchHorario();
       get().fetchIntegracoes();
       if ((perfil as AuthUser).role === 'corretor') pedirPermissaoNotificacao();
@@ -615,6 +639,16 @@ export const useAppStore = create<AppState>((set, get) => ({
           leadId: s.leadId === msg.id ? null : s.leadId,
         };
       });
+    });
+    socket.off('tarefa:mudou').on('tarefa:mudou', () => { get().fetchTarefas(); });
+    socket.off('tarefa:venceu').on('tarefa:venceu', (msg: { id: string; titulo: string; corretorId: string | null }) => {
+      get().fetchTarefas();
+      const me = get().me;
+      if (me && (me.role !== 'corretor' || msg.corretorId === me.id)) {
+        get().toast('Tarefa venceu: ' + msg.titulo);
+        toqueLeadNovo();
+        notificarNavegador('Tarefa venceu', msg.titulo);
+      }
     });
     socket.off('conversa:limpa').on('conversa:limpa', (msg: { leadId: string }) => {
       set(s => {
@@ -1613,4 +1647,100 @@ export const useAppStore = create<AppState>((set, get) => ({
     () => { get().moverPorSlug(id, 'rebatida'); set({ leadId: null }); },
   ),
   goDay: n => set({ day: n }),
+
+  fetchTarefas: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const tarefas = await apiFetch<RemoteTarefa[]>('/api/tarefas', token);
+      set({ tarefas });
+    } catch { /* silencioso */ }
+  },
+  criarTarefa: async input => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const t = await apiFetch<RemoteTarefa>('/api/tarefas', token, { method: 'POST', body: JSON.stringify(input) });
+      set(s => ({ tarefas: [...s.tarefas.filter(x => x.id !== t.id), t] }));
+      if (input.leadId) get().fetchEventosLead(input.leadId);
+      get().toast('Tarefa criada');
+      return true;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível criar a tarefa');
+      return false;
+    }
+  },
+  toggleTarefa: async (id, concluida) => {
+    const token = get().token;
+    if (!token) return;
+    set(s => ({ tarefas: s.tarefas.map(t => (t.id === id ? { ...t, concluida, concluidaEm: concluida ? new Date().toISOString() : null } : t)) }));
+    try {
+      await apiFetch('/api/tarefas/' + id, token, { method: 'PATCH', body: JSON.stringify({ concluida }) });
+    } catch {
+      get().fetchTarefas();
+    }
+  },
+  excluirTarefa: async id => {
+    const token = get().token;
+    if (!token) return;
+    const antes = get().tarefas;
+    set(s => ({ tarefas: s.tarefas.filter(t => t.id !== id) }));
+    try {
+      await apiFetch('/api/tarefas/' + id, token, { method: 'DELETE' });
+    } catch {
+      set({ tarefas: antes });
+      get().toast('Não foi possível excluir a tarefa');
+    }
+  },
+  fetchEventosLead: async leadId => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const eventos = await apiFetch<RemoteEvento[]>('/api/leads/' + leadId + '/eventos', token);
+      set(s => ({ eventosLead: { ...s.eventosLead, [leadId]: eventos } }));
+    } catch { /* silencioso */ }
+  },
+  addNotaLead: async (leadId, texto) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      await apiFetch('/api/leads/' + leadId + '/eventos', token, { method: 'POST', body: JSON.stringify({ texto }) });
+      get().fetchEventosLead(leadId);
+      return true;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível salvar a nota');
+      return false;
+    }
+  },
+  importarLeads: async linhas => {
+    const token = get().token;
+    if (!token) return { criados: 0, ignorados: linhas.length };
+    const colunaId = slugToColunaId('novo', get().colunasRemotas);
+    let criados = 0, ignorados = 0;
+    for (const linha of linhas) {
+      const nome = (linha.nome || '').trim();
+      const telefone = (linha.telefone || '').trim();
+      if (nome.length < 1 || telefone.replace(/\D/g, '').length < 8) { ignorados++; continue; }
+      try {
+        const raw = await apiFetch<RemoteLead>('/api/leads', token, {
+          method: 'POST',
+          body: JSON.stringify({
+            nome, telefone,
+            ...(linha.email?.trim() ? { email: linha.email.trim() } : {}),
+            ...(linha.campanha?.trim() ? { campanha: linha.campanha.trim() } : {}),
+            canal: 'Manual',
+            ...(colunaId ? { colunaId } : {}),
+            ...(linha.corretorId ? { corretorId: linha.corretorId } : {}),
+          }),
+        });
+        const mapped = mapRemoteLead(raw, get().colunasRemotas, get().perfisRemotos);
+        set(s => ({ leads: s.leads.some(l => l.id === mapped.id) ? s.leads : [...s.leads, mapped] }));
+        criados++;
+      } catch {
+        ignorados++;
+      }
+    }
+    if (criados) get().toast(criados + ' lead' + (criados > 1 ? 's' : '') + ' importado' + (criados > 1 ? 's' : '') + ' para "Lead Novo"');
+    return { criados, ignorados };
+  },
 }));

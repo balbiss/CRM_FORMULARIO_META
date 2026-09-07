@@ -11,6 +11,15 @@ import { LeadAvatar } from '../components/LeadAvatar';
 type ViewMode = 'kanban' | 'lista';
 const corDaColuna = (slug: string | null) => (slug === 'venda' ? 'var(--olive)' : slug === 'novo' || slug === 'rebatida' ? 'var(--muted)' : 'var(--terra)');
 
+interface VisaoSalva { nome: string; corretor: string; tag: string | null; canal: string | null }
+const VIEWS_KEY = 'nova_kanban_views';
+function lerVisoes(): VisaoSalva[] {
+  try { return JSON.parse(localStorage.getItem(VIEWS_KEY) || '[]'); } catch { return []; }
+}
+function gravarVisoes(v: VisaoSalva[]) {
+  try { localStorage.setItem(VIEWS_KEY, JSON.stringify(v)); } catch { /* ignora */ }
+}
+
 export default function Kanban() {
   const allLeads = useAppStore(s => s.leads);
   const colunas = useAppStore(s => s.colunasRemotas);
@@ -42,6 +51,37 @@ export default function Kanban() {
   const [nomeNova, setNomeNova] = useState('');
   const [editandoCol, setEditandoCol] = useState<string | null>(null);
   const [menuCol, setMenuCol] = useState<string | null>(null);
+  const [visoes, setVisoes] = useState<VisaoSalva[]>(() => lerVisoes());
+
+  const canais = useMemo(() => [...new Set(allLeads.map(l => l.canal).filter(Boolean))].sort(), [allLeads]);
+  const filtroAtivo = (isManager && kbCorretor !== 'Todos os corretores') || !!kbTag || !!filterCanal;
+
+  const aplicarVisao = (v: VisaoSalva) => {
+    if (isManager) setKbCorretor(v.corretor || 'Todos os corretores');
+    if ((v.tag ?? null) !== kbTag) setKbTag(v.tag ?? null);
+    setFilterCanal(v.canal ?? null);
+  };
+  const salvarVisao = () => {
+    const nome = window.prompt('Nome da visão (ex: "Meus leads do Instagram")');
+    if (!nome?.trim()) return;
+    const nova: VisaoSalva = {
+      nome: nome.trim(),
+      corretor: isManager ? kbCorretor : '',
+      tag: kbTag,
+      canal: filterCanal,
+    };
+    const próx = [...visoes.filter(v => v.nome !== nova.nome), nova];
+    setVisoes(próx); gravarVisoes(próx);
+  };
+  const removerVisao = (nome: string) => {
+    const próx = visoes.filter(v => v.nome !== nome);
+    setVisoes(próx); gravarVisoes(próx);
+  };
+  const limparFiltros = () => {
+    if (isManager) setKbCorretor('Todos os corretores');
+    if (kbTag) setKbTag(null);
+    setFilterCanal(null);
+  };
 
   useEffect(() => {
     if (!mobileCol && colunas.length) setMobileCol(colunas[0].id);
@@ -121,17 +161,9 @@ export default function Kanban() {
             placeholder="Buscar por nome ou telefone…"
             style={{ padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13, width: 200 }}
           />
-          {filterCanal && (
-            <button
-              onClick={() => setFilterCanal(null)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', border: '1px solid var(--terra)', borderRadius: 20, background: 'var(--terraSoft)', color: 'var(--terra)', fontSize: 12.5, fontWeight: 600 }}
-            >
-              Canal: {filterCanal} <X size={12} strokeWidth={2.5} />
-            </button>
-          )}
           <div className="kb-toolbar-row" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             {isManager && (
-              <select className="kb-corretor" value={kbCorretor} onChange={e => setKbCorretor(e.target.value)} style={{ padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13 }}>
+              <select className="kb-corretor" value={kbCorretor} onChange={e => setKbCorretor(e.target.value)} style={{ padding: '9px 12px', border: '1px solid ' + (kbCorretor !== 'Todos os corretores' ? 'var(--terra)' : 'var(--line)'), borderRadius: 8, background: kbCorretor !== 'Todos os corretores' ? 'var(--terraSoft)' : 'var(--card)', color: kbCorretor !== 'Todos os corretores' ? 'var(--terra)' : 'var(--ink)', fontSize: 13 }}>
                 <option>Todos os corretores</option>{perfis.map(p => <option key={p.id}>{p.nome}</option>)}
               </select>
             )}
@@ -144,6 +176,47 @@ export default function Kanban() {
                 <option value="">Todas as etiquetas</option>
                 {allTags.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
               </select>
+            )}
+            {canais.length > 0 && (
+              <select
+                value={filterCanal ?? ''}
+                onChange={e => setFilterCanal(e.target.value || null)}
+                style={{ padding: '9px 12px', border: '1px solid ' + (filterCanal ? 'var(--terra)' : 'var(--line)'), borderRadius: 8, background: filterCanal ? 'var(--terraSoft)' : 'var(--card)', color: filterCanal ? 'var(--terra)' : 'var(--ink)', fontSize: 13, fontWeight: filterCanal ? 600 : 400 }}
+              >
+                <option value="">Todos os canais</option>
+                {canais.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
+            <select
+              value=""
+              onChange={e => {
+                const v = e.target.value;
+                if (v === '__salvar') salvarVisao();
+                else { const alvo = visoes.find(x => x.nome === v); if (alvo) aplicarVisao(alvo); }
+              }}
+              style={{ padding: '9px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13 }}
+            >
+              <option value="">Visões salvas…</option>
+              {visoes.map(v => <option key={v.nome} value={v.nome}>{v.nome}</option>)}
+              {filtroAtivo && <option value="__salvar">＋ Salvar filtros atuais</option>}
+            </select>
+            {filtroAtivo && (
+              <button onClick={limparFiltros} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 12.5, color: 'var(--muted)' }}>
+                Limpar <X size={12} strokeWidth={2.5} />
+              </button>
+            )}
+            {visoes.length > 0 && (
+              <details style={{ position: 'relative' }}>
+                <summary style={{ listStyle: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--muted)', padding: '9px 4px' }}>gerenciar visões</summary>
+                <div style={{ position: 'absolute', right: 0, top: 34, width: 220, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 9, padding: 6, boxShadow: '0 12px 28px rgba(8,17,31,.16)', zIndex: 30 }}>
+                  {visoes.map(v => (
+                    <div key={v.nome} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 6px' }}>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.nome}</span>
+                      <button onClick={() => removerVisao(v.nome)} style={{ border: 'none', background: 'none', color: 'var(--terra)', fontSize: 12 }}>excluir</button>
+                    </div>
+                  ))}
+                </div>
+              </details>
             )}
             <div style={{ display: 'flex', gap: 4 }}>
               {toggleBtn('kanban', LayoutGrid, 'Kanban')}

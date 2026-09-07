@@ -51,6 +51,15 @@ export function LeadModal() {
   const pauseSeq = useAppStore(s => s.pauseSeq);
   const resumeSeq = useAppStore(s => s.resumeSeq);
   const endSeq = useAppStore(s => s.endSeq);
+  const eventosLead = useAppStore(s => s.eventosLead);
+  const fetchEventosLead = useAppStore(s => s.fetchEventosLead);
+  const addNotaLead = useAppStore(s => s.addNotaLead);
+  const tarefas = useAppStore(s => s.tarefas);
+  const criarTarefa = useAppStore(s => s.criarTarefa);
+  const toggleTarefa = useAppStore(s => s.toggleTarefa);
+  const [nota, setNota] = useState('');
+  const [tarefaTitulo, setTarefaTitulo] = useState('');
+  const [tarefaQuando, setTarefaQuando] = useState('');
 
   const L = leads.find(l => l.id === leadId);
   const chatMsgs = mapMsgs((leadId && chats[leadId]) || []);
@@ -60,6 +69,7 @@ export function LeadModal() {
     if (el) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
   };
   useEffect(() => { if (leadTab === 'chat') paraOFimChat(); }, [chatMsgs.length, leadTab, typing]);
+  useEffect(() => { if (leadTab === 'historico' && leadId) fetchEventosLead(leadId); }, [leadTab, leadId, fetchEventosLead]);
 
   if (!L) return null;
 
@@ -73,14 +83,28 @@ export function LeadModal() {
     { label: 'Campanha', value: L.campanha }, { label: 'Renda declarada', value: BRL(L.renda) },
   ];
 
-  const historico = [
-    { titulo: 'Movido para ' + colAtual, sub: 'por Camila Rocha', quando: 'há 2 h' },
-    { titulo: 'Mensagem recebida no WhatsApp', sub: '"Quinta funciona. Me confirma o endereço."', quando: 'há 5 h' },
-    { titulo: 'Follow-up automático enviado', sub: 'Passo 2 — "+1 dia"', quando: 'ontem' },
-    { titulo: 'Visita agendada', sub: '17 set, 09:00 · Edifício Aurora', quando: 'ontem' },
-    { titulo: 'Lead distribuído pela roleta', sub: 'Camila Rocha aceitou em 4 min', quando: 'há 3 dias' },
-    { titulo: 'Lead criado', sub: 'Origem: Instagram · Aurora — Lançamento', quando: 'há 3 dias' },
-  ];
+  const eventos = (leadId && eventosLead[leadId]) || [];
+  const tarefasDoLead = tarefas.filter(t => t.leadId === leadId).sort((a, b) => +new Date(a.venceEm) - +new Date(b.venceEm));
+  const quandoRelativo = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const min = Math.round(diff / 60000);
+    if (min < 1) return 'agora';
+    if (min < 60) return 'há ' + min + ' min';
+    const h = Math.round(min / 60);
+    if (h < 24) return 'há ' + h + ' h';
+    const d = Math.round(h / 24);
+    if (d < 30) return 'há ' + d + (d > 1 ? ' dias' : ' dia');
+    return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  };
+  async function salvarNota() {
+    if (!leadId || nota.trim().length < 1) return;
+    if (await addNotaLead(leadId, nota.trim())) setNota('');
+  }
+  async function salvarTarefaRapida() {
+    if (!leadId || tarefaTitulo.trim().length < 1 || !tarefaQuando) return;
+    const ok = await criarTarefa({ titulo: tarefaTitulo.trim(), venceEm: new Date(tarefaQuando).toISOString(), leadId });
+    if (ok) { setTarefaTitulo(''); setTarefaQuando(''); fetchEventosLead(leadId); }
+  }
 
   const seqSteps = steps.map((st, i) => {
     const done = i < 2, now = i === 2;
@@ -320,21 +344,66 @@ export function LeadModal() {
           )}
 
           {leadTab === 'historico' && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {historico.map((h, i) => (
-                <div key={i} style={{ display: 'flex', gap: 16 }}>
-                  <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 'none' }}>
-                    <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--terra)', marginTop: 5 }} />
-                    {i < historico.length - 1 && <span style={{ width: 1, flex: 1, background: 'var(--line)' }} />}
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0, paddingBottom: 22 }}>
-                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600 }}>{h.titulo}</span>
-                    <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>{h.sub}</span>
-                  </span>
-                  <span style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{h.quando}</span>
+            <>
+              <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 14, background: 'var(--bg)', marginBottom: 18 }}>
+                <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 10px' }}>Tarefas deste lead</p>
+                {tarefasDoLead.map(t => {
+                  const atrasada = !t.concluida && +new Date(t.venceEm) < Date.now();
+                  return (
+                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
+                      <input type="checkbox" checked={t.concluida} onChange={e => toggleTarefa(t.id, e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--terra)' }} />
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, textDecoration: t.concluida ? 'line-through' : 'none', color: t.concluida ? 'var(--muted)' : 'var(--ink)' }}>{t.titulo}</span>
+                      <span style={{ fontSize: 11.5, color: atrasada ? 'var(--terra)' : 'var(--muted)', whiteSpace: 'nowrap' }}>
+                        {new Date(t.venceEm).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  );
+                })}
+                {tarefasDoLead.length === 0 && <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 10px' }}>Nenhuma tarefa aberta.</p>}
+                <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+                  <input
+                    value={tarefaTitulo} onChange={e => setTarefaTitulo(e.target.value)}
+                    placeholder="Nova tarefa (ex: Ligar amanhã)"
+                    style={{ flex: 1, minWidth: 160, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 7, background: 'var(--card)', fontSize: 13 }}
+                  />
+                  <input
+                    type="datetime-local" value={tarefaQuando} onChange={e => setTarefaQuando(e.target.value)}
+                    style={{ padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 7, background: 'var(--card)', fontSize: 13 }}
+                  />
+                  <button
+                    onClick={salvarTarefaRapida} disabled={tarefaTitulo.trim().length < 1 || !tarefaQuando}
+                    style={{ padding: '8px 14px', border: 'none', borderRadius: 7, background: 'var(--terra)', color: '#fff', fontSize: 12.5, fontWeight: 600, opacity: tarefaTitulo.trim().length < 1 || !tarefaQuando ? 0.5 : 1 }}
+                  >Criar</button>
                 </div>
-              ))}
-            </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 6, marginBottom: 18 }}>
+                <input
+                  value={nota} onChange={e => setNota(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') salvarNota(); }}
+                  placeholder="Anotar algo na linha do tempo…"
+                  style={{ flex: 1, padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13 }}
+                />
+                <button onClick={salvarNota} disabled={nota.trim().length < 1} style={{ padding: '9px 14px', border: '1px solid var(--line)', borderRadius: 8, background: 'none', fontSize: 13, fontWeight: 600, opacity: nota.trim().length < 1 ? 0.5 : 1 }}>Anotar</button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {eventos.map((ev, i) => (
+                  <div key={ev.id} style={{ display: 'flex', gap: 16 }}>
+                    <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 'none' }}>
+                      <span style={{ width: 9, height: 9, borderRadius: '50%', background: ev.tipo === 'nota' ? 'var(--line)' : 'var(--terra)', marginTop: 5 }} />
+                      {i < eventos.length - 1 && <span style={{ width: 1, flex: 1, background: 'var(--line)' }} />}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0, paddingBottom: 20 }}>
+                      <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600 }}>{ev.descricao}</span>
+                      {ev.atorNome && <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>por {ev.atorNome}</span>}
+                    </span>
+                    <span style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{quandoRelativo(ev.criadoEm)}</span>
+                  </div>
+                ))}
+                {eventos.length === 0 && <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>Sem eventos ainda. As ações no lead (mudança de coluna, mensagens, distribuição, tarefas) aparecem aqui.</p>}
+              </div>
+            </>
           )}
         </div>
       </div>
