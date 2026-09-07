@@ -29,6 +29,7 @@ integracoesRouter.get('/facebook/ativas', async (req, res) => {
   const lista = rows.map(r => {
     try {
       return {
+        id: r.id,
         imobiliariaId: r.imobiliariaId,
         pageId: r.pageId,
         formId: r.formId,
@@ -39,6 +40,32 @@ integracoesRouter.get('/facebook/ativas', async (req, res) => {
     }
   }).filter(Boolean);
   res.json(lista);
+});
+
+// ------------------------------------------------------------------
+// POST /api/integracoes/facebook/sync-status
+// A automação (n8n) reporta o resultado da última varredura de cada conexão,
+// pra tela de Integrações mostrar "Última captação" / "Situação" de verdade.
+// Protegido pelo mesmo segredo compartilhado.
+// ------------------------------------------------------------------
+integracoesRouter.post('/facebook/sync-status', async (req, res) => {
+  const segredo = req.header('x-integracoes-secret');
+  if (!segredo || segredo !== process.env.INTEGRACOES_SECRET) {
+    return res.status(401).json({ error: 'Não autorizado' });
+  }
+  const parsed = z.object({
+    id: z.string().uuid(),
+    ok: z.boolean(),
+    erro: z.string().max(500).optional(),
+    leadsCaptados: z.number().int().nonnegative().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados inválidos' });
+
+  const patch = parsed.data.ok
+    ? { ultimaSyncEm: new Date(), ultimoErro: null }
+    : { ultimoErro: parsed.data.erro || 'Falha na captação (sem detalhe)' };
+  await db.update(integracoesFacebook).set(patch).where(eq(integracoesFacebook.id, parsed.data.id));
+  res.json({ ok: true });
 });
 
 // ------------------------------------------------------------------
