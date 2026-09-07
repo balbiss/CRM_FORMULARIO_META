@@ -1142,10 +1142,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) { get().toast((e as ApiError).message || 'Não foi possível assumir'); }
   },
   bolsaoDiscard: (id, nome) => get().ask(
-    'Descartar ' + nome + '?',
+    'Descadastrar ' + nome + '?',
     'O lead sai do bolsão e vai para a base de descadastrados. Esta ação não pode ser desfeita.',
-    'Descartar',
-    () => { set(s => ({ leads: s.leads.map(x => (x.id === id ? { ...x, motivo: 'Duplicado' } : x)) })); get().toast(nome + ' foi descartado'); },
+    'Descadastrar',
+    async () => {
+      const token = get().token;
+      const cid = slugToColunaId('rebatida', get().colunasRemotas);
+      set(s => ({ leads: s.leads.map(x => (x.id === id ? { ...x, motivo: 'Descadastrar', col: 'rebatida', corretor: '', ...(cid ? { colunaId: cid } : {}) } : x)) }));
+      if (token) await apiFetch('/api/leads/' + id, token, { method: 'PATCH', body: JSON.stringify({ motivoDescarte: 'Descadastrar' }) }).catch(() => {});
+      get().toast(nome + ' descadastrado');
+    },
   ),
   shuffle: () => {
     const token = get().token;
@@ -1357,7 +1363,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       'Descartar ' + (l ? l.nome : 'lead') + '?',
       'Motivo: ' + motivo + '. O lead vai para o bolsão de rebatidas e a sequência de follow-up é interrompida.',
       'Descartar',
-      () => { if (l) { get().moverPorSlug(l.id, 'rebatida'); set({ leadId: null }); } },
+      async () => {
+        if (!l) return;
+        const token = get().token;
+        const cid = slugToColunaId('rebatida', get().colunasRemotas);
+        set(s => ({ leads: s.leads.map(x => (x.id === l.id ? { ...x, motivo, col: 'rebatida', corretor: '', ...(cid ? { colunaId: cid } : {}) } : x)), leadId: null }));
+        if (token) await apiFetch('/api/leads/' + l.id, token, { method: 'PATCH', body: JSON.stringify({ motivoDescarte: motivo }) }).catch(() => {});
+        get().toast('Lead descartado — ' + motivo);
+      },
     );
   },
   requestApproval: () => { set({ discardOpen: false, discardWarn: null }); get().toast('Solicitação enviada ao gerente para aprovação'); },

@@ -127,6 +127,13 @@ export function leadsRouter(io: SocketServer) {
     if (rest.motivoDescarte && rest.motivoDescarte !== antes?.motivoDescarte) {
       registrarEvento(imobiliariaId, row.id, 'descarte', 'Descartado: ' + rest.motivoDescarte, nome);
       void encerrarPorLead(io, imobiliariaId, row.id, 'lead descartado');
+      // descarte manda o lead pro bolsão (coluna Rebatida) e tira o corretor
+      const [colReb] = await db.select({ id: colunasKanban.id }).from(colunasKanban)
+        .where(and(eq(colunasKanban.imobiliariaId, imobiliariaId), eq(colunasKanban.slug, 'rebatida'))).limit(1);
+      if (colReb && row.colunaId !== colReb.id) {
+        const [movido] = await db.update(leads).set({ colunaId: colReb.id, corretorId: null, entrouNaColunaEm: new Date() }).where(eq(leads.id, row.id)).returning();
+        if (movido) { io.to('imobiliaria:' + imobiliariaId).emit('lead:updated', movido); return res.json(movido); }
+      }
     }
     io.to('imobiliaria:' + imobiliariaId).emit('lead:updated', row);
     res.json(row);
