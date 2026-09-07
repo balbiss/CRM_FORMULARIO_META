@@ -154,10 +154,73 @@ export default function Integracoes() {
         )}
       </section>
 
+      {isManager && <FormularioDoSite />}
+
       {modalAberto && <ConexaoModal conexao={editando} onClose={() => setModalAberto(false)} />}
     </div>
   );
 }
+
+function FormularioDoSite() {
+  const site = useAppStore(s => s.siteWebhook);
+  const regenerar = useAppStore(s => s.regenerarSiteWebhook);
+  const ask = useAppStore(s => s.ask);
+  const toast = useAppStore(s => s.toast);
+  const [copiado, setCopiado] = useState('');
+
+  const copiar = (texto: string, tag: string) => {
+    navigator.clipboard?.writeText(texto).then(() => { setCopiado(tag); setTimeout(() => setCopiado(''), 1800); }).catch(() => toast('Copie manualmente'));
+  };
+
+  const url = site.url || '(gerando…)';
+  const exemploJson = `{
+  "nome": "Maria Silva",
+  "telefone": "11999998888",
+  "email": "maria@email.com",
+  "mensagem": "Tenho interesse no apartamento de 2 quartos",
+  "imovel": "Edifício Aurora - Apto 802",
+  "campanha": "Landing Instagram Setembro"
+}`;
+  const promptLovable = `Crie uma landing page de captação de leads para imobiliária.
+A página tem um formulário com os campos: Nome (obrigatório), Telefone/WhatsApp (obrigatório), E-mail (opcional) e Mensagem (opcional, textarea).
+Ao enviar, faça um fetch POST para: ${url}
+Com header "Content-Type: application/json" e o body em JSON assim:
+{ "nome": "<valor do campo Nome>", "telefone": "<valor do campo Telefone>", "email": "<valor do campo E-mail>", "mensagem": "<valor do campo Mensagem>" }
+Se a resposta for 201, mostre uma tela de sucesso ("Recebemos seu contato, em breve retornamos"). Se der erro, mostre uma mensagem pedindo pra tentar de novo.
+Não use nenhuma biblioteca de backend — é só o fetch direto no submit.`;
+
+  return (
+    <section>
+      <p style={secTitle}>Formulário do seu site / landing page</p>
+      <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 12px', maxWidth: 620, lineHeight: 1.6 }}>
+        Um link exclusivo da sua imobiliária. Cole no botão "Enviar" de um formulário (Lovable, Elementor,
+        Typeform via webhook, etc.) e todo lead cai direto no "Lead Novo" e entra na roleta.
+      </p>
+
+      <div style={{ ...card }}>
+        <label style={label}>Link do webhook (POST)</label>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+          <input readOnly value={url} onFocus={e => e.currentTarget.select()} style={{ ...input, marginBottom: 0, flex: '1 1 320px', fontFamily: 'ui-monospace, monospace', fontSize: 12.5 }} />
+          <button onClick={() => site.url && copiar(site.url, 'url')} style={{ ...botao, background: 'var(--terra)', color: '#fff', border: 'none' }}>{copiado === 'url' ? 'Copiado!' : 'Copiar link'}</button>
+          <button onClick={() => ask('Gerar um link novo?', 'O link atual para de funcionar na hora. Só faça isso se o link antigo vazou.', 'Gerar novo', regenerar)} style={botao}>Gerar novo link</button>
+        </div>
+
+        <label style={label}>O que o formulário deve enviar (JSON)</label>
+        <pre style={pre}>{exemploJson}</pre>
+        <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '2px 0 16px' }}>
+          Obrigatórios: <b>nome</b> e <b>telefone</b>. Os outros são opcionais. Campos extras são ignorados.
+        </p>
+
+        <label style={label}>Prompt pronto pro Lovable</label>
+        <pre style={pre}>{promptLovable}</pre>
+        <button onClick={() => copiar(promptLovable, 'prompt')} style={botao}>{copiado === 'prompt' ? 'Copiado!' : 'Copiar prompt do Lovable'}</button>
+      </div>
+    </section>
+  );
+}
+
+const botao: React.CSSProperties = { padding: '9px 14px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer' };
+const pre: React.CSSProperties = { background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 8, padding: 12, fontSize: 12, lineHeight: 1.55, overflowX: 'auto', margin: '0 0 8px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
 
 const btn: React.CSSProperties = { padding: '7px 12px', border: '1px solid var(--line)', borderRadius: 7, background: 'var(--card)', fontSize: 12.5, fontWeight: 600 };
 const dtStyle: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', alignSelf: 'start', paddingTop: 1 };

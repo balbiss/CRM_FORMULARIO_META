@@ -9,7 +9,7 @@ export const pagamentoMetodoEnum = pgEnum('pagamento_metodo', ['pix', 'boleto', 
 export const modoWhatsappEnum = pgEnum('modo_whatsapp', ['central', 'corretor']);
 export const sessaoEscopoEnum = pgEnum('sessao_escopo', ['central', 'corretor']);
 export const sessaoStatusEnum = pgEnum('sessao_status', ['desconectada', 'conectando', 'conectada']);
-export const canalEnum = pgEnum('canal', ['WhatsApp', 'Instagram', 'Facebook', 'Indicacao', 'Manual']);
+export const canalEnum = pgEnum('canal', ['WhatsApp', 'Instagram', 'Facebook', 'Indicacao', 'Manual', 'Site']);
 export const direcaoEnum = pgEnum('direcao', ['in', 'out']);
 export const mensagemCanalEnum = pgEnum('mensagem_canal', ['corretor', 'followup']);
 export const aoEsgotarEnum = pgEnum('ao_esgotar', ['nada', 'descartar']);
@@ -50,6 +50,8 @@ export const imobiliarias = pgTable('imobiliarias', {
   // Dias de tolerância após o vencimento antes do bloqueio automático.
   diasCarencia: integer('dias_carencia').notNull().default(5),
   observacoes: text('observacoes'),
+  // Token do webhook de captação de site/landing page (formulário Lovable etc.) — por imobiliária.
+  capturaToken: text('captura_token').unique(),
 
   criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
 });

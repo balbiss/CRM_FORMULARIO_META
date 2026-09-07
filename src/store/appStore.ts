@@ -105,6 +105,8 @@ interface AppState {
   horarioAtendimento: DiaAtendimento[];
   modoWhatsapp: ModoWhatsapp;
   integracoesFacebook: IntegracaoFacebook[];
+  siteWebhook: { url: string | null; token: string | null };
+  regenerarSiteWebhook: () => Promise<void>;
   sessoesWhatsapp: SessaoWhatsapp[];
   wahaConfigurado: boolean;
 
@@ -389,6 +391,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO,
   modoWhatsapp: 'corretor',
   integracoesFacebook: [],
+  siteWebhook: { url: null, token: null },
   sessoesWhatsapp: [],
   wahaConfigurado: false,
 
@@ -485,7 +488,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('nova_token');
     disconnectSocket();
-    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [] });
+    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [] });
   },
   hydrateAuth: () => {
     const token = localStorage.getItem('nova_token');
@@ -908,7 +911,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       ]);
       set({ modoWhatsapp: modo, integracoesFacebook: lista });
       get().fetchSessoesWhatsapp();
+      apiFetch<{ url: string | null; token: string | null }>('/api/integracoes/site', token)
+        .then(w => set({ siteWebhook: w })).catch(() => {});
     } catch { /* provável corretor sem permissão — mantém o padrão */ }
+  },
+  regenerarSiteWebhook: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const w = await apiFetch<{ url: string; token: string }>('/api/integracoes/site/regenerar', token, { method: 'POST' });
+      set({ siteWebhook: w });
+      get().toast('Link novo gerado — o link antigo parou de funcionar');
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível gerar o link');
+    }
   },
   setModoWhatsapp: async modo => {
     const token = get().token;

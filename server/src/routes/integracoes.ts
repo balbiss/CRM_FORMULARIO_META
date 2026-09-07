@@ -2,9 +2,14 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { integracoesFacebook } from '../db/schema.js';
+import { randomBytes } from 'node:crypto';
+import { integracoesFacebook, imobiliarias } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { cifrar, decifrar } from '../lib/crypto.js';
+
+function publicUrl() {
+  return (process.env.PUBLIC_URL || 'https://api.visitaia.com.br').replace(/\/$/, '');
+}
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
 
@@ -41,6 +46,30 @@ integracoesRouter.get('/facebook/ativas', async (req, res) => {
 // ------------------------------------------------------------------
 integracoesRouter.use(requireAuth);
 integracoesRouter.use('/facebook', requireRole('dono', 'gerente'));
+integracoesRouter.use('/site', requireRole('dono', 'gerente'));
+
+// ------------------------------------------------------------------
+// Webhook do formulário do site (landing Lovable). Um link por imobiliária.
+// ------------------------------------------------------------------
+async function urlDoSite(imobId: string, gerarSeFaltar: boolean) {
+  let [imob] = await db.select({ token: imobiliarias.capturaToken }).from(imobiliarias).where(eq(imobiliarias.id, imobId)).limit(1);
+  if ((!imob?.token) && gerarSeFaltar) {
+    const token = randomBytes(24).toString('base64url');
+    await db.update(imobiliarias).set({ capturaToken: token }).where(eq(imobiliarias.id, imobId));
+    imob = { token };
+  }
+  return imob?.token ? { token: imob.token, url: publicUrl() + '/api/captacao/site/' + imob.token } : { token: null, url: null };
+}
+
+integracoesRouter.get('/site', async (req, res) => {
+  res.json(await urlDoSite(req.auth!.imobiliariaId, true));
+});
+
+integracoesRouter.post('/site/regenerar', async (req, res) => {
+  const token = randomBytes(24).toString('base64url');
+  await db.update(imobiliarias).set({ capturaToken: token }).where(eq(imobiliarias.id, req.auth!.imobiliariaId));
+  res.json({ token, url: publicUrl() + '/api/captacao/site/' + token });
+});
 
 const mascarar = (r: typeof integracoesFacebook.$inferSelect) => ({
   id: r.id, nomeConta: r.nomeConta, pageId: r.pageId, formId: r.formId,
