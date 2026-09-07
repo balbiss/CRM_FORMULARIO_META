@@ -147,6 +147,15 @@ a:hover { color: var(--ink); }
   .fu-editor { width: 100% !important; height: auto !important; max-height: 60vh; }
 }
 
+/* Base do card de modal — fundo opaco garantido mesmo quando o componente não
+   define background inline (ex.: painel da Plataforma). Estilo inline continua
+   vencendo pra quem já customiza borda/raio/padding. */
+.modal-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
 /* --- Modais: viram bottom-sheet no celular --- */
 @media (max-width: 700px) {
   .modal-overlay { padding: 0 !important; align-items: flex-end !important; justify-content: stretch !important; }
