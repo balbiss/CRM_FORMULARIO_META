@@ -8,6 +8,7 @@ export interface RemoteLead {
   telefone: string;
   email: string | null;
   fotoUrl: string | null;
+  imovelInteresseId: string | null;
   imovelTitulo: string | null;
   imovelSub: string | null;
   valor: string | null;
@@ -46,6 +47,7 @@ export function mapRemoteLead(r: RemoteLead, colunas: RemoteColuna[], perfis: Re
     tel: r.telefone,
     email: r.email ?? '',
     foto: r.fotoUrl ?? '',
+    imovelInteresseId: r.imovelInteresseId ?? '',
     imovel: r.imovelTitulo ?? '',
     imovelSub: r.imovelSub ?? '',
     valor: r.valor ? Number(r.valor) : 0,

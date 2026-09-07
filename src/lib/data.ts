@@ -74,6 +74,7 @@ export interface Lead {
   email: string;
   foto: string;
   colunaId: string;
+  imovelInteresseId: string;
   imovel: string;
   imovelSub: string;
   valor: number;
@@ -109,7 +110,7 @@ export function buildLeads(): Lead[] {
       foto: '',
       tel: '(11) 9' + (8000 + i * 37) + '-' + (1000 + i * 13),
       email: stripAccents(nome.toLowerCase()).replace(/ /g, '.') + '@email.com',
-      imovel: im[0], imovelSub: im[1], valor: im[2],
+      imovelInteresseId: '', imovel: im[0], imovelSub: im[1], valor: im[2],
       canal: CANAIS[i % CANAIS.length], col: dist[i], colunaId: dist[i], dias: (i * 3) % 11,
       segundo: i % 7 === 0, cadencia: '', corretor: CORRETORES[i % CORRETORES.length].nome,
       campanha: i % 2 ? 'Aurora — Lançamento' : 'Vila Serena — Fase 2',

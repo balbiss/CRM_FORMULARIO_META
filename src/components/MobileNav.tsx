@@ -102,10 +102,10 @@ export function MobileNav() {
             style={{ width: '100%', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: 8, background: 'rgba(255,255,255,.05)', padding: '10px 12px', border: '1px solid #1c2636' }}
           >
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: noPlantao ? 'var(--side-accent)' : 'var(--sideMuted)' }} />
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: noPlantao ? 'var(--plantao)' : 'var(--sideMuted)' }} />
               <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,.9)' }}>{noPlantao ? 'No Plantão' : 'Offline'}</span>
             </span>
-            <span style={{ position: 'relative', width: 32, height: 18, borderRadius: 9, background: noPlantao ? 'var(--side-accent)' : '#2a3446', flex: 'none' }}>
+            <span style={{ position: 'relative', width: 32, height: 18, borderRadius: 9, background: noPlantao ? 'var(--plantao)' : '#2a3446', flex: 'none' }}>
               <span style={{ position: 'absolute', top: 2, left: noPlantao ? 16 : 2, width: 14, height: 14, borderRadius: '50%', background: '#fff', transition: 'left .15s ease' }} />
             </span>
           </button>

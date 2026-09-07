@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { leads, colunasKanban, imobiliarias } from '../db/schema.js';
+import { leads, colunasKanban, imobiliarias, imoveis } from '../db/schema.js';
 import { distribuirLead } from '../lib/roleta.js';
 import { registrarEvento } from '../lib/eventos.js';
 import type { Server as SocketServer } from 'socket.io';
@@ -19,22 +19,42 @@ export function normalizarFinalidade(v?: string | null): 'venda' | 'locacao' | n
 
 export async function criarLead(io: SocketServer, imobId: string, dados: {
   nome: string; telefone: string; email?: string; mensagem?: string;
-  imovelTitulo?: string; campanha?: string; canal: string;
+  imovelTitulo?: string; imovelId?: string; campanha?: string; canal: string;
   finalidade?: 'venda' | 'locacao' | null;
 }) {
   const [colunaNova] = await db.select().from(colunasKanban)
     .where(and(eq(colunasKanban.imobiliariaId, imobId), eq(colunasKanban.titulo, 'Lead Novo'))).limit(1);
+
+  // Se veio de um imóvel específico (site ou campanha), puxa título/valor/sub reais dele.
+  let imovelInteresseId: string | null = null;
+  let imovelTitulo = dados.imovelTitulo?.trim() || null;
+  let imovelSub = dados.mensagem?.trim() || null;
+  let valor: string | undefined;
+  let finalidade = dados.finalidade ?? null;
+  if (dados.imovelId) {
+    const [im] = await db.select().from(imoveis)
+      .where(and(eq(imoveis.id, dados.imovelId), eq(imoveis.imobiliariaId, imobId))).limit(1);
+    if (im) {
+      imovelInteresseId = im.id;
+      imovelTitulo = im.titulo;
+      imovelSub = [im.tipo, im.finalidade, [im.endereco, im.cidade].filter(Boolean).join(' · ')].filter(Boolean).join(' · ') || imovelSub;
+      valor = im.preco;
+      if (!finalidade) finalidade = im.finalidade === 'Alugar' ? 'locacao' : im.finalidade === 'Comprar' ? 'venda' : null;
+    }
+  }
 
   const [row] = await db.insert(leads).values({
     imobiliariaId: imobId,
     nome: dados.nome.trim(),
     telefone: dados.telefone.trim(),
     email: dados.email?.trim() || null,
-    imovelTitulo: dados.imovelTitulo?.trim() || null,
-    imovelSub: dados.mensagem?.trim() || null,
+    imovelInteresseId,
+    imovelTitulo,
+    imovelSub,
+    ...(valor ? { valor } : {}),
     campanha: dados.campanha?.trim() || null,
     canal: dados.canal as any,
-    finalidade: dados.finalidade ?? null,
+    finalidade,
     colunaId: colunaNova?.id,
   }).returning();
 
@@ -66,6 +86,7 @@ export function captacaoRouter(io: SocketServer) {
     email: z.string().email().optional().or(z.literal('')),
     mensagem: z.string().max(2000).optional(),
     imovel: z.string().max(300).optional(),
+    imovelId: z.string().uuid().optional(),
     campanha: z.string().max(200).optional(),
     // "comprar" / "alugar" / "venda" / "locacao" — pra rotear pra roleta certa
     interesse: z.string().max(40).optional(),
@@ -90,6 +111,7 @@ export function captacaoRouter(io: SocketServer) {
       email: parsed.data.email || undefined,
       mensagem: parsed.data.mensagem,
       imovelTitulo: parsed.data.imovel,
+      imovelId: parsed.data.imovelId,
       campanha: parsed.data.campanha,
       canal: 'Site',
       finalidade: normalizarFinalidade(parsed.data.finalidade || parsed.data.interesse),
@@ -113,6 +135,8 @@ export function captacaoRouter(io: SocketServer) {
     email: z.string().email().optional(),
     fotoUrl: z.string().url().optional(),
     imovelTitulo: z.string().optional(),
+    imovelId: z.string().uuid().optional(),
+    mensagem: z.string().optional(),
     campanha: z.string().optional(),
     interesse: z.string().optional(),
     finalidade: z.string().optional(),
@@ -128,26 +152,19 @@ export function captacaoRouter(io: SocketServer) {
       : await db.select().from(imobiliarias).limit(1);
     if (!imob) return res.status(parsed.data.imobiliariaId ? 404 : 500).json({ error: 'Imobiliária não encontrada' });
 
-    const [colunaNova] = await db.select().from(colunasKanban)
-      .where(and(eq(colunasKanban.imobiliariaId, imob.id), eq(colunasKanban.titulo, 'Lead Novo'))).limit(1);
-
-    const [row] = await db.insert(leads).values({
-      imobiliariaId: imob.id,
+    const row = await criarLead(io, imob.id, {
       nome: parsed.data.nome,
       telefone: parsed.data.telefone,
       email: parsed.data.email,
-      fotoUrl: parsed.data.fotoUrl,
+      mensagem: parsed.data.mensagem,
       imovelTitulo: parsed.data.imovelTitulo,
+      imovelId: parsed.data.imovelId,
       campanha: parsed.data.campanha,
       canal: parsed.data.canal,
       finalidade: normalizarFinalidade(parsed.data.finalidade || parsed.data.interesse),
-      colunaId: colunaNova?.id,
-    }).returning();
-
-    registrarEvento(imob.id, row.id, 'criado', 'Lead recebido pela integração (' + row.canal + (row.campanha ? ' · ' + row.campanha : '') + ')', row.nome);
-    io.to('imobiliaria:' + imob.id).emit('lead:created', row);
+    });
+    if (parsed.data.fotoUrl) await db.update(leads).set({ fotoUrl: parsed.data.fotoUrl }).where(eq(leads.id, row.id)).catch(() => {});
     res.status(201).json(row);
-    distribuirLead(io, imob.id, row.id).catch(e => console.error('roleta captação:', (e as Error).message));
   });
 
   return router;

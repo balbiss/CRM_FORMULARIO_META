@@ -1,0 +1,1 @@
+ALTER TABLE "leads" ADD COLUMN "imovel_interesse_id" uuid;

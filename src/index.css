@@ -3,7 +3,12 @@
 :root {
   /* Paleta alinhada à logomarca Visita IA: azul (cyan → royal), fundo quase-preto, texto prata. */
   --bg: #F2F5FA; --card: #FFFFFF; --card-2: #E4EAF3; --ink: #0F1722; --muted: #5F6E82; --line: #E2E8F1;
-  --terra: #123C87; --terraSoft: #E1E9F6; --olive: #0E7C66; --oliveSoft: #D7F0EA;
+  --terra: #123C87; --terraSoft: #E1E9F6;
+  /* "sucesso / concluído / positivo" — era verde, agora um azul mais vivo que o --terra pra
+     não competir com o botão primário, mas ficar na família da logo. */
+  --olive: #1E77E2; --oliveSoft: #DCEAFB;
+  /* verde reservado SÓ pro interruptor de "No Plantão" (convenção ligado/desligado). */
+  --plantao: #0E7C66; --plantaoSoft: #D7F0EA;
   --side: #0A0F1A; --sideInk: #EAF1FB; --sideMuted: #7A879E; --skel: #E7EDF5;
   /* acento sobre a sidebar escura — azul mais claro que --terra pra manter legibilidade no preto */
   --side-accent: #4C8DF0;
@@ -21,7 +26,9 @@
 }
 [data-theme='dark'] {
   --bg: #0B0F17; --card: #151B26; --card-2: #1C2430; --ink: #EAF1FB; --muted: #93A1B5; --line: #262F3D;
-  --terra: #2E63C4; --terraSoft: #16233B; --olive: #2CC6AC; --oliveSoft: #10241F;
+  --terra: #2E63C4; --terraSoft: #16233B;
+  --olive: #4C8DF0; --oliveSoft: #16233B;
+  --plantao: #2CC6AC; --plantaoSoft: #10241F;
   --side: #070B12; --sideInk: #EAF1FB; --sideMuted: #6E7C92; --skel: #1B2430;
   --side-accent: #4C8DF0;
 }

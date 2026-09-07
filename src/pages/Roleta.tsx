@@ -57,7 +57,7 @@ export default function Roleta() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {!isManager && minhas.length > 0 && (
-            <button onClick={toggleMeuPlantao} style={{ padding: '11px 18px', border: '1px solid var(--line)', borderRadius: 8, background: me?.emPlantao ? 'var(--olive)' : 'var(--card)', color: me?.emPlantao ? '#fff' : 'var(--ink)', fontSize: 13, fontWeight: 600 }}>
+            <button onClick={toggleMeuPlantao} style={{ padding: '11px 18px', border: '1px solid var(--line)', borderRadius: 8, background: me?.emPlantao ? 'var(--plantao)' : 'var(--card)', color: me?.emPlantao ? '#fff' : 'var(--ink)', fontSize: 13, fontWeight: 600 }}>
               {me?.emPlantao ? 'No plantão — sair' : 'Entrar no plantão'}
             </button>
           )}

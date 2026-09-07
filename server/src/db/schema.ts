@@ -143,6 +143,8 @@ export const leads = pgTable('leads', {
   email: text('email'),
   // Foto de perfil do WhatsApp (URL) — preenchida pela automação de captação quando disponível.
   fotoUrl: text('foto_url'),
+  // Imóvel que o lead escolheu no site / na campanha (quando veio de um imóvel específico).
+  imovelInteresseId: uuid('imovel_interesse_id'),
   imovelTitulo: text('imovel_titulo'),
   imovelSub: text('imovel_sub'),
   valor: numeric('valor', { precision: 14, scale: 2 }).default('0'),

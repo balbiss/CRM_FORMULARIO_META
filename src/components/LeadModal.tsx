@@ -32,6 +32,7 @@ export function LeadModal() {
   const [enviandoAnexo, setEnviandoAnexo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const setCadenciaLead = useAppStore(s => s.setCadenciaLead);
+  const imoveis = useAppStore(s => s.imoveis);
   const move = useAppStore(s => s.move);
   const colunas = useAppStore(s => s.colunasRemotas);
   const advance = useAppStore(s => s.advance);
@@ -149,17 +150,30 @@ export function LeadModal() {
                   </div>
                 ))}
               </div>
-              <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 16, background: 'var(--bg)', marginBottom: 20 }}>
-                <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 10px' }}>Imóvel de interesse</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <span style={css(thumb(5, 56))} />
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', fontSize: 14.5, fontWeight: 700 }}>{L.imovel}</span>
-                    <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>{L.imovelSub}</span>
-                  </span>
-                  <span style={{ fontFamily: 'Newsreader,serif', fontSize: 22 }}>{BRL(L.valor)}</span>
-                </div>
-              </div>
+              {(() => {
+                const imv = L.imovelInteresseId ? imoveis.find(i => i.id === L.imovelInteresseId) : null;
+                if (!L.imovel && !imv) return null;
+                const foto = imv?.imagens?.[0];
+                const titulo = imv?.titulo || L.imovel;
+                const sub = imv ? [imv.tipo, imv.finalidade, imv.cidade].filter(Boolean).join(' · ') : L.imovelSub;
+                const preco = imv ? Number(imv.preco) : L.valor;
+                return (
+                  <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 16, background: 'var(--bg)', marginBottom: 20 }}>
+                    <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 10px' }}>Imóvel de interesse</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      {foto
+                        ? <img src={foto} alt="" style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8, flex: 'none' }} />
+                        : <span style={css(thumb(5, 56))} />}
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 14.5, fontWeight: 700 }}>{titulo || '—'}</span>
+                        <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>{sub}</span>
+                        {imv && <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>{[imv.quartos && imv.quartos + ' qts', imv.vagas && imv.vagas + ' vagas', imv.area && imv.area + ' m²'].filter(Boolean).join(' · ')}</span>}
+                      </span>
+                      {preco > 0 && <span style={{ fontFamily: 'Newsreader,serif', fontSize: 22 }}>{BRL(preco)}</span>}
+                    </div>
+                  </div>
+                );
+              })()}
               <div data-modal-grid style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 7 }}>Cadência de chamada</label>

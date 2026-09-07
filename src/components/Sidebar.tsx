@@ -89,10 +89,10 @@ export function Sidebar() {
           }}
         >
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: noPlantao ? 'var(--side-accent)' : 'var(--sideMuted)' }} />
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: noPlantao ? 'var(--plantao)' : 'var(--sideMuted)' }} />
             <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.9)' }}>{noPlantao ? 'No Plantão' : 'Offline'}</span>
           </span>
-          <span style={{ position: 'relative', width: 28, height: 16, borderRadius: 8, background: noPlantao ? 'var(--side-accent)' : '#2a3446', flex: 'none' }}>
+          <span style={{ position: 'relative', width: 28, height: 16, borderRadius: 8, background: noPlantao ? 'var(--plantao)' : '#2a3446', flex: 'none' }}>
             <span style={{ position: 'absolute', top: 2, left: noPlantao ? 14 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left .15s ease' }} />
           </span>
         </button>

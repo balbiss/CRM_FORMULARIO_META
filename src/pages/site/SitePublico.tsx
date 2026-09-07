@@ -25,7 +25,7 @@ export default function SitePublico() {
   const [busca, setBusca] = useState('');
   const [aberto, setAberto] = useState<SiteImovel | null>(null);
   const [imgIdx, setImgIdx] = useState(0);
-  const [form, setForm] = useState({ nome: '', telefone: '', email: '', mensagem: '', imovel: '', interesse: '' });
+  const [form, setForm] = useState({ nome: '', telefone: '', email: '', mensagem: '', imovel: '', imovelId: '', interesse: '' });
   const [enviado, setEnviado] = useState(false);
   const [enviando, setEnviando] = useState(false);
 
@@ -55,7 +55,7 @@ export default function SitePublico() {
   function abrir(im: SiteImovel) { setAberto(im); setImgIdx(0); }
   function scrollTo(id: string) { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }); }
   function interesse(im: SiteImovel) {
-    setForm(f => ({ ...f, imovel: im.titulo, mensagem: f.mensagem || 'Tenho interesse no imóvel: ' + im.titulo }));
+    setForm(f => ({ ...f, imovel: im.titulo, imovelId: im.id, interesse: f.interesse || (im.finalidade === 'Alugar' ? 'Alugar' : 'Comprar'), mensagem: f.mensagem || 'Tenho interesse no imóvel: ' + im.titulo }));
     setAberto(null);
     scrollTo('contato');
   }
@@ -67,7 +67,7 @@ export default function SitePublico() {
     try {
       const r = await fetch(API_URL + '/api/sites/publico/' + encodeURIComponent(slug) + '/contato', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome: form.nome, telefone: form.telefone, email: form.email || undefined, mensagem: form.mensagem || undefined, imovel: form.imovel || undefined, interesse: form.interesse || undefined }),
+        body: JSON.stringify({ nome: form.nome, telefone: form.telefone, email: form.email || undefined, mensagem: form.mensagem || undefined, imovel: form.imovel || undefined, imovelId: form.imovelId || undefined, interesse: form.interesse || undefined }),
       });
       if (r.ok) setEnviado(true);
     } finally { setEnviando(false); }
@@ -85,7 +85,7 @@ export default function SitePublico() {
   const whats = soDigitos(c.whatsapp || c.telefone);
   const S: Record<string, React.CSSProperties> = {
     wrap: { fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif', color: '#1a1a1a', background: '#fff', lineHeight: 1.55 },
-    section: { maxWidth: 1140, margin: '0 auto', padding: '72px 22px' },
+    section: { maxWidth: 1140, margin: '0 auto', padding: '64px 20px', boxSizing: 'border-box' as const },
     h2: { fontSize: 30, fontWeight: 800, margin: '0 0 8px', letterSpacing: '-.02em' },
     sub: { fontSize: 15, color: '#666', margin: '0 0 34px' },
     btn: { background: brand, color: '#fff', border: 'none', borderRadius: 8, padding: '13px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', textDecoration: 'none', display: 'inline-block' },
@@ -104,27 +104,27 @@ export default function SitePublico() {
     <div style={S.wrap}>
       {/* header */}
       <header style={{ position: 'sticky', top: 0, zIndex: 20, background: 'rgba(255,255,255,.95)', backdropFilter: 'blur(8px)', borderBottom: '1px solid #eee' }}>
-        <div style={{ maxWidth: 1140, margin: '0 auto', padding: '12px 22px', display: 'flex', alignItems: 'center', gap: 18 }}>
+        <div className="site-headrow" style={{ maxWidth: 1140, margin: '0 auto', padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
           {c.logoUrl
-            ? <img src={c.logoUrl} alt={c.nomeExibicao} style={{ height: 54, maxHeight: 54, width: 'auto', maxWidth: 240, objectFit: 'contain', display: 'block' }} />
-            : <span style={{ fontWeight: 800, fontSize: 20, color: brand }}>{c.nomeExibicao || 'Imobiliária'}</span>}
+            ? <img className="site-logo" src={c.logoUrl} alt={c.nomeExibicao} style={{ height: 50, maxHeight: 50, width: 'auto', maxWidth: 200, objectFit: 'contain', display: 'block' }} />
+            : <span style={{ fontWeight: 800, fontSize: 19, color: brand, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.nomeExibicao || 'Imobiliária'}</span>}
           <span style={{ flex: 1 }} />
-          <nav style={{ display: 'flex', gap: 22, alignItems: 'center' }}>
-            <button onClick={() => scrollTo('imoveis')} style={{ border: 'none', background: 'none', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', color: '#333' }}>Imóveis</button>
-            {c.sobreTexto && <button onClick={() => scrollTo('sobre')} style={{ border: 'none', background: 'none', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', color: '#333' }}>Sobre</button>}
-            <button onClick={() => scrollTo('contato')} style={{ border: 'none', background: 'none', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', color: '#333' }}>Contato</button>
-            {whats && <a href={'https://wa.me/' + (whats.length <= 11 ? '55' + whats : whats)} target="_blank" rel="noreferrer" style={{ ...S.btn, padding: '9px 16px', fontSize: 13.5 }}>WhatsApp</a>}
+          <nav style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+            <button className="site-navlink" onClick={() => scrollTo('imoveis')} style={{ border: 'none', background: 'none', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', color: '#333' }}>Imóveis</button>
+            {c.sobreTexto && <button className="site-navlink" onClick={() => scrollTo('sobre')} style={{ border: 'none', background: 'none', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', color: '#333' }}>Sobre</button>}
+            <button className="site-navlink" onClick={() => scrollTo('contato')} style={{ border: 'none', background: 'none', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', color: '#333' }}>Contato</button>
+            {whats && <a href={'https://wa.me/' + (whats.length <= 11 ? '55' + whats : whats)} target="_blank" rel="noreferrer" style={{ ...S.btn, padding: '9px 15px', fontSize: 13, whiteSpace: 'nowrap' }}>WhatsApp</a>}
           </nav>
         </div>
       </header>
 
       {/* hero */}
-      <section style={{ position: 'relative', minHeight: 460, display: 'flex', alignItems: 'center', background: c.heroImagemUrl ? `linear-gradient(rgba(10,15,26,.55), rgba(10,15,26,.55)), url(${c.heroImagemUrl}) center/cover` : `linear-gradient(135deg, ${brand}, #0A0F1A)` }}>
-        <div style={{ maxWidth: 1140, margin: '0 auto', padding: '80px 22px', color: '#fff' }}>
-          <h1 style={{ fontSize: 'clamp(30px, 5vw, 50px)', fontWeight: 800, margin: '0 0 14px', maxWidth: 760, letterSpacing: '-.02em', lineHeight: 1.1 }}>
+      <section className="site-hero" style={{ position: 'relative', minHeight: 420, display: 'flex', alignItems: 'center', background: c.heroImagemUrl ? `linear-gradient(rgba(10,15,26,.55), rgba(10,15,26,.55)), url(${c.heroImagemUrl}) center/cover` : `linear-gradient(135deg, ${brand}, #0A0F1A)` }}>
+        <div style={{ maxWidth: 1140, width: '100%', margin: '0 auto', padding: '72px 20px', color: '#fff', boxSizing: 'border-box' }}>
+          <h1 style={{ fontSize: 'clamp(26px, 5.5vw, 50px)', fontWeight: 800, margin: '0 0 14px', maxWidth: 760, letterSpacing: '-.02em', lineHeight: 1.12 }}>
             {c.heroTitulo || 'Encontre o imóvel certo pra você'}
           </h1>
-          {c.heroSubtitulo && <p style={{ fontSize: 'clamp(15px, 2vw, 19px)', margin: '0 0 28px', maxWidth: 620, opacity: .95 }}>{c.heroSubtitulo}</p>}
+          {c.heroSubtitulo && <p style={{ fontSize: 'clamp(14.5px, 2vw, 19px)', margin: '0 0 26px', maxWidth: 620, opacity: .95 }}>{c.heroSubtitulo}</p>}
           <button onClick={() => scrollTo('imoveis')} style={S.btn}>Ver imóveis disponíveis</button>
         </div>
       </section>
@@ -146,7 +146,7 @@ export default function SitePublico() {
           <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por bairro, cidade…" style={{ ...S.input, width: 'auto', flex: 1, minWidth: 180, padding: '9px 12px' }} />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 22 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 290px), 1fr))', gap: 20 }}>
           {filtrados.map(im => (
             <button key={im.id} onClick={() => abrir(im)} style={{ textAlign: 'left', border: '1px solid #ececec', borderRadius: 12, overflow: 'hidden', background: '#fff', cursor: 'pointer', padding: 0, boxShadow: '0 1px 3px rgba(0,0,0,.05)' }}>
               <div style={{ height: 200, background: im.imagens[0] ? `url(${im.imagens[0]}) center/cover` : `linear-gradient(135deg, ${brand}22, ${brand}0a)`, position: 'relative' }}>
@@ -168,7 +168,7 @@ export default function SitePublico() {
       {c.destaques.length > 0 && (
         <section style={{ background: '#f7f8fa' }}>
           <div style={S.section}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 26 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 24 }}>
               {c.destaques.map((d, i) => (
                 <div key={i}>
                   <div style={{ width: 40, height: 4, background: brand, borderRadius: 4, marginBottom: 14 }} />
@@ -184,7 +184,7 @@ export default function SitePublico() {
       {/* sobre */}
       {c.sobreTexto && (
         <section id="sobre" style={S.section}>
-          <div style={{ display: 'grid', gridTemplateColumns: c.sobreImagemUrl ? '1fr 1fr' : '1fr', gap: 44, alignItems: 'center' }} className="site-2col">
+          <div style={{ display: 'grid', gridTemplateColumns: c.sobreImagemUrl ? '1fr 1fr' : '1fr', gap: 40, alignItems: 'center' }} className="site-2col">
             <div>
               <h2 style={S.h2}>{c.sobreTitulo || 'Sobre nós'}</h2>
               <p style={{ fontSize: 15.5, color: '#555', whiteSpace: 'pre-wrap', margin: 0 }}>{c.sobreTexto}</p>
@@ -200,7 +200,7 @@ export default function SitePublico() {
           <div style={S.section}>
             <h2 style={{ ...S.h2, textAlign: 'center' }}>O que dizem nossos clientes</h2>
             <div style={{ height: 34 }} />
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 22 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 270px), 1fr))', gap: 20 }}>
               {c.depoimentos.map((d, i) => (
                 <div key={i} style={{ background: '#fff', border: '1px solid #ececec', borderRadius: 12, padding: 22 }}>
                   <p style={{ fontSize: 14.5, color: '#444', fontStyle: 'italic', margin: '0 0 14px' }}>“{d.texto}”</p>
@@ -306,7 +306,16 @@ export default function SitePublico() {
           </div>
         </div>
       )}
-      <style>{`@media(max-width:760px){.site-2col{grid-template-columns:1fr!important}}`}</style>
+      <style>{`
+        @media(max-width:820px){ .site-2col{grid-template-columns:1fr!important} }
+        @media(max-width:600px){
+          .site-navlink{display:none!important}
+          .site-logo{height:40px!important}
+          .site-hero{min-height:340px!important}
+          .site-hero > div{padding:52px 16px!important}
+        }
+        @media(max-width:400px){ .site-headrow{padding:8px 12px!important} }
+      `}</style>
     </div>
   );
 }
