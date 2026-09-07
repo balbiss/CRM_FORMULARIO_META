@@ -127,6 +127,13 @@
       "when": 1788742233111,
       "tag": "0017_lethal_mole_man",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788744264992,
+      "tag": "0018_sleepy_wallop",
+      "breakpoints": true
     }
   ]
 }

@@ -235,6 +235,41 @@ export const mensagensWhatsapp = pgTable('mensagens_whatsapp', {
   waMsgIdx: uniqueIndex('mensagens_wa_message_id_uq').on(table.waMessageId).where(sql`${table.waMessageId} is not null`),
 }));
 
+/** Tarefa / compromisso ligado (ou não) a um lead — pra Agenda e pros lembretes. */
+export const tarefas = pgTable('tarefas', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  imobiliariaId: uuid('imobiliaria_id').notNull().references(() => imobiliarias.id, { onDelete: 'cascade' }),
+  leadId: uuid('lead_id').references(() => leads.id, { onDelete: 'set null' }),
+  corretorId: uuid('corretor_id').references(() => perfis.id, { onDelete: 'set null' }),
+  titulo: text('titulo').notNull(),
+  descricao: text('descricao'),
+  venceEm: timestamp('vence_em', { withTimezone: true }).notNull(),
+  concluida: boolean('concluida').notNull().default(false),
+  concluidaEm: timestamp('concluida_em', { withTimezone: true }),
+  // vira true quando a varredura já avisou o corretor que a tarefa venceu (não avisa de novo).
+  avisada: boolean('avisada').notNull().default(false),
+  criadoPor: uuid('criado_por').references(() => perfis.id, { onDelete: 'set null' }),
+  criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+}, table => ({
+  imobiliariaIdx: index('tarefas_imobiliaria_id_idx').on(table.imobiliariaId),
+  corretorIdx: index('tarefas_corretor_id_idx').on(table.corretorId),
+  leadIdx: index('tarefas_lead_id_idx').on(table.leadId),
+}));
+
+/** Linha do tempo de um lead — um registro por evento (criado, mudou de coluna, distribuído,
+ *  mensagem, tarefa, nota manual, descarte). O nome do ator é gravado como snapshot. */
+export const eventosLead = pgTable('eventos_lead', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  imobiliariaId: uuid('imobiliaria_id').notNull().references(() => imobiliarias.id, { onDelete: 'cascade' }),
+  leadId: uuid('lead_id').notNull().references(() => leads.id, { onDelete: 'cascade' }),
+  tipo: text('tipo').notNull(),
+  descricao: text('descricao').notNull(),
+  atorNome: text('ator_nome'),
+  criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+}, table => ({
+  leadIdx: index('eventos_lead_lead_id_idx').on(table.leadId),
+}));
+
 export const followupFluxos = pgTable('followup_fluxos', {
   id: uuid('id').primaryKey().defaultRandom(),
   imobiliariaId: uuid('imobiliaria_id').notNull().references(() => imobiliarias.id, { onDelete: 'cascade' }),

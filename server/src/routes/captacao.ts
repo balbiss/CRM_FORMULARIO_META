@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { leads, colunasKanban, imobiliarias } from '../db/schema.js';
 import { distribuirLead } from '../lib/roleta.js';
+import { registrarEvento } from '../lib/eventos.js';
 import type { Server as SocketServer } from 'socket.io';
 
 const soDigitos = (s: string) => (s || '').replace(/[^0-9]/g, '');
@@ -27,6 +28,7 @@ async function criarLead(io: SocketServer, imobId: string, dados: {
     colunaId: colunaNova?.id,
   }).returning();
 
+  registrarEvento(imobId, row.id, 'criado', 'Lead recebido pelo formulário (' + dados.canal + (dados.campanha ? ' · ' + dados.campanha : '') + ')', row.nome);
   io.to('imobiliaria:' + imobId).emit('lead:created', row);
   distribuirLead(io, imobId, row.id).catch(e => console.error('roleta captação:', (e as Error).message));
   return row;
@@ -125,6 +127,7 @@ export function captacaoRouter(io: SocketServer) {
       colunaId: colunaNova?.id,
     }).returning();
 
+    registrarEvento(imob.id, row.id, 'criado', 'Lead recebido pela integração (' + row.canal + (row.campanha ? ' · ' + row.campanha : '') + ')', row.nome);
     io.to('imobiliaria:' + imob.id).emit('lead:created', row);
     res.status(201).json(row);
     distribuirLead(io, imob.id, row.id).catch(e => console.error('roleta captação:', (e as Error).message));

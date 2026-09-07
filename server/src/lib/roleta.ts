@@ -2,6 +2,7 @@ import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { filasAtendimento, perfis, leads, colunasKanban, distribuicaoLog, notificacoes } from '../db/schema.js';
 import { enviarPush } from './push.js';
+import { registrarEvento } from './eventos.js';
 import type { Server as SocketServer } from 'socket.io';
 
 /** Distribui UM lead pro próximo corretor da roleta (o que está em plantão e faz mais tempo
@@ -30,6 +31,8 @@ export async function distribuirLead(io: SocketServer, imobiliariaId: string, le
   if (!lead) return null; // já tinha corretor / não existe
 
   await db.insert(distribuicaoLog).values({ imobiliariaId, leadId, corretorId: escolhido.corretorId, origem: 'roleta' });
+  const [corr] = await db.select({ nome: perfis.nome }).from(perfis).where(eq(perfis.id, escolhido.corretorId)).limit(1);
+  registrarEvento(imobiliariaId, leadId, 'roleta', 'Distribuído pela roleta para ' + (corr?.nome ?? 'corretor'), 'Roleta');
   await db.insert(notificacoes).values({
     perfilId: escolhido.corretorId,
     tipo: 'lead',

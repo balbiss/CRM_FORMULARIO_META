@@ -8,6 +8,7 @@ import { wahaConfigurado, criarSessao, pararSessao, statusSessao, qrSessao, webh
 import { uploadFile } from '../lib/storage.js';
 import { distribuirLead } from '../lib/roleta.js';
 import { enviarPush } from '../lib/push.js';
+import { registrarEvento } from '../lib/eventos.js';
 import type { Server as SocketServer } from 'socket.io';
 
 const soDigitos = (s: string) => (s || '').replace(/[^0-9]/g, '');
@@ -135,6 +136,7 @@ export function whatsappRouter(io: SocketServer) {
           corretorId: sessao.escopo === 'corretor' ? sessao.corretorId : null,
         }).returning();
         lead = novo;
+        registrarEvento(sessao.imobiliariaId, novo.id, 'criado', 'Lead criado pela primeira mensagem no WhatsApp', novo.nome);
         io.to('imobiliaria:' + sessao.imobiliariaId).emit('lead:created', novo);
         // modo central: sem corretor fixo -> roleta. modo corretor: já nasceu com o dono da sessão.
         if (!novo.corretorId) {
