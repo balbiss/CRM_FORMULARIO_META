@@ -106,8 +106,8 @@ export default function SitePublico() {
       <header style={{ position: 'sticky', top: 0, zIndex: 20, background: 'rgba(255,255,255,.95)', backdropFilter: 'blur(8px)', borderBottom: '1px solid #eee' }}>
         <div style={{ maxWidth: 1140, margin: '0 auto', padding: '12px 22px', display: 'flex', alignItems: 'center', gap: 18 }}>
           {c.logoUrl
-            ? <img src={c.logoUrl} alt={c.nomeExibicao} style={{ height: 40, width: 'auto', objectFit: 'contain' }} />
-            : <span style={{ fontWeight: 800, fontSize: 19, color: brand }}>{c.nomeExibicao || 'Imobiliária'}</span>}
+            ? <img src={c.logoUrl} alt={c.nomeExibicao} style={{ height: 54, maxHeight: 54, width: 'auto', maxWidth: 240, objectFit: 'contain', display: 'block' }} />
+            : <span style={{ fontWeight: 800, fontSize: 20, color: brand }}>{c.nomeExibicao || 'Imobiliária'}</span>}
           <span style={{ flex: 1 }} />
           <nav style={{ display: 'flex', gap: 22, alignItems: 'center' }}>
             <button onClick={() => scrollTo('imoveis')} style={{ border: 'none', background: 'none', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', color: '#333' }}>Imóveis</button>
@@ -252,7 +252,9 @@ export default function SitePublico() {
 
       {/* footer */}
       <footer style={{ background: '#0A0F1A', color: '#aab', padding: '36px 22px', textAlign: 'center' }}>
-        <p style={{ fontWeight: 700, color: '#fff', margin: '0 0 4px', fontSize: 15 }}>{c.nomeExibicao || 'Imobiliária'}</p>
+        {c.logoUrl
+          ? <img src={c.logoUrl} alt={c.nomeExibicao} style={{ height: 40, width: 'auto', maxWidth: 200, objectFit: 'contain', margin: '0 auto 12px', display: 'block', background: '#fff', borderRadius: 8, padding: '6px 12px' }} />
+          : <p style={{ fontWeight: 700, color: '#fff', margin: '0 0 4px', fontSize: 15 }}>{c.nomeExibicao || 'Imobiliária'}</p>}
         {c.rodapeTexto && <p style={{ margin: '0 0 8px', fontSize: 13 }}>{c.rodapeTexto}</p>}
         <p style={{ margin: 0, fontSize: 11.5, opacity: .5 }}>Site feito com Visita IA</p>
       </footer>

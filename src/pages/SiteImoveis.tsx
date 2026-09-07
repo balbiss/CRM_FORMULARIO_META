@@ -16,7 +16,7 @@ const lbl: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 7
 const inp: React.CSSProperties = { width: '100%', padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)', fontSize: 13.5, boxSizing: 'border-box' };
 const card: React.CSSProperties = { border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', padding: 18, marginBottom: 14 };
 
-function UploadImagem({ url, onChange, label }: { url: string; onChange: (u: string) => void; label: string }) {
+function UploadImagem({ url, onChange, label, dica, previewLogo }: { url: string; onChange: (u: string) => void; label: string; dica: string; previewLogo?: boolean }) {
   const token = useAppStore(s => s.token);
   const toast = useAppStore(s => s.toast);
   const ref = useRef<HTMLInputElement>(null);
@@ -34,7 +34,12 @@ function UploadImagem({ url, onChange, label }: { url: string; onChange: (u: str
       <input ref={ref} type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) subir(f); e.currentTarget.value = ''; }} />
       {url ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src={url} alt="" style={{ height: 48, width: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--line)' }} />
+          <img
+            src={url} alt=""
+            style={previewLogo
+              ? { height: 44, maxWidth: 160, objectFit: 'contain', borderRadius: 6, border: '1px solid var(--line)', background: '#fff', padding: 4 }
+              : { height: 48, width: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--line)' }}
+          />
           <button type="button" onClick={() => ref.current?.click()} style={{ ...inp, width: 'auto', padding: '7px 12px', cursor: 'pointer' }}>Trocar</button>
           <button type="button" onClick={() => onChange('')} style={{ border: 'none', background: 'none', color: 'var(--terra)', fontSize: 12.5 }}>Remover</button>
         </div>
@@ -43,6 +48,7 @@ function UploadImagem({ url, onChange, label }: { url: string; onChange: (u: str
           <Upload size={13} /> {busy ? 'Enviando…' : 'Enviar imagem'}
         </button>
       )}
+      <p style={{ fontSize: 11, color: 'var(--muted)', margin: '5px 0 0', lineHeight: 1.4 }}>{dica}</p>
     </div>
   );
 }
@@ -107,7 +113,8 @@ export default function SiteImoveis() {
             <p style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px' }}>Marca</p>
             <div style={{ display: 'grid', gap: 12 }}>
               <div><label style={lbl}>Nome exibido</label><input value={cfg.nomeExibicao} onChange={e => set({ nomeExibicao: e.target.value })} style={inp} placeholder="Ex: Realiza Vale Imóveis" /></div>
-              <UploadImagem label="Logomarca" url={cfg.logoUrl} onChange={u => set({ logoUrl: u })} />
+              <UploadImagem label="Logomarca" url={cfg.logoUrl} onChange={u => set({ logoUrl: u })} previewLogo
+                dica="PNG com fundo transparente, na horizontal. Ideal: 480 × 140 px (ou proporção parecida). Aparece com ~54 px de altura no site — mande em alta pra não ficar borrada." />
               <div>
                 <label style={lbl}>Cor principal</label>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -123,7 +130,8 @@ export default function SiteImoveis() {
             <div style={{ display: 'grid', gap: 12 }}>
               <div><label style={lbl}>Título</label><input value={cfg.heroTitulo} onChange={e => set({ heroTitulo: e.target.value })} style={inp} placeholder="Encontre o imóvel certo pra você" /></div>
               <div><label style={lbl}>Subtítulo</label><textarea value={cfg.heroSubtitulo} onChange={e => set({ heroSubtitulo: e.target.value })} rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
-              <UploadImagem label="Imagem de fundo" url={cfg.heroImagemUrl} onChange={u => set({ heroImagemUrl: u })} />
+              <UploadImagem label="Imagem de fundo" url={cfg.heroImagemUrl} onChange={u => set({ heroImagemUrl: u })}
+                dica="Foto horizontal, bem larga. Ideal: 1920 × 1080 px (JPG, até 1 MB). O título do site fica por cima, então prefira uma imagem sem muita coisa no meio e à esquerda." />
             </div>
           </div>
 
@@ -132,7 +140,8 @@ export default function SiteImoveis() {
             <div style={{ display: 'grid', gap: 12 }}>
               <div><label style={lbl}>Título</label><input value={cfg.sobreTitulo} onChange={e => set({ sobreTitulo: e.target.value })} style={inp} placeholder="Sobre nós" /></div>
               <div><label style={lbl}>Texto</label><textarea value={cfg.sobreTexto} onChange={e => set({ sobreTexto: e.target.value })} rows={5} style={{ ...inp, resize: 'vertical' }} placeholder="Conte a história, diferenciais, tempo de mercado…" /></div>
-              <UploadImagem label="Imagem" url={cfg.sobreImagemUrl} onChange={u => set({ sobreImagemUrl: u })} />
+              <UploadImagem label="Imagem" url={cfg.sobreImagemUrl} onChange={u => set({ sobreImagemUrl: u })}
+                dica="Formato retrato ou quadrado. Ideal: 1000 × 900 px (JPG). Aparece ao lado do texto." />
             </div>
           </div>
         </div>

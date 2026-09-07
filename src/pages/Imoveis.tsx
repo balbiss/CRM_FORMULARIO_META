@@ -245,6 +245,7 @@ function ImovelModal({ imovel, onClose, onSave }: {
         <label style={fieldLabel}>Amenidades (separadas por vírgula)</label>
         <input value={amenidades} onChange={e => setAmenidades(e.target.value)} style={fieldInput} placeholder="Piscina, Academia, Portaria 24h" />
         <label style={fieldLabel}>Fotos</label>
+        <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 8px', lineHeight: 1.4 }}>Horizontais (paisagem). Ideal: 1200 × 800 px, JPG até 1 MB. A 1ª foto é a capa no site e no card.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
           {imagens.map((url, i) => (
             <div key={url} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', border: '1px solid var(--line)', borderRadius: 8 }}>
