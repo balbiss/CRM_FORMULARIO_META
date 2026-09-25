@@ -50,6 +50,21 @@ configRouter.put('/whatsapp', requireRole('dono', 'gerente'), async (req, res) =
   res.json({ modo: parsed.data.modo });
 });
 
+// Avisar o corretor por WhatsApp (número central) quando um lead cai pra ele pela roleta —
+// ele assume o atendimento pelo PRÓPRIO celular, fora do CRM. Só faz sentido com modo 'central'.
+configRouter.get('/notificar-corretor', async (req, res) => {
+  const [imob] = await db.select({ v: imobiliarias.notificarCorretorWhatsapp })
+    .from(imobiliarias).where(eq(imobiliarias.id, req.auth!.imobiliariaId)).limit(1);
+  res.json({ notificarCorretorWhatsapp: imob?.v ?? false });
+});
+
+configRouter.put('/notificar-corretor', requireRole('dono', 'gerente'), async (req, res) => {
+  const parsed = z.object({ notificarCorretorWhatsapp: z.boolean() }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Valor inválido' });
+  await db.update(imobiliarias).set({ notificarCorretorWhatsapp: parsed.data.notificarCorretorWhatsapp }).where(eq(imobiliarias.id, req.auth!.imobiliariaId));
+  res.json({ notificarCorretorWhatsapp: parsed.data.notificarCorretorWhatsapp });
+});
+
 // Limite de rebatidas que cada corretor pode puxar do bolsão por dia (0 = ilimitado).
 configRouter.get('/rebatidas', async (req, res) => {
   const [imob] = await db.select({ limite: imobiliarias.limiteRebatidasDia })

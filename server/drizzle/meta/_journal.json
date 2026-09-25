@@ -169,6 +169,13 @@
       "when": 1788761111023,
       "tag": "0023_light_doctor_doom",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790296178188,
+      "tag": "0024_happy_hellion",
+      "breakpoints": true
     }
   ]
 }

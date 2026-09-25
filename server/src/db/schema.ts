@@ -39,6 +39,12 @@ export const imobiliarias = pgTable('imobiliarias', {
   // 'corretor' = cada corretor usa o próprio WhatsApp (padrão atual);
   // 'central'  = um número da imobiliária, todo mundo atende pelo CRM, dono/gerente veem tudo.
   modoWhatsapp: modoWhatsappEnum('modo_whatsapp').notNull().default('corretor'),
+  // "Modo direto por WhatsApp" (só faz sentido junto com modoWhatsapp='central'): ao atribuir
+  // um lead pela roleta, (1) manda os dados dele por WhatsApp (mesmo número central) pro
+  // celular PESSOAL do corretor — ele assume o atendimento pelo próprio número, fora do CRM —
+  // (2) a roleta IGNORA se o corretor está "em plantão" (todo membro não bloqueado é candidato,
+  // a qualquer hora) e (3) o front pula o popup de Aceitar/Recusar (a atribuição é definitiva).
+  notificarCorretorWhatsapp: boolean('notificar_corretor_whatsapp').notNull().default(false),
 
   // --- Gestão da assinatura (painel Dono do SaaS) ---
   status: imobiliariaStatusEnum('status').notNull().default('ativa'),

@@ -144,6 +144,10 @@ interface AppState {
   kbTag: string | null;
   horarioAtendimento: DiaAtendimento[];
   modoWhatsapp: ModoWhatsapp;
+  // "Modo direto por WhatsApp": lead atribuído já sai avisado no celular pessoal do corretor
+  // (fora do CRM) — quando ligado, o front pula o popup de Aceitar/Recusar.
+  notificarCorretorWhatsapp: boolean;
+  setNotificarCorretorWhatsapp: (v: boolean) => Promise<void>;
   integracoesFacebook: IntegracaoFacebook[];
   siteWebhook: { url: string | null; token: string | null };
   regenerarSiteWebhook: () => Promise<void>;
@@ -480,6 +484,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   qrFor: null, importOpen: false, newLeadOpen: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [],
 
   alert: null, alertCount: 45, alertMenu: false, faqOpen: 'kanban', confirm: null, toasts: [], notificacoes: [], notifOpen: false, day: 17, leadsPendentes: [],
+  notificarCorretorWhatsapp: false,
   tarefas: [], eventosLead: {},
 
   login: async (email, senha) => {
@@ -502,6 +507,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().fetchTarefas();
       get().fetchFollowup();
       get().fetchRoletas();
+      get().fetchIntegracoes();
       return true;
     } catch (e) {
       set({ authError: (e as ApiError).message || 'Não foi possível entrar', authLoading: false });
@@ -511,7 +517,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('nova_token');
     disconnectSocket();
-    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [], tarefas: [], eventosLead: {}, fluxos: [], execucoesFollowup: [], site: null, roletas: [], rebatidasStatus: null, leadsPendentes: [] });
+    set({ token: null, me: null, leads: [], leadsCorretorIds: {}, colunasRemotas: [], perfisRemotos: [], tags: [], kbTag: null, horarioAtendimento: HORARIO_ATENDIMENTO_PADRAO, modoWhatsapp: 'corretor', notificarCorretorWhatsapp: false, integracoesFacebook: [], siteWebhook: { url: null, token: null }, sessoesWhatsapp: [], wahaConfigurado: false, templates: [], imoveis: [], linksUteis: [], treinamentos: [], notificacoes: [], conversas: [], tarefas: [], eventosLead: {}, fluxos: [], execucoesFollowup: [], site: null, roletas: [], rebatidasStatus: null, leadsPendentes: [] });
   },
   hydrateAuth: () => {
     const token = localStorage.getItem('nova_token');
@@ -558,8 +564,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (agoraEhMeu && !eraMeuAntes && me.role === 'corretor' && !get().leadsPendentes.some(p => p.id === raw.id)) {
         toqueLeadNovo();
         notificarNavegador('Novo lead pra você', raw.nome + (raw.canal ? ' · ' + raw.canal : ''));
-        set(s => ({ leadsPendentes: [...s.leadsPendentes, { id: raw.id, nome: raw.nome, canal: raw.canal || 'WhatsApp' }] }));
-        if (get().alert !== 'lead') get().fireAlert('lead');
+        // Modo direto por WhatsApp: o aviso já foi pro celular pessoal do corretor, a
+        // atribuição é definitiva — não empilha no popup de Aceitar/Recusar (sem timeout
+        // que devolveria o lead pra roleta e duplicaria o aviso pro próximo corretor).
+        if (!get().notificarCorretorWhatsapp) {
+          set(s => ({ leadsPendentes: [...s.leadsPendentes, { id: raw.id, nome: raw.nome, canal: raw.canal || 'WhatsApp' }] }));
+          if (get().alert !== 'lead') get().fireAlert('lead');
+        }
       }
 
       set(s => {
@@ -944,11 +955,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     const token = get().token;
     if (!token) return;
     try {
-      const [{ modo }, lista] = await Promise.all([
+      const [{ modo }, { notificarCorretorWhatsapp }, lista] = await Promise.all([
         apiFetch<{ modo: ModoWhatsapp }>('/api/config/whatsapp', token),
+        apiFetch<{ notificarCorretorWhatsapp: boolean }>('/api/config/notificar-corretor', token).catch(() => ({ notificarCorretorWhatsapp: false })),
         apiFetch<IntegracaoFacebook[]>('/api/integracoes/facebook', token).catch(() => [] as IntegracaoFacebook[]),
       ]);
-      set({ modoWhatsapp: modo, integracoesFacebook: lista });
+      set({ modoWhatsapp: modo, notificarCorretorWhatsapp, integracoesFacebook: lista });
       get().fetchSessoesWhatsapp();
       apiFetch<{ url: string | null; token: string | null }>('/api/integracoes/site', token)
         .then(w => set({ siteWebhook: w })).catch(() => {});
@@ -1017,6 +1029,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) {
       set({ modoWhatsapp: anterior });
       get().toast((e as ApiError).message || 'Não foi possível trocar o modo');
+    }
+  },
+  setNotificarCorretorWhatsapp: async v => {
+    const token = get().token;
+    if (!token) return;
+    const anterior = get().notificarCorretorWhatsapp;
+    set({ notificarCorretorWhatsapp: v });
+    try {
+      await apiFetch('/api/config/notificar-corretor', token, { method: 'PUT', body: JSON.stringify({ notificarCorretorWhatsapp: v }) });
+      get().toast(v ? 'Corretor será avisado por WhatsApp, sem popup de aceitar/recusar' : 'Voltou ao aviso normal dentro do CRM');
+    } catch (e) {
+      set({ notificarCorretorWhatsapp: anterior });
+      get().toast((e as ApiError).message || 'Não foi possível trocar essa opção');
     }
   },
   criarIntegracaoFb: async input => {

@@ -16,6 +16,8 @@ export default function Integracoes() {
   const { isManager } = useRoleInfo();
   const modo = useAppStore(s => s.modoWhatsapp);
   const setModo = useAppStore(s => s.setModoWhatsapp);
+  const notificarCorretor = useAppStore(s => s.notificarCorretorWhatsapp);
+  const setNotificarCorretor = useAppStore(s => s.setNotificarCorretorWhatsapp);
   const conexoes = useAppStore(s => s.integracoesFacebook);
   const fetchIntegracoes = useAppStore(s => s.fetchIntegracoes);
   const excluir = useAppStore(s => s.excluirIntegracaoFb);
@@ -83,6 +85,21 @@ export default function Integracoes() {
           </p>
         </div>
         {!isManager && <p style={{ fontSize: 12, color: 'var(--muted)', margin: '10px 2px 0' }}>Só Dono ou Gerente altera o modo de atendimento.</p>}
+
+        {isManager && modo === 'central' && (
+          <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 12, padding: '11px 13px', border: '1px solid var(--line)', borderRadius: 9, background: 'var(--card)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={notificarCorretor} onChange={e => setNotificarCorretor(e.target.checked)} style={{ marginTop: 2 }} />
+            <span>
+              <span style={{ fontSize: 13.5, fontWeight: 700, display: 'block', marginBottom: 3 }}>Avisar o corretor por WhatsApp (celular pessoal), sem passar pelo CRM</span>
+              <span style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6, display: 'block' }}>
+                Quando a roleta atribui um lead, o CRM manda os dados dele (nome, WhatsApp, e-mail, campanha) pelo número
+                central pro celular do corretor — que assume o atendimento pelo próprio número. Com isso: a roleta passa
+                a distribuir a qualquer horário, ignorando se o corretor está "em plantão"; e o popup de Aceitar/Recusar
+                dentro do CRM fica desligado (a atribuição já é definitiva).
+              </span>
+            </span>
+          </label>
+        )}
 
         {isManager && <ConexaoWhatsapp modo={modo} />}
       </section>

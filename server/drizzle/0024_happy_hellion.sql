@@ -1,0 +1,1 @@
+ALTER TABLE "imobiliarias" ADD COLUMN "notificar_corretor_whatsapp" boolean DEFAULT false NOT NULL;
