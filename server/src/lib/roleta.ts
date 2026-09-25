@@ -53,9 +53,10 @@ async function notificarCorretorPorWhatsapp(
       return;
     }
 
-    const partes = [`Novo lead pra você: ${lead.nome}`, `WhatsApp: ${lead.telefone}`];
-    if (lead.email) partes.push(`E-mail: ${lead.email}`);
-    if (lead.campanha) partes.push(`Campanha: ${lead.campanha}`);
+    const partes = ['*Novo lead atribuído a você*', '', `*Nome:* ${lead.nome}`, `*WhatsApp:* ${lead.telefone}`];
+    if (lead.email) partes.push(`*E-mail:* ${lead.email}`);
+    if (lead.campanha) partes.push(`*Campanha:* ${lead.campanha}`);
+    partes.push('', 'Entre em contato o quanto antes para não perder a oportunidade.');
     await enviarTexto(sessao.sessionName, corretor.telefone, partes.join('\n'));
   } catch (e) {
     registrarEvento(imobiliariaId, leadId, 'aviso', 'Erro ao avisar o corretor por WhatsApp: ' + (e as Error).message, 'Sistema');
