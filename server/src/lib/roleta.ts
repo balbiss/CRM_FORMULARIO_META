@@ -18,7 +18,7 @@ async function notificarCorretorPorWhatsapp(
   leadId: string,
   corretorId: string,
   roletaId: string,
-  lead: { nome: string; telefone: string; email: string | null; campanha: string | null },
+  lead: { nome: string; telefone: string; email: string | null; campanha: string | null; canal: string },
 ) {
   try {
     const [imob] = await db.select({ modo: imobiliarias.modoWhatsapp, ligado: imobiliarias.notificarCorretorWhatsapp })
@@ -55,8 +55,9 @@ async function notificarCorretorPorWhatsapp(
 
     const partes = ['*Novo lead atribuído a você*', '', `*Nome:* ${lead.nome}`, `*WhatsApp:* ${lead.telefone}`];
     if (lead.email) partes.push(`*E-mail:* ${lead.email}`);
+    partes.push(`*Canal:* ${lead.canal}`);
     if (lead.campanha) partes.push(`*Campanha:* ${lead.campanha}`);
-    partes.push('', 'Entre em contato o quanto antes para não perder a oportunidade.');
+    partes.push('', 'Entre em contato o quanto antes para não perder a oportunidade.', '', '_Mensagem automática — Visita IA CRM_');
     await enviarTexto(sessao.sessionName, corretor.telefone, partes.join('\n'));
   } catch (e) {
     registrarEvento(imobiliariaId, leadId, 'aviso', 'Erro ao avisar o corretor por WhatsApp: ' + (e as Error).message, 'Sistema');
@@ -159,7 +160,7 @@ export async function distribuirLead(io: SocketServer, imobiliariaId: string, le
   }).catch(() => {});
   void dispararGatilhoLeadNovo(io, imobiliariaId, leadId, escolhido.corretorId);
   void notificarCorretorPorWhatsapp(imobiliariaId, leadId, escolhido.corretorId, roleta.id, {
-    nome: lead.nome, telefone: lead.telefone, email: lead.email, campanha: lead.campanha,
+    nome: lead.nome, telefone: lead.telefone, email: lead.email, campanha: lead.campanha, canal: lead.canal,
   });
   return escolhido.corretorId;
 }
