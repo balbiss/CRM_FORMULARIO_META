@@ -46,7 +46,7 @@ async function notificarCorretorPorWhatsapp(
       return;
     }
 
-    const { checarNumero, enviarTexto } = await import('./waha.js');
+    const { checarNumero, enviarTexto, resolverLid } = await import('./waha.js');
     const existe = await checarNumero(sessao.sessionName, corretor.telefone);
     if (existe !== true) {
       registrarEvento(imobiliariaId, leadId, 'aviso', 'Telefone do corretor não é um WhatsApp válido — não deu pra avisar por WhatsApp.', 'Sistema');
@@ -58,6 +58,8 @@ async function notificarCorretorPorWhatsapp(
     partes.push(`*Canal:* ${lead.canal}`);
     if (lead.campanha) partes.push(`*Campanha:* ${lead.campanha}`);
     partes.push('', 'Entre em contato o quanto antes para não perder a oportunidade.', '', '_Mensagem automática — Visita IA CRM_');
+    // Contorno pro bug de LID (ver comentário em resolverLid) — best-effort antes de mandar.
+    await resolverLid(sessao.sessionName, corretor.telefone);
     await enviarTexto(sessao.sessionName, corretor.telefone, partes.join('\n'));
   } catch (e) {
     registrarEvento(imobiliariaId, leadId, 'aviso', 'Erro ao avisar o corretor por WhatsApp: ' + (e as Error).message, 'Sistema');

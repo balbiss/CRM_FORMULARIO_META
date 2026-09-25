@@ -114,6 +114,21 @@ export async function enviarTexto(sessionName: string, numero: string, texto: st
   return waha('/api/sendText', { method: 'POST', body: { session: sessionName, chatId: chatId(numero), text: texto } });
 }
 
+/** Contorno NÃO-oficial pra um bug conhecido do WAHA no engine GOWS (issue aberta
+ *  devlikeapro/waha#2214, sem correção confirmada até a versão 2026.9.1): às vezes o
+ *  `/api/sendText` falha com "no LID found for ...@s.whatsapp.net" porque o servidor do
+ *  WhatsApp não resolveu a identidade LID do contato a tempo. Forçar essa consulta antes de
+ *  mandar a mensagem foi reportado por outro usuário como um jeito de "esquentar" a resolução.
+ *  Best-effort: se falhar, ignora e deixa o envio normal tentar mesmo assim. */
+export async function resolverLid(sessionName: string, numero: string): Promise<void> {
+  try {
+    const fone = numero.replace(/[^0-9]/g, '');
+    await waha(`/api/${sessionName}/lids/pn/${fone}`);
+  } catch {
+    // contorno experimental — se o endpoint não existir ou falhar, segue sem travar nada
+  }
+}
+
 /** Confere se o número existe no WhatsApp antes de mandar a 1ª mensagem da régua.
  *  true = existe, false = não existe, null = não deu pra checar (WAHA fora / sessão off). */
 export async function checarNumero(sessionName: string, numero: string): Promise<boolean | null> {
