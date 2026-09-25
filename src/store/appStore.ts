@@ -573,7 +573,18 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }
 
+      // O broadcast do socket chega pra imobiliária inteira, não só pra quem é dono do lead.
+      // Corretor só pode ter EM MEMÓRIA os próprios leads (e os sem dono — Bolsão/rebatidas,
+      // fila compartilhada de propósito). Um lead de OUTRO corretor específico nunca entra em
+      // s.leads, senão o nome/telefone/valor dele fica exposto no estado local de outro
+      // corretor mesmo que a tela filtre a exibição.
+      const naoEhMeu = me?.role === 'corretor' && raw.corretorId !== null && raw.corretorId !== me.id;
+
       set(s => {
+        if (naoEhMeu) {
+          const semEsse = s.leads.some(l => l.id === raw.id) ? s.leads.filter(l => l.id !== raw.id) : s.leads;
+          return { leads: semEsse, leadsCorretorIds: { ...s.leadsCorretorIds, [raw.id]: raw.corretorId } };
+        }
         const anterior = s.leads.find(l => l.id === raw.id);
         // o payload do socket não traz etiquetas — preserva as que já estão em memória
         const mapped = { ...mapRemoteLead(raw, colunasRemotas, perfisRemotos), tags: raw.tagIds ?? anterior?.tags ?? [] };
@@ -608,6 +619,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       set(s => ({ perfisRemotos: s.perfisRemotos.filter(p => p.id !== msg.id), fila: s.fila.filter(f => f.corretorId !== msg.id) }));
     });
     socket.off('mensagem:created').on('mensagem:created', (row: RemoteMensagem) => {
+      const { me, colunasRemotas, leads } = get();
+      if (!colunasRemotas.length) return; // ainda carregando — o fetch inicial de conversas já traz o que é meu
+      // Mesmo raciocínio do upsert de lead: mensagem de um lead que não é meu não entra em
+      // memória (nem no resumo da lista de Conversas, nem no chat), mesmo que o evento chegue
+      // pra imobiliária inteira.
+      if (me?.role === 'corretor' && !leads.some(l => l.id === row.leadId)) return;
       set(s => {
         const abertaAgora = s.leadId === row.leadId;
         const anterior = s.conversas.find(c => c.leadId === row.leadId);
