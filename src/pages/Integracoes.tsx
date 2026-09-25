@@ -494,7 +494,10 @@ function ConexaoWhatsapp({ modo }: { modo: ModoWhatsapp }) {
       <div className="row-actions" style={{ display: 'flex', gap: 7, flex: 'none' }}>
         {s?.status === 'conectada'
           ? <button onClick={() => desconectar(s.id)} style={btn}>Desconectar</button>
-          : <button onClick={onConnect} style={{ ...btn, background: 'var(--terra)', color: '#fff', border: 'none' }}>Conectar</button>}
+          : <>
+              <button onClick={onConnect} style={{ ...btn, background: 'var(--terra)', color: '#fff', border: 'none' }}>Conectar</button>
+              {s && <button onClick={() => desconectar(s.id)} style={btn}>Excluir</button>}
+            </>}
       </div>
     </div>
   );
@@ -524,7 +527,10 @@ function ConexaoWhatsapp({ modo }: { modo: ModoWhatsapp }) {
                   <div className="row-actions" style={{ display: 'flex', gap: 7, flex: 'none' }}>
                     {s.status === 'conectada'
                       ? <button onClick={() => desconectar(s.id)} style={btn}>Desconectar</button>
-                      : <button onClick={() => setQrPara(s.id)} style={{ ...btn, background: 'var(--terra)', color: '#fff', border: 'none' }}>Ler QR</button>}
+                      : <>
+                          <button onClick={() => setQrPara(s.id)} style={{ ...btn, background: 'var(--terra)', color: '#fff', border: 'none' }}>Ler QR</button>
+                          <button onClick={() => desconectar(s.id)} style={btn}>Excluir</button>
+                        </>}
                   </div>
                 </div>
               ))}
