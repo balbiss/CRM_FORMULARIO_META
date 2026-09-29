@@ -15,15 +15,14 @@ export function baileysWebhookRouter() {
   // webhook do WAHA, ver whatsapp.ts).
   router.post('/webhook', (req, res) => {
     if (req.query.token !== webhookVerifyToken()) return res.status(401).json({ error: 'token inválido' });
-    const body = req.body as Record<string, unknown>;
+    const body = req.body as { event?: string; data?: { qrDataUrl?: string; connection?: string } };
     ultimoEvento = {
-      tipo: String(body?.event ?? body?.type ?? 'desconhecido'),
-      qr: (body?.qr as string | undefined) ?? (body?.qrCode as string | undefined) ?? null,
-      connected: typeof body?.connected === 'boolean' ? body.connected as boolean : undefined,
+      tipo: String(body?.event ?? 'desconhecido'),
+      qr: body?.data?.qrDataUrl ?? null,
+      connected: body?.data?.connection === 'open' ? true : body?.data?.connection ? false : undefined,
       recebidoEm: new Date().toISOString(),
-      bruto: body,
     };
-    console.log('baileys webhook:', ultimoEvento.tipo, ultimoEvento.connected ?? '');
+    console.log('baileys webhook:', ultimoEvento.tipo, body?.data?.connection ?? '');
     res.json({ ok: true });
   });
 
