@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAppStore, type IntegracaoFacebook, type ModoWhatsapp } from '../store/appStore';
 import { useRoleInfo } from '../lib/selectors';
+import { apiFetch, type ApiError } from '../lib/api';
 
 const secTitle: React.CSSProperties = { fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 4px' };
 const card: React.CSSProperties = { border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', padding: 20 };
@@ -100,6 +101,8 @@ export default function Integracoes() {
             </span>
           </label>
         )}
+
+        {isManager && modo === 'central' && notificarCorretor && <ConexaoBaileysAviso />}
 
         {isManager && <ConexaoWhatsapp modo={modo} />}
       </section>
@@ -445,6 +448,64 @@ function MeuWhatsapp({ modo }: { modo: ModoWhatsapp }) {
       )}
 
       {qrPara && <QrWhatsappModal sessaoId={qrPara} onClose={() => { setQrPara(null); fetchSessoes(); }} />}
+    </div>
+  );
+}
+
+// ---- Conexão do serviço dedicado (Baileys) usado só pro aviso ao corretor ----
+function ConexaoBaileysAviso() {
+  const token = useAppStore(s => s.token);
+  const toast = useAppStore(s => s.toast);
+  const [status, setStatus] = useState<{ disponivel: boolean; configurado?: boolean; conectado?: boolean; ultimoEvento?: { qr?: string | null; recebidoEm: string } | null } | null>(null);
+  const [conectando, setConectando] = useState(false);
+
+  const buscar = () => {
+    apiFetch<typeof status>('/api/config/baileys-status', token).then(setStatus).catch(() => {});
+  };
+
+  useEffect(() => {
+    buscar();
+    const t = setInterval(buscar, 4000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!status?.disponivel) return null;
+
+  const conectar = async () => {
+    setConectando(true);
+    try {
+      await apiFetch('/api/config/baileys-conectar', token, { method: 'POST' });
+      toast('Conectando — aguarde o QR aparecer aqui em alguns segundos');
+    } catch (e) {
+      toast((e as ApiError).message || 'Não foi possível iniciar a conexão');
+    } finally {
+      setConectando(false);
+    }
+  };
+
+  const qr = status.ultimoEvento?.qr;
+
+  return (
+    <div style={{ ...card, marginTop: 14, background: 'var(--bg)' }}>
+      <p style={secTitle}>Número dedicado ao aviso de lead (Baileys)</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: status.conectado ? 'var(--olive)' : 'var(--muted)' }} />
+        <span style={{ fontSize: 13, fontWeight: 600 }}>{status.conectado ? 'Conectado' : 'Não conectado'}</span>
+      </div>
+      {!status.conectado && (
+        <>
+          <button onClick={conectar} disabled={conectando} style={{ marginTop: 10, padding: '9px 16px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600 }}>
+            {conectando ? 'Iniciando…' : 'Conectar (ler QR)'}
+          </button>
+          {qr && (
+            <div style={{ marginTop: 14 }}>
+              <img src={qr.startsWith('data:') ? qr : `data:image/png;base64,${qr}`} alt="QR code" style={{ width: 220, height: 220, borderRadius: 8, border: '1px solid var(--line)' }} />
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>Escaneie com o mesmo número já conectado no WAHA (WhatsApp &gt; Aparelhos conectados &gt; Conectar um aparelho).</p>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { filasAtendimento, roletas, perfis, leads, colunasKanban, distribuicaoLog, notificacoes, imobiliarias, sessoesWhatsapp } from '../db/schema.js';
+import { filasAtendimento, roletas, perfis, leads, colunasKanban, distribuicaoLog, notificacoes, imobiliarias } from '../db/schema.js';
 import { enviarPush } from './push.js';
 import { registrarEvento } from './eventos.js';
 import { dispararGatilhoLeadNovo } from './followup.js';
@@ -9,21 +9,32 @@ import type { Server as SocketServer } from 'socket.io';
 type Roleta = typeof roletas.$inferSelect;
 
 /** Avisa o corretor por WhatsApp (número central, no celular PESSOAL dele) que um lead novo
- *  caiu pra ele — só quando a imobiliária ligou essa opção E está no modo central. Confere
- *  no WAHA se o número do corretor existe de verdade antes de mandar (evita erro silencioso
- *  pra número desatualizado/errado no cadastro). Nunca lança — falha aqui não pode derrubar
- *  a atribuição do lead, que já aconteceu antes desta função ser chamada. */
+ *  caiu pra ele — só quando a imobiliária ligou essa opção. Nunca lança — falha aqui não pode
+ *  derrubar a atribuição do lead, que já aconteceu antes desta função ser chamada.
+ *
+ *  Sobre o motor de envio: o WAHA (engine GOWS) falha de forma consistente pra esse tipo de
+ *  mensagem ("a frio", o CRM inicia sem o corretor ter mandado nada antes) — bug conhecido do
+ *  WAHA (devlikeapro/waha#2214, "no LID found"), investigado a fundo, sem correção disponível.
+ *  Por isso essa função específica usa um serviço Baileys dedicado (baileysApi.ts) em vez do
+ *  WAHA. Esse serviço hoje atende UM número só (BAILEYS_IMOBILIARIA_ID) — por segurança,
+ *  qualquer outra imobiliária que ligar essa opção no futuro não vai mandar nada até esse
+ *  serviço virar multi-tenant de verdade (evita mandar mensagem pelo número errado). */
 async function notificarCorretorPorWhatsapp(
   imobiliariaId: string,
   leadId: string,
   corretorId: string,
-  roletaId: string,
+  _roletaId: string,
   lead: { nome: string; telefone: string; email: string | null; campanha: string | null; canal: string },
 ) {
   try {
-    const [imob] = await db.select({ modo: imobiliarias.modoWhatsapp, ligado: imobiliarias.notificarCorretorWhatsapp })
+    const [imob] = await db.select({ ligado: imobiliarias.notificarCorretorWhatsapp })
       .from(imobiliarias).where(eq(imobiliarias.id, imobiliariaId)).limit(1);
-    if (!imob?.ligado || imob.modo !== 'central') return;
+    if (!imob?.ligado) return;
+
+    if (imobiliariaId !== process.env.BAILEYS_IMOBILIARIA_ID) {
+      registrarEvento(imobiliariaId, leadId, 'aviso', 'Aviso por WhatsApp ainda não disponível pra essa imobiliária (serviço dedicado, 1 conta por vez).', 'Sistema');
+      return;
+    }
 
     const [corretor] = await db.select({ telefone: perfis.telefone }).from(perfis).where(eq(perfis.id, corretorId)).limit(1);
     if (!corretor?.telefone) {
@@ -31,25 +42,14 @@ async function notificarCorretorPorWhatsapp(
       return;
     }
 
-    const [roleta] = await db.select({ sessaoWhatsappId: roletas.sessaoWhatsappId }).from(roletas).where(eq(roletas.id, roletaId)).limit(1);
-    let sessao;
-    if (roleta?.sessaoWhatsappId) {
-      [sessao] = await db.select().from(sessoesWhatsapp)
-        .where(and(eq(sessoesWhatsapp.id, roleta.sessaoWhatsappId), eq(sessoesWhatsapp.status, 'conectada'))).limit(1);
-    }
-    if (!sessao) {
-      [sessao] = await db.select().from(sessoesWhatsapp)
-        .where(and(eq(sessoesWhatsapp.imobiliariaId, imobiliariaId), eq(sessoesWhatsapp.escopo, 'central'), eq(sessoesWhatsapp.status, 'conectada'))).limit(1);
-    }
-    if (!sessao) {
-      registrarEvento(imobiliariaId, leadId, 'aviso', 'Número central desconectado — não deu pra avisar o corretor por WhatsApp.', 'Sistema');
+    const { baileysConfigurado, statusConexao, enviarTexto } = await import('./baileysApi.js');
+    if (!baileysConfigurado()) {
+      registrarEvento(imobiliariaId, leadId, 'aviso', 'Serviço de WhatsApp (Baileys) não configurado — não deu pra avisar o corretor.', 'Sistema');
       return;
     }
-
-    const { checarNumero, enviarTexto, resolverLid } = await import('./waha.js');
-    const existe = await checarNumero(sessao.sessionName, corretor.telefone);
-    if (existe !== true) {
-      registrarEvento(imobiliariaId, leadId, 'aviso', 'Telefone do corretor não é um WhatsApp válido — não deu pra avisar por WhatsApp.', 'Sistema');
+    const status = await statusConexao();
+    if (!status?.connected) {
+      registrarEvento(imobiliariaId, leadId, 'aviso', 'Número central (Baileys) desconectado — não deu pra avisar o corretor por WhatsApp.', 'Sistema');
       return;
     }
 
@@ -58,9 +58,7 @@ async function notificarCorretorPorWhatsapp(
     partes.push(`*Canal:* ${lead.canal}`);
     if (lead.campanha) partes.push(`*Campanha:* ${lead.campanha}`);
     partes.push('', 'Entre em contato o quanto antes para não perder a oportunidade.', '', '_Mensagem automática — Visita IA CRM_');
-    // Contorno pro bug de LID (ver comentário em resolverLid) — best-effort antes de mandar.
-    await resolverLid(sessao.sessionName, corretor.telefone);
-    await enviarTexto(sessao.sessionName, corretor.telefone, partes.join('\n'));
+    await enviarTexto(corretor.telefone, partes.join('\n'));
   } catch (e) {
     registrarEvento(imobiliariaId, leadId, 'aviso', 'Erro ao avisar o corretor por WhatsApp: ' + (e as Error).message, 'Sistema');
   }
