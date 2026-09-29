@@ -12,18 +12,17 @@ type Roleta = typeof roletas.$inferSelect;
  *  caiu pra ele — só quando a imobiliária ligou essa opção. Nunca lança — falha aqui não pode
  *  derrubar a atribuição do lead, que já aconteceu antes desta função ser chamada.
  *
- *  Sobre o motor de envio: o WAHA (engine GOWS) falha de forma consistente pra esse tipo de
- *  mensagem ("a frio", o CRM inicia sem o corretor ter mandado nada antes) — bug conhecido do
- *  WAHA (devlikeapro/waha#2214, "no LID found"), investigado a fundo, sem correção disponível.
- *  Por isso essa função específica usa um serviço Baileys dedicado (baileysApi.ts) em vez do
- *  WAHA. Esse serviço hoje atende UM número só (BAILEYS_IMOBILIARIA_ID) — por segurança,
- *  qualquer outra imobiliária que ligar essa opção no futuro não vai mandar nada até esse
- *  serviço virar multi-tenant de verdade (evita mandar mensagem pelo número errado). */
+ *  O envio em si NÃO é feito por aqui — só empurra os dados pra um webhook do n8n
+ *  (N8N_AVISO_CORRETOR_WEBHOOK_URL), que decide como mandar de verdade. Decisão deliberada:
+ *  já tentamos WAHA (bug conhecido devlikeapro/waha#2214, "no LID found" — falha consistente
+ *  pra mensagem iniciada pelo sistema) e um serviço Baileys dedicado (crashava de forma
+ *  reproduzível logo após o primeiro pareamento) — os dois direto no código do CRM. Botar
+ *  essa etapa no n8n permite trocar o motor de envio sem precisar redeployar o backend. */
 async function notificarCorretorPorWhatsapp(
   imobiliariaId: string,
   leadId: string,
   corretorId: string,
-  _roletaId: string,
+  roletaId: string,
   lead: { nome: string; telefone: string; email: string | null; campanha: string | null; canal: string },
 ) {
   try {
@@ -31,34 +30,28 @@ async function notificarCorretorPorWhatsapp(
       .from(imobiliarias).where(eq(imobiliarias.id, imobiliariaId)).limit(1);
     if (!imob?.ligado) return;
 
-    if (imobiliariaId !== process.env.BAILEYS_IMOBILIARIA_ID) {
-      registrarEvento(imobiliariaId, leadId, 'aviso', 'Aviso por WhatsApp ainda não disponível pra essa imobiliária (serviço dedicado, 1 conta por vez).', 'Sistema');
+    const webhookUrl = process.env.N8N_AVISO_CORRETOR_WEBHOOK_URL;
+    if (!webhookUrl) {
+      registrarEvento(imobiliariaId, leadId, 'aviso', 'Webhook de aviso ao corretor não configurado — não deu pra avisar por WhatsApp.', 'Sistema');
       return;
     }
 
-    const [corretor] = await db.select({ telefone: perfis.telefone }).from(perfis).where(eq(perfis.id, corretorId)).limit(1);
+    const [corretor] = await db.select({ nome: perfis.nome, telefone: perfis.telefone }).from(perfis).where(eq(perfis.id, corretorId)).limit(1);
     if (!corretor?.telefone) {
       registrarEvento(imobiliariaId, leadId, 'aviso', 'Corretor sem telefone cadastrado — não deu pra avisar por WhatsApp.', 'Sistema');
       return;
     }
 
-    const { baileysConfigurado, statusConexao, enviarTexto } = await import('./baileysApi.js');
-    if (!baileysConfigurado()) {
-      registrarEvento(imobiliariaId, leadId, 'aviso', 'Serviço de WhatsApp (Baileys) não configurado — não deu pra avisar o corretor.', 'Sistema');
-      return;
-    }
-    const status = await statusConexao();
-    if (!status?.connected) {
-      registrarEvento(imobiliariaId, leadId, 'aviso', 'Número central (Baileys) desconectado — não deu pra avisar o corretor por WhatsApp.', 'Sistema');
-      return;
-    }
-
-    const partes = ['*Novo lead atribuído a você*', '', `*Nome:* ${lead.nome}`, `*WhatsApp:* ${lead.telefone}`];
-    if (lead.email) partes.push(`*E-mail:* ${lead.email}`);
-    partes.push(`*Canal:* ${lead.canal}`);
-    if (lead.campanha) partes.push(`*Campanha:* ${lead.campanha}`);
-    partes.push('', 'Entre em contato o quanto antes para não perder a oportunidade.', '', '_Mensagem automática — Visita IA CRM_');
-    await enviarTexto(corretor.telefone, partes.join('\n'));
+    const r = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imobiliariaId, leadId, corretorId, roletaId,
+        corretorNome: corretor.nome, corretorTelefone: corretor.telefone,
+        lead: { nome: lead.nome, telefone: lead.telefone, email: lead.email, campanha: lead.campanha, canal: lead.canal },
+      }),
+    });
+    if (!r.ok) throw new Error('webhook n8n -> ' + r.status);
   } catch (e) {
     registrarEvento(imobiliariaId, leadId, 'aviso', 'Erro ao avisar o corretor por WhatsApp: ' + (e as Error).message, 'Sistema');
   }

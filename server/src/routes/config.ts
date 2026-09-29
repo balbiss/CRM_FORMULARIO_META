@@ -4,8 +4,6 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { imobiliarias, HORARIO_ATENDIMENTO_PADRAO } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { baileysConfigurado, criarConexao, statusConexao } from '../lib/baileysApi.js';
-import { getUltimoEventoBaileys } from './baileysWebhook.js';
 import type { Server as SocketServer } from 'socket.io';
 
 export function configRouter(io: SocketServer) {
@@ -65,29 +63,6 @@ configRouter.put('/notificar-corretor', requireRole('dono', 'gerente'), async (r
   if (!parsed.success) return res.status(400).json({ error: 'Valor inválido' });
   await db.update(imobiliarias).set({ notificarCorretorWhatsapp: parsed.data.notificarCorretorWhatsapp }).where(eq(imobiliarias.id, req.auth!.imobiliariaId));
   res.json({ notificarCorretorWhatsapp: parsed.data.notificarCorretorWhatsapp });
-});
-
-// Conexão do serviço dedicado de WhatsApp (Baileys) usado só pro aviso automático ao
-// corretor. Hoje é um serviço de 1 número só — só a imobiliária configurada em
-// BAILEYS_IMOBILIARIA_ID vê isso funcionar de verdade.
-configRouter.get('/baileys-status', requireRole('dono', 'gerente'), async (req, res) => {
-  if (req.auth!.imobiliariaId !== process.env.BAILEYS_IMOBILIARIA_ID) {
-    return res.json({ disponivel: false });
-  }
-  const status = await statusConexao();
-  res.json({ disponivel: true, configurado: baileysConfigurado(), conectado: !!status?.connected, ultimoEvento: getUltimoEventoBaileys() });
-});
-
-configRouter.post('/baileys-conectar', requireRole('dono', 'gerente'), async (req, res) => {
-  if (req.auth!.imobiliariaId !== process.env.BAILEYS_IMOBILIARIA_ID) {
-    return res.status(403).json({ error: 'Não disponível pra essa conta' });
-  }
-  try {
-    await criarConexao();
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: (e as Error).message });
-  }
 });
 
 // Limite de rebatidas que cada corretor pode puxar do bolsão por dia (0 = ilimitado).
