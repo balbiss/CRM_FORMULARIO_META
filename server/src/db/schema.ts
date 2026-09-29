@@ -317,6 +317,24 @@ export const eventosLead = pgTable('eventos_lead', {
   leadIdx: index('eventos_lead_lead_id_idx').on(table.leadId),
 }));
 
+/** Resultado de cada tentativa de aviso ao corretor por WhatsApp (via n8n) — reportado pelo
+ *  próprio n8n depois de tentar mandar (sucesso ou erro), não pelo CRM na hora de disparar
+ *  (o CRM só empurra pro webhook, quem sabe se mandou de verdade é quem chama o WAHA).
+ *  Nome de lead/corretor gravados como snapshot (sobrevivem se o registro original sumir). */
+export const avisosCorretorWhatsapp = pgTable('avisos_corretor_whatsapp', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  imobiliariaId: uuid('imobiliaria_id').notNull().references(() => imobiliarias.id, { onDelete: 'cascade' }),
+  leadId: uuid('lead_id').references(() => leads.id, { onDelete: 'set null' }),
+  leadNome: text('lead_nome').notNull(),
+  corretorId: uuid('corretor_id').references(() => perfis.id, { onDelete: 'set null' }),
+  corretorNome: text('corretor_nome').notNull(),
+  sucesso: boolean('sucesso').notNull(),
+  erro: text('erro'),
+  criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+}, table => ({
+  imobiliariaIdx: index('avisos_corretor_whatsapp_imobiliaria_id_idx').on(table.imobiliariaId),
+}));
+
 /** Régua de follow-up que um corretor monta. Cada corretor tem quantas quiser; no máximo uma
  *  marcada como `disparaEmLeadNovo` dispara sozinha quando um lead cai pra ele. */
 export const followupFluxos = pgTable('followup_fluxos', {
