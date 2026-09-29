@@ -472,22 +472,19 @@ function ConexaoBaileysAviso() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const conectar = async (silencioso = false) => {
+  const conectar = async () => {
     try {
       await apiFetch('/api/config/baileys-conectar', token, { method: 'POST' });
-      if (!silencioso) toast('Conectando — aguarde o QR aparecer aqui em alguns segundos');
+      toast('Conectando — aguarde o QR aparecer aqui em alguns segundos');
     } catch (e) {
-      if (!silencioso) toast((e as ApiError).message || 'Não foi possível iniciar a conexão');
+      toast((e as ApiError).message || 'Não foi possível iniciar a conexão');
     }
   };
 
-  // Renova o QR sozinho a cada 25s enquanto estiver tentando e ainda não conectou.
-  useEffect(() => {
-    if (!tentando || status?.conectado) return;
-    const t = setInterval(() => conectar(true), 25000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tentando, status?.conectado]);
+  // O próprio Baileys renova o QR sozinho de tempos em tempos enquanto espera o scan (dá
+  // pra ver isso pelo `recebidoEm` mudando no polling de 4s acima) — NUNCA forçar um reset
+  // (desconectar+reconectar) daqui, ou corre o risco de derrubar um pareamento em andamento
+  // bem no meio do usuário escaneando.
 
   if (!status?.disponivel) return null;
 
