@@ -30,8 +30,15 @@ const numeroLimpo = (n: string) => n.replace(/[^0-9]/g, '');
  *  um 2º aparelho ligado na mesma conta (decisão do dono). */
 export const numeroConexao = () => process.env.BAILEYS_PHONE_NUMBER || '';
 
-/** Inicia (ou reconecta) a sessão — o QR/status chegam pelo webhook, não nessa resposta. */
+/** Limpa qualquer sessão/auth anterior (evita ficar preso num estado velho sem QR novo). */
+export async function desconectar() {
+  await chamar(`/connections/${encodeURIComponent(numeroConexao())}`, { method: 'DELETE' }).catch(() => {});
+}
+
+/** Sempre limpa a sessão antes e começa do zero — o QR/status chegam pelo webhook, não nessa
+ *  resposta. Usado pelo botão "Conectar" (ação manual do dono/gerente). */
 export async function criarConexao() {
+  await desconectar();
   const phone = numeroConexao();
   return chamar(`/connections/${encodeURIComponent(phone)}`, {
     method: 'POST',
