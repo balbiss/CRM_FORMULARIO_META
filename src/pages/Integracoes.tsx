@@ -457,7 +457,9 @@ function ConexaoBaileysAviso() {
   const token = useAppStore(s => s.token);
   const toast = useAppStore(s => s.toast);
   const [status, setStatus] = useState<{ disponivel: boolean; configurado?: boolean; conectado?: boolean; ultimoEvento?: { qr?: string | null; recebidoEm: string } | null } | null>(null);
-  const [conectando, setConectando] = useState(false);
+  // Enquanto isso estiver true, gera um QR novo sozinho de tempos em tempos (o QR expira
+  // rápido — sem isso, o dono tinha que ficar clicando "Conectar" de novo toda hora).
+  const [tentando, setTentando] = useState(false);
 
   const buscar = () => {
     apiFetch<typeof status>('/api/config/baileys-status', token).then(setStatus).catch(() => {});
@@ -470,18 +472,28 @@ function ConexaoBaileysAviso() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!status?.disponivel) return null;
-
-  const conectar = async () => {
-    setConectando(true);
+  const conectar = async (silencioso = false) => {
     try {
       await apiFetch('/api/config/baileys-conectar', token, { method: 'POST' });
-      toast('Conectando — aguarde o QR aparecer aqui em alguns segundos');
+      if (!silencioso) toast('Conectando — aguarde o QR aparecer aqui em alguns segundos');
     } catch (e) {
-      toast((e as ApiError).message || 'Não foi possível iniciar a conexão');
-    } finally {
-      setConectando(false);
+      if (!silencioso) toast((e as ApiError).message || 'Não foi possível iniciar a conexão');
     }
+  };
+
+  // Renova o QR sozinho a cada 25s enquanto estiver tentando e ainda não conectou.
+  useEffect(() => {
+    if (!tentando || status?.conectado) return;
+    const t = setInterval(() => conectar(true), 25000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tentando, status?.conectado]);
+
+  if (!status?.disponivel) return null;
+
+  const iniciar = async () => {
+    setTentando(true);
+    await conectar();
   };
 
   const qr = status.ultimoEvento?.qr;
@@ -495,15 +507,21 @@ function ConexaoBaileysAviso() {
       </div>
       {!status.conectado && (
         <>
-          <button onClick={conectar} disabled={conectando} style={{ marginTop: 10, padding: '9px 16px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600 }}>
-            {conectando ? 'Iniciando…' : 'Conectar (ler QR)'}
-          </button>
-          {qr && (
+          {!tentando && (
+            <button onClick={iniciar} style={{ marginTop: 10, padding: '9px 16px', border: 'none', borderRadius: 8, background: 'var(--terra)', color: '#fff', fontSize: 13, fontWeight: 600 }}>
+              Conectar (ler QR)
+            </button>
+          )}
+          {tentando && qr && (
             <div style={{ marginTop: 14 }}>
               <img src={qr.startsWith('data:') ? qr : `data:image/png;base64,${qr}`} alt="QR code" style={{ width: 220, height: 220, borderRadius: 8, border: '1px solid var(--line)' }} />
-              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>Escaneie com o mesmo número já conectado no WAHA (WhatsApp &gt; Aparelhos conectados &gt; Conectar um aparelho).</p>
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
+                Escaneie com o mesmo número já conectado no WAHA (WhatsApp &gt; Aparelhos conectados &gt; Conectar um aparelho).
+                O código se renova sozinho se expirar — não precisa clicar de novo.
+              </p>
             </div>
           )}
+          {tentando && !qr && <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 10 }}>Gerando QR…</p>}
         </>
       )}
     </div>
