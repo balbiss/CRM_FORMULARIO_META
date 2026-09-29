@@ -4,7 +4,7 @@ import { webhookVerifyToken } from '../lib/baileysApi.js';
 /** Estado da última conexão — em memória mesmo (é uma sessão única, de um número só, sem
  *  necessidade de persistir em banco; se o processo reiniciar, o próprio baileys-api reemite
  *  o evento de status ao reconectar). */
-let ultimoEvento: { tipo: string; qr?: string | null; connected?: boolean; recebidoEm: string } | null = null;
+let ultimoEvento: { tipo: string; qr?: string | null; connected?: boolean; recebidoEm: string; bruto?: unknown } | null = null;
 
 export const getUltimoEventoBaileys = () => ultimoEvento;
 
@@ -21,6 +21,7 @@ export function baileysWebhookRouter() {
       qr: (body?.qr as string | undefined) ?? (body?.qrCode as string | undefined) ?? null,
       connected: typeof body?.connected === 'boolean' ? body.connected as boolean : undefined,
       recebidoEm: new Date().toISOString(),
+      bruto: body,
     };
     console.log('baileys webhook:', ultimoEvento.tipo, ultimoEvento.connected ?? '');
     res.json({ ok: true });
