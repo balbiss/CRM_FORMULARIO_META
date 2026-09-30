@@ -2,7 +2,7 @@ import { useAppStore } from '../store/appStore';
 
 const FAQ = [
   { id: 'kanban', q: 'Kanban de Leads', a: 'Cada coluna é uma etapa real do seu processo comercial. Arraste o card para mover o lead — o tempo na coluna reinicia e o histórico registra a mudança. Colunas podem ser criadas, renomeadas e reordenadas pelo Dono.' },
-  { id: 'roleta', q: 'Roleta de Atendimento', a: 'A roleta distribui leads novos na ordem da fila, pulando quem estiver indisponível. Embaralhar reordena a fila mantendo apenas os corretores ativos.' },
+  { id: 'roleta', q: 'Roleta de Atendimento', a: 'A roleta distribui leads novos pela fila. Com o aviso por WhatsApp ligado, a fila é fixa: um lead pra cada, na ordem da lista (1, 2, 3…), e volta pro começo; só quem está bloqueado é pulado. A tela marca quem é o PRÓXIMO e quem recebeu o último. Mudar a ordem ou tirar alguém não faz ninguém perder a vez. Sem o aviso por WhatsApp, o lead vai pro corretor em plantão que faz mais tempo sem receber. Embaralhar reordena a fila.' },
   { id: 'bolsao', q: 'Bolsão e Rebatidas', a: 'Leads sem corretor, descartados ou sem resposta caem no bolsão. Qualquer corretor pode puxar rebatidas dentro do limite definido pelo gerente.' },
   { id: 'followup', q: 'Follow-up Automático', a: 'Sequências de mensagens com atraso configurável e variáveis. Se o lead responde, a sequência pausa automaticamente.' },
   { id: 'credito', q: 'Análise de Crédito', a: 'Pastas enviadas ao banco aparecem com status. Pendências devolvidas geram alerta no topo do módulo e tarefa para o corretor responsável.' },

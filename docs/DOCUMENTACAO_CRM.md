@@ -133,8 +133,19 @@ crm-formulario-meta/
 - **`escolherRoleta(imobId, { canal, finalidade, sessaoWhatsappId })`**: entre as roletas ativas,
   filtra por número (tem que bater), canal e finalidade; pontua a especificidade (número 4 / canal 2 /
   finalidade 1); a de maior pontuação vence, empate pela `ordem`. Nada casa → roleta `padrao`.
-- **`distribuirLead`**: escolhe a roleta, pega o próximo membro **daquela roleta** que está
-  `emPlantao=true`, grava em `distribuicao_log` (origem `roleta` + `roletaId`).
+- **`distribuirLead`**: escolhe a roleta e grava em `distribuicao_log` (origem `roleta` + `roletaId`).
+  O corretor depende do modo da imobiliária:
+  - **Normal:** membro **daquela roleta** com `emPlantao=true` que faz mais tempo sem receber
+    (`filas_atendimento.ultima_atribuicao asc nulls first`, desempate pela posição).
+  - **Aviso por WhatsApp ligado (`notificar_corretor_whatsapp`) = fila fixa** (desde 2026-09-30):
+    `roletas.ultimo_corretor_id` guarda quem recebeu por último; o próximo é quem vem depois dele
+    na ordem (`posicao`), dando a volta no fim e pulando só `bloqueado` (plantão ignorado).
+    `proximoDaFilaFixa()` + `atribuirPelaFilaFixa()` (transação com `FOR UPDATE` na roleta, pra leads
+    simultâneos não caírem no mesmo corretor). Sem `ultimo_corretor_id`, parte de quem tem a
+    `ultima_atribuicao` mais recente. Ao tirar da roleta quem recebeu por último
+    (`PUT /roletas/:id/membros`), o "último" passa pro membro anterior — ninguém é pulado.
+    `PATCH /roletas/:id {ultimoCorretorId}` ajusta à mão (tem que ser membro). A tela mostra
+    PRÓXIMO/"recebeu o último" com a mesma conta e esconde "fora".
 - **`POST /api/leads` NÃO distribui automaticamente** — por decisão: o gerente decide. Distribuição
   automática só ocorre via `POST /api/filas/distribuir` (leads pendentes) ou quando um corretor entra
   em plantão. `PATCH /api/leads/:id {corretorId}` é atribuição manual (permitida a dono/gerente).
