@@ -219,6 +219,9 @@ export const roletas = pgTable('roletas', {
   finalidade: roletaFinalidadeEnum('finalidade').notNull().default('ambos'),
   // Se setado, essa roleta só pega leads que entraram por ESSE número de WhatsApp.
   sessaoWhatsappId: uuid('sessao_whatsapp_id').references(() => sessoesWhatsapp.id, { onDelete: 'set null' }),
+  // Fila fixa (modo "avisar corretor por WhatsApp"): quem recebeu o último lead desta roleta.
+  // O próximo é quem vem depois dele na ordem (posição), dando a volta no fim da lista.
+  ultimoCorretorId: uuid('ultimo_corretor_id').references(() => perfis.id, { onDelete: 'set null' }),
   criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
 }, table => ({
   imobIdx: index('roletas_imobiliaria_id_idx').on(table.imobiliariaId),

@@ -28,6 +28,8 @@ export default function Roleta() {
   const toggleMeuPlantao = useAppStore(s => s.toggleMeuPlantao);
   const ask = useAppStore(s => s.ask);
   const { isManager, meNome } = useRoleInfo();
+  // Aviso por WhatsApp ligado = fila fixa (1, 2, 3… e volta), sem plantão.
+  const filaFixa = useAppStore(s => s.notificarCorretorWhatsapp);
   const me = useAppStore(s => s.me);
 
   const [novaRoleta, setNovaRoleta] = useState('');
@@ -52,7 +54,9 @@ export default function Roleta() {
           <h1 style={{ fontFamily: 'Newsreader,serif', fontWeight: 400, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Roletas de Atendimento</h1>
           <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '5px 0 0', maxWidth: 620 }}>
             Cada roleta é uma equipe. O lead entra na roleta que casa as regras (canal + finalidade + número de WhatsApp);
-            se não casar nenhuma, cai na roleta padrão. Dentro dela, vai pro corretor em plantão que faz mais tempo sem receber.
+            se não casar nenhuma, cai na roleta padrão. {filaFixa
+              ? 'Dentro dela, a fila é fixa: um lead pra cada, na ordem da lista (1, 2, 3…), e volta pro começo. Só quem está bloqueado é pulado.'
+              : 'Dentro dela, vai pro corretor em plantão que faz mais tempo sem receber.'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -91,7 +95,7 @@ export default function Roleta() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14, alignItems: 'start' }}>
         {minhas.map(r => (
           <RoletaCard
-            key={r.id} roleta={r} isManager={isManager} meNome={meNome} corretores={corretores}
+            key={r.id} roleta={r} isManager={isManager} meNome={meNome} corretores={corretores} filaFixa={filaFixa}
             sessoes={sessoes} nomeSessao={nomeSessao}
             onPatch={p => atualizarRoleta(r.id, p)}
             onDelete={() => ask('Excluir a roleta "' + r.nome + '"?', 'Os corretores saem dela. Leads que iam pra essa roleta passam a cair na padrão.', 'Excluir', () => excluirRoleta(r.id))}
@@ -104,8 +108,8 @@ export default function Roleta() {
   );
 }
 
-function RoletaCard({ roleta, isManager, meNome, corretores, sessoes, nomeSessao, onPatch, onDelete, onMembros }: {
-  roleta: RemoteRoleta; isManager: boolean; meNome: string;
+function RoletaCard({ roleta, isManager, meNome, corretores, filaFixa, sessoes, nomeSessao, onPatch, onDelete, onMembros }: {
+  roleta: RemoteRoleta; isManager: boolean; meNome: string; filaFixa: boolean;
   corretores: { id: string; nome: string }[];
   sessoes: { id: string; rotulo?: string | null; numero: string | null; escopo: string }[];
   nomeSessao: (id: string | null) => string | null;
@@ -115,7 +119,12 @@ function RoletaCard({ roleta, isManager, meNome, corretores, sessoes, nomeSessao
 }) {
   const [expand, setExpand] = useState(false);
   const membros = [...roleta.membros].sort((a, b) => a.posicao - b.posicao);
-  const proximoIdx = membros.findIndex(m => m.emPlantao && !m.bloqueado);
+  // Fila fixa: o próximo é quem vem depois de quem recebeu por último (mesma conta do servidor).
+  const ultimoIdx = filaFixa ? membros.findIndex(m => m.corretorId === roleta.ultimoCorretorId) : -1;
+  const proximoIdx = filaFixa
+    ? (() => { for (let k = 1; k <= membros.length; k++) { const j = (ultimoIdx + k) % membros.length; if (!membros[j].bloqueado) return j; } return -1; })()
+    : membros.findIndex(m => m.emPlantao && !m.bloqueado);
+  const ativo = (m: { emPlantao: boolean; bloqueado: boolean }) => (filaFixa ? !m.bloqueado : m.emPlantao);
   const naoMembros = corretores.filter(c => !membros.some(m => m.corretorId === c.id));
 
   const mover = (i: number, dir: -1 | 1) => {
@@ -197,12 +206,15 @@ function RoletaCard({ roleta, isManager, meNome, corretores, sessoes, nomeSessao
 
       <div style={{ padding: '8px 8px 10px' }}>
         {membros.map((m, i) => (
-          <div key={m.corretorId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius: 8, opacity: m.emPlantao ? 1 : 0.5, background: m.nome === meNome ? 'var(--bg)' : 'transparent' }}>
+          <div key={m.corretorId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius: 8, opacity: ativo(m) ? 1 : 0.5, background: m.nome === meNome ? 'var(--bg)' : 'transparent' }}>
             <span style={{ fontFamily: 'Newsreader,serif', fontSize: 15, width: 18, color: 'var(--muted)' }}>{i + 1}</span>
             <span style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--terraSoft)', color: 'var(--terra)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, fontWeight: 700, flex: 'none' }}>{ini(m.nome)}</span>
             <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.nome}</span>
             {i === proximoIdx && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--terra)', background: 'var(--terraSoft)', padding: '3px 7px', borderRadius: 20 }}>próximo</span>}
-            {!m.emPlantao && <span style={{ fontSize: 10.5, color: 'var(--muted)' }}>fora</span>}
+            {i === ultimoIdx && i !== proximoIdx && <span style={{ fontSize: 10.5, color: 'var(--muted)' }}>recebeu o último</span>}
+            {filaFixa
+              ? m.bloqueado && <span style={{ fontSize: 10.5, color: 'var(--muted)' }}>bloqueado</span>
+              : !m.emPlantao && <span style={{ fontSize: 10.5, color: 'var(--muted)' }}>fora</span>}
             {isManager && (
               <>
                 <button onClick={() => mover(i, -1)} disabled={i === 0} style={{ border: 'none', background: 'none', color: 'var(--muted)', opacity: i === 0 ? 0.3 : 1 }}><ArrowUp size={13} /></button>

@@ -32,6 +32,8 @@ export function roletasRouter(io: SocketServer) {
 
     res.json(lista.map(r => ({
       ...r,
+      ultimoCorretorId: r.ultimoCorretorId ?? membros.filter(m => m.roletaId === r.id && m.ultimaAtribuicao)
+        .sort((a, b) => b.ultimaAtribuicao!.getTime() - a.ultimaAtribuicao!.getTime())[0]?.corretorId ?? null,
       membros: membros.filter(m => m.roletaId === r.id).map(m => ({
         corretorId: m.corretorId, nome: m.nome, posicao: m.posicao, emPlantao: m.emPlantao, bloqueado: m.bloqueado,
       })),
@@ -57,6 +59,8 @@ export function roletasRouter(io: SocketServer) {
     canais: z.array(z.enum(CANAIS)).optional(),
     finalidade: z.enum(['venda', 'locacao', 'ambos']).optional(),
     sessaoWhatsappId: z.string().uuid().nullable().optional(),
+    // fila fixa: quem recebeu por último (o próximo lead vai pra quem vem depois dele)
+    ultimoCorretorId: z.string().uuid().nullable().optional(),
   });
 
   router.patch('/:id', async (req, res) => {
@@ -71,6 +75,11 @@ export function roletasRouter(io: SocketServer) {
       const [s] = await db.select({ id: sessoesWhatsapp.id }).from(sessoesWhatsapp)
         .where(and(eq(sessoesWhatsapp.id, parsed.data.sessaoWhatsappId), eq(sessoesWhatsapp.imobiliariaId, imobiliariaId))).limit(1);
       if (!s) return res.status(400).json({ error: 'Número de WhatsApp inválido' });
+    }
+    if (parsed.data.ultimoCorretorId) {
+      const [m] = await db.select({ id: filasAtendimento.id }).from(filasAtendimento)
+        .where(and(eq(filasAtendimento.roletaId, alvo.id), eq(filasAtendimento.corretorId, parsed.data.ultimoCorretorId))).limit(1);
+      if (!m) return res.status(400).json({ error: 'Esse corretor não está nesta roleta' });
     }
     // só uma roleta padrão por imobiliária
     if (parsed.data.padrao) {
@@ -112,6 +121,15 @@ export function roletasRouter(io: SocketServer) {
     const atuais = await db.select().from(filasAtendimento).where(eq(filasAtendimento.roletaId, alvo.id));
     const atuaisPorId = new Map(atuais.map(m => [m.corretorId, m]));
 
+    // Fila fixa: se quem recebeu por último saiu da roleta, a vez passa a contar de quem vinha
+    // antes dele (que continua) — assim o próximo segue sendo quem vinha depois dele.
+    if (alvo.ultimoCorretorId && !ordenados.includes(alvo.ultimoCorretorId)) {
+      const antes = [...atuais].sort((a, b) => a.posicao - b.posicao).map(m => m.corretorId);
+      const i = antes.indexOf(alvo.ultimoCorretorId);
+      const anterior = [...antes.slice(0, Math.max(i, 0))].reverse().find(id => ordenados.includes(id))
+        ?? ordenados[ordenados.length - 1] ?? null;
+      await db.update(roletas).set({ ultimoCorretorId: anterior }).where(eq(roletas.id, alvo.id));
+    }
     // remove quem saiu
     for (const m of atuais) {
       if (!ordenados.includes(m.corretorId)) await db.delete(filasAtendimento).where(eq(filasAtendimento.id, m.id));
