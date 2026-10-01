@@ -78,6 +78,27 @@ authRouter.get('/me', requireAuth, async (req, res) => {
   res.json({ id: perfil.id, nome: perfil.nome, email: perfil.email, role: perfil.role, emPlantao: perfil.emPlantao, telefone: perfil.telefone });
 });
 
+// Ajustes → Perfil: a própria pessoa edita nome, e-mail (é o login) e telefone.
+const meSchema = z.object({
+  nome: z.string().trim().min(2, 'Informe seu nome').max(100),
+  email: z.string().trim().toLowerCase().email('E-mail inválido'),
+  telefone: z.string().trim().max(30).nullable().optional(),
+});
+
+authRouter.patch('/me', requireAuth, async (req, res) => {
+  const parsed = meSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dados inválidos' });
+  const { nome, email } = parsed.data;
+  const [outro] = await db.select({ id: perfis.id }).from(perfis).where(eq(perfis.email, email)).limit(1);
+  if (outro && outro.id !== req.auth!.sub) return res.status(409).json({ error: 'Esse e-mail já é usado por outra pessoa' });
+  const [perfil] = await db.update(perfis).set({ nome, email, telefone: parsed.data.telefone || null })
+    .where(eq(perfis.id, req.auth!.sub)).returning();
+  if (!perfil) return res.status(404).json({ error: 'Perfil não encontrado' });
+  // o nome vai dentro do token — devolve um novo pra ele já valer
+  const token = signToken({ sub: perfil.id, imobiliariaId: perfil.imobiliariaId, role: perfil.role, nome: perfil.nome });
+  res.json({ token, perfil: { id: perfil.id, nome: perfil.nome, email: perfil.email, role: perfil.role, emPlantao: perfil.emPlantao, telefone: perfil.telefone } });
+});
+
 const senhaSchema = z.object({
   senhaAtual: z.string().min(1),
   senhaNova: z.string().min(6),

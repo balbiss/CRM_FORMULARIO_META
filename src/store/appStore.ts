@@ -352,7 +352,7 @@ interface AppState {
   fetchNotificacoes: () => void;
   marcarNotifLida: (id: string) => void;
   marcarTodasNotifsLidas: () => void;
-  savePerfil: () => void;
+  savePerfil: (input: { nome: string; email: string; telefone: string }) => Promise<boolean>;
   invite: () => void;
   exportCsv: () => void;
   addColumn: () => void;
@@ -1752,7 +1752,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     set(s => ({ notificacoes: s.notificacoes.map(n => ({ ...n, lida: true })) }));
     apiFetch('/api/notificacoes/marcar-todas', token, { method: 'PATCH' }).catch(() => {});
   },
-  savePerfil: () => get().toast('Perfil atualizado'),
+  savePerfil: async input => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const data = await apiFetch<{ token: string; perfil: AuthUser }>('/api/auth/me', token, { method: 'PATCH', body: JSON.stringify(input) });
+      localStorage.setItem('nova_token', data.token);
+      set({ token: data.token, me: data.perfil });
+      get().toast('Perfil atualizado');
+      get().fetchKanbanData(); // nome novo aparece nos leads/equipe
+      return true;
+    } catch (e) {
+      get().toast((e as ApiError).message || 'Não foi possível salvar o perfil');
+      return false;
+    }
+  },
   invite: () => get().toast('Convite enviado por e-mail'),
   exportCsv: () => get().toast('Relatório exportado — relatorio-nova-set-2026.csv'),
   addColumn: () => get().toast('Use o botão "Nova coluna" no Kanban'),

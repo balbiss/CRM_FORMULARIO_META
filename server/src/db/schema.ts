@@ -60,6 +60,9 @@ export const imobiliarias = pgTable('imobiliarias', {
   // Quantas rebatidas cada corretor pode puxar do bolsão por dia (0 = ilimitado).
   limiteRebatidasDia: integer('limite_rebatidas_dia').notNull().default(5),
   observacoes: text('observacoes'),
+  // Dados cadastrais que a própria imobiliária edita em Ajustes → Imobiliária.
+  cnpj: text('cnpj'),
+  endereco: text('endereco'),
   // Token do webhook de captação de site/landing page (formulário Lovable etc.) — por imobiliária.
   capturaToken: text('captura_token').unique(),
 

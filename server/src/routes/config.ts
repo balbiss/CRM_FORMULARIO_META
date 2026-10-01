@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { and, eq, gte, ne, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { imobiliarias, HORARIO_ATENDIMENTO_PADRAO } from '../db/schema.js';
+import { imobiliarias, perfis, leads, sessoesWhatsapp, HORARIO_ATENDIMENTO_PADRAO } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import type { Server as SocketServer } from 'socket.io';
 
@@ -78,6 +78,41 @@ configRouter.put('/rebatidas', requireRole('dono', 'gerente'), async (req, res) 
   await db.update(imobiliarias).set({ limiteRebatidasDia: parsed.data.limiteRebatidasDia }).where(eq(imobiliarias.id, req.auth!.imobiliariaId));
   io.to('imobiliaria:' + req.auth!.imobiliariaId).emit('config:rebatidas', { limiteRebatidasDia: parsed.data.limiteRebatidasDia });
   res.json({ limiteRebatidasDia: parsed.data.limiteRebatidasDia });
+});
+
+// Dados da imobiliária (Ajustes → Imobiliária). Todo mundo lê; só Dono/Gerente altera.
+configRouter.get('/imobiliaria', async (req, res) => {
+  const [imob] = await db.select({ nome: imobiliarias.nome, cnpj: imobiliarias.cnpj, endereco: imobiliarias.endereco })
+    .from(imobiliarias).where(eq(imobiliarias.id, req.auth!.imobiliariaId)).limit(1);
+  res.json(imob ?? { nome: '', cnpj: null, endereco: null });
+});
+
+configRouter.put('/imobiliaria', requireRole('dono', 'gerente'), async (req, res) => {
+  const parsed = z.object({
+    nome: z.string().trim().min(2, 'Informe o nome da imobiliária').max(120),
+    cnpj: z.string().trim().max(30).nullable().optional(),
+    endereco: z.string().trim().max(250).nullable().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dados inválidos' });
+  const dados = { nome: parsed.data.nome, cnpj: parsed.data.cnpj || null, endereco: parsed.data.endereco || null };
+  await db.update(imobiliarias).set(dados).where(eq(imobiliarias.id, req.auth!.imobiliariaId));
+  res.json(dados);
+});
+
+// Uso real (Ajustes → Uso): corretores ativos x limite do plano, leads do mês, números conectados.
+configRouter.get('/uso', requireRole('dono', 'gerente'), async (req, res) => {
+  const imobId = req.auth!.imobiliariaId;
+  const inicioMes = new Date(); inicioMes.setDate(1); inicioMes.setHours(0, 0, 0, 0);
+  const [imob] = await db.select({ limite: imobiliarias.limiteCorretores }).from(imobiliarias).where(eq(imobiliarias.id, imobId)).limit(1);
+  const [{ corretores }] = await db.select({ corretores: sql<number>`count(*)::int` }).from(perfis)
+    .where(and(eq(perfis.imobiliariaId, imobId), eq(perfis.role, 'corretor'), eq(perfis.bloqueado, false)));
+  const [{ leadsMes }] = await db.select({ leadsMes: sql<number>`count(*)::int` }).from(leads)
+    .where(and(eq(leads.imobiliariaId, imobId), gte(leads.criadoEm, inicioMes)));
+  const [{ numeros }] = await db.select({ numeros: sql<number>`count(*)::int` }).from(sessoesWhatsapp)
+    .where(and(eq(sessoesWhatsapp.imobiliariaId, imobId), eq(sessoesWhatsapp.status, 'conectada')));
+  const [{ equipe }] = await db.select({ equipe: sql<number>`count(*)::int` }).from(perfis)
+    .where(and(eq(perfis.imobiliariaId, imobId), ne(perfis.role, 'corretor'), eq(perfis.bloqueado, false)));
+  res.json({ corretoresAtivos: corretores, limiteCorretores: imob?.limite ?? 0, gestores: equipe, leadsMes, numerosConectados: numeros });
 });
 
   return configRouter;
